@@ -650,8 +650,11 @@ a pilot that completes meaningful creator outreach.
 - [Bounty local proof dossier](docs/proof/delivery-path-dry-run.md)
 - [Marketing surface](docs/MARKETING-SURFACE.md)
 - [Project status MMDX](diagrams/inschneidergram-project-status.mmdx) -
-  repo-local source of truth; public Buildooor short link is tracked by
-  `inschneidergram-j8b.7` until the first browser save mints a slug.
+  repo-local source of truth. Run `npm run status:mmdx:preflight` and
+  `npm run status:mmdx:dry-run` to validate the current stack and app-link
+  payload. The public Buildooor short link remains tracked by
+  `inschneidergram-j8b.7` until Buildooor SPAPS auth is refreshed and
+  `npm run status:mmdx:publish` live-verifies the link.
 
 ## About Contributions
 

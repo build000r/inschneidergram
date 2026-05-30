@@ -266,18 +266,22 @@ authorization.
 - Renewal is blocked to `iterate` when sender warnings, delivery failures, or
   webhook dead letters exist.
 - The project-status MMDX stack parses successfully with 10 charts.
+- The repo now has token-safe `status:mmdx:*` npm scripts for preflight,
+  dry-run payload inspection, Buildooor MMDX listing, SPAPS login, and publish.
 
 ## What This Does Not Prove
 
 - No live Instagram DM was sent.
 - No Graphed creator list was contacted.
 - No real provider/account operation has been verified.
-- No public Buildooor MMDX short link has been minted yet.
+- No public Buildooor MMDX short link has been live-verified yet; the current
+  local Buildooor credential returns `401 Invalid or expired access token`.
 - No official Meta cold-DM compliance claim is made.
 
 ## Next Required Evidence
 
-- authenticated first save of the Buildooor MMDX stack to mint the public slug
+- refreshed Buildooor SPAPS auth through `npm run status:mmdx:login`
+- live-verified publish through `npm run status:mmdx:publish`
 - one low-volume real test handoff through the selected manual/provider path
 - private sender/provider credentials or operator-owned account setup
 - vetted Graphed creator list and explicit launch authorization

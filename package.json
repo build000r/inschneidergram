@@ -12,6 +12,11 @@
     "demo:pilot": "tsx scripts/pilot-demo.ts",
     "presmoke:service": "npm run build",
     "smoke:service": "tsx scripts/service-smoke.ts",
+    "status:mmdx:dry-run": "bash scripts/publish-status-mmdx.sh dry-run",
+    "status:mmdx:list": "bash scripts/publish-status-mmdx.sh list",
+    "status:mmdx:login": "bash scripts/publish-status-mmdx.sh login",
+    "status:mmdx:preflight": "bash scripts/publish-status-mmdx.sh preflight",
+    "status:mmdx:publish": "bash scripts/publish-status-mmdx.sh publish",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
