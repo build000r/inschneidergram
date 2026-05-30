@@ -81,6 +81,9 @@ The current implementation covers:
   pilots
 - pilot launch readiness report that turns campaign, approval, sender,
   execution, and proof state into pass/fail/warn gates plus next actions
+- latest proof export route that returns the most recent proof pack, readiness,
+  metrics, renewal recommendation, source URLs, and Markdown from one
+  campaign-level API call
 - readiness and execution recheck current stored sender health for campaigns
   created from managed inventory
 - hardened OpenAPI contract for the no-credential pilot path, including path
@@ -140,9 +143,11 @@ The current implementation covers:
     targets.
 24. Executions cannot create proof records while approval readiness gates still
     fail.
-25. The built service can be smoke-tested through real HTTP with an isolated
+25. Buyers/operators can export the latest proof pack and readiness context
+    without knowing which execution id to inspect.
+26. The built service can be smoke-tested through real HTTP with an isolated
     JSON store.
-26. Tests prove the API contract and domain rules.
+27. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -206,6 +211,11 @@ for later inspection. Manual execution records can be updated through
 operator evidence into campaign events, webhook records, and refreshed proof
 metrics.
 
+`GET /campaigns/:id/proof-pack` is the buyer-facing proof export. It selects the
+latest execution, attaches readiness and source URLs, and returns metrics,
+renewal recommendation, and the Markdown report without requiring the caller to
+discover an execution id first.
+
 The refreshed proof pack keeps campaign ingest/policy blocks separate from
 operator skipped and operator blocked targets captured in the approval
 workbench.
@@ -239,6 +249,10 @@ recommendation from a sample fixture.
 It now reports explicit operator skipped/blocked targets from workbench
 evidence without conflating those with campaign policy blocks or approval
 rejections.
+
+The API now exports the latest stored proof pack at campaign level for buyer or
+operator review. A live pilot still needs real provider/account inputs before
+that export can be treated as live Instagram evidence.
 
 ## Validation Commands
 

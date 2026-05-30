@@ -89,12 +89,17 @@ checks the JSON store, `npm run smoke:service` starts the compiled API and runs
 the approval-to-provider-execution flow through real HTTP, and the repo includes
 Docker packaging for a `/data/campaigns.json` runtime store.
 
+The proof-export ergonomics slice now exists at `GET /campaigns/:id/proof-pack`:
+buyers/operators can retrieve the latest execution proof pack, readiness
+context, source URLs, metrics, renewal recommendation, and Markdown from one
+campaign-level API call.
+
 The next build work should stay in this repo but move closer to pilot
-operations: proof export ergonomics, operator-facing status views, and the
-adapter implementation for whichever real provider/account operation the pilot
-uses. A real Instagram delivery provider remains an external operations
-integration behind this repo's adapter contract, not a reason to adopt an
-unofficial private-API library directly into the core product.
+operations: operator-facing status views and the adapter implementation for
+whichever real provider/account operation the pilot uses. A real Instagram
+delivery provider remains an external operations integration behind this repo's
+adapter contract, not a reason to adopt an unofficial private-API library
+directly into the core product.
 
 ## Source Notes
 

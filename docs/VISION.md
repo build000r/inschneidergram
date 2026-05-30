@@ -96,7 +96,9 @@ contract for provider-reported outcomes. Execution now enforces readiness
 approval gates before proof records are created. The service path is also
 operator-testable: startup config is validated, `/health` checks the JSON
 store, `npm run smoke:service` drives the compiled API through real HTTP, and a
-Dockerfile packages the runtime store at `/data/campaigns.json`.
+Dockerfile packages the runtime store at `/data/campaigns.json`. Buyers and
+operators can fetch `GET /campaigns/:id/proof-pack` to review the latest
+readiness-linked proof pack without knowing the internal execution id.
 
 It is not yet bounty-complete because verified provider/account operations, a
 vetted Graphed creator list, explicit permission to run outreach, and live

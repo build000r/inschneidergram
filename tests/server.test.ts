@@ -1305,6 +1305,172 @@ describe("API", () => {
       }
     });
 
+    const proofExport = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/proof-pack`
+    });
+    expect(proofExport.statusCode).toBe(200);
+    expect(proofExport.json()).toMatchObject({
+      campaignId,
+      campaignName: "managed-provider-pilot",
+      campaignStatus: "running",
+      status: "running",
+      readiness: {
+        status: "evidence_ready",
+        readyForEvidenceReview: true
+      },
+      latestExecution: {
+        id: executionResponse.json().executionId,
+        adapterRiskPosture: {
+          kind: "managed_provider"
+        },
+        intentCount: 3,
+        deliveryAttemptCount: 3,
+        webhookDeliveryCount: 4
+      },
+      metrics: {
+        contactedTargets: 2,
+        interestedReplies: 1
+      },
+      renewalRecommendation: {
+        decision: "renew"
+      },
+      source: {
+        readinessUrl: `/campaigns/${campaignId}/readiness`,
+        executionUrl: `/campaigns/${campaignId}/executions/${executionResponse.json().executionId}`,
+        executionsUrl: `/campaigns/${campaignId}/executions`
+      }
+    });
+    expect(proofExport.json().markdown).toContain("Decision: renew");
+
+    await app.close();
+  });
+
+  it("exports the newest proof pack when a campaign has multiple executions", async () => {
+    const app = await buildServer({ webhookSecret: "latest-proof-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@latest_one", "@latest_two"],
+        message: "Open to an affiliate pilot?",
+        campaign: "latest-proof-pilot",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        approvals: {
+          approvedTargets: ["@latest_one"],
+          actor: "first-pass"
+        },
+        adapter: {
+          kind: "mock",
+          replyTargets: []
+        }
+      }
+    });
+
+    const latestExecution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        approvals: {
+          approvedTargets: ["@latest_two"],
+          actor: "second-pass"
+        },
+        adapter: {
+          kind: "mock",
+          replyTargets: ["@latest_two"]
+        },
+        replyAssessments: [
+          {
+            targetHandle: "@latest_two",
+            disposition: "interested",
+            qualified: true,
+            replyText: "Interested - send details"
+          }
+        ]
+      }
+    });
+
+    const proofExport = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/proof-pack`
+    });
+    expect(proofExport.statusCode).toBe(200);
+    expect(proofExport.json()).toMatchObject({
+      latestExecution: {
+        id: latestExecution.json().executionId,
+        intentCount: 1,
+        deliveryAttemptCount: 1
+      },
+      metrics: {
+        interestedReplies: 1
+      },
+      renewalRecommendation: {
+        decision: "renew"
+      }
+    });
+
+    await app.close();
+  });
+
+  it("returns readiness context when latest proof export is not available yet", async () => {
+    const app = await buildServer();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@proof_waiting_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "proof-export-empty",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const proofExport = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/proof-pack`
+    });
+    expect(proofExport.statusCode).toBe(404);
+    expect(proofExport.json()).toMatchObject({
+      error: "proof_pack_not_found",
+      campaignId,
+      readiness: {
+        status: "needs_approval",
+        readyForExecution: false,
+        counts: {
+          executions: 0
+        }
+      }
+    });
+
     await app.close();
   });
 
@@ -2063,6 +2229,35 @@ describe("API", () => {
       }
     });
 
+    const proofExport = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/proof-pack`
+    });
+    expect(proofExport.statusCode).toBe(200);
+    expect(proofExport.json()).toMatchObject({
+      campaignId,
+      campaignStatus: "completed",
+      readiness: {
+        status: "evidence_ready",
+        readyForEvidenceReview: true
+      },
+      latestExecution: {
+        id: executionId,
+        adapterRiskPosture: {
+          kind: "manual"
+        }
+      },
+      metrics: {
+        contactedTargets: 1,
+        interestedReplies: 1,
+        webhookDelivered: 2
+      },
+      renewalRecommendation: {
+        decision: "renew"
+      }
+    });
+    expect(proofExport.json().markdown).toContain("Decision: renew");
+
     await app.close();
   });
 
@@ -2123,6 +2318,14 @@ describe("API", () => {
     });
     expect(openapi.paths["/campaigns/{id}/readiness"].get).toMatchObject({
       summary: "Get pilot launch readiness gates"
+    });
+    expect(openapi.paths["/campaigns/{id}/proof-pack"].get).toMatchObject({
+      summary: "Export the latest campaign proof pack and readiness context",
+      responses: {
+        "404": {
+          description: "Campaign or proof pack not found"
+        }
+      }
     });
     expect(openapi.paths["/campaigns/{id}/executions"].get).toMatchObject({
       summary: "List persisted execution proof records for a campaign"

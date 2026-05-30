@@ -148,16 +148,29 @@ async function main(): Promise<void> {
         }
       }
     );
-    const finalReadiness = await fetchJson<ReadinessResponse>(
-      baseUrl,
-      `/campaigns/${campaign.campaignId}/readiness`
+  const finalReadiness = await fetchJson<ReadinessResponse>(
+    baseUrl,
+    `/campaigns/${campaign.campaignId}/readiness`
+  );
+  if (finalReadiness.status !== "evidence_ready") {
+    throw new Error(`Expected evidence_ready after execution, got ${finalReadiness.status}`);
+  }
+  const proofExport = await fetchJson<{
+    latestExecution: { id: string };
+    metrics: { contactedTargets: number; sentMessages: number };
+    readiness: { status: string };
+  }>(baseUrl, `/campaigns/${campaign.campaignId}/proof-pack`);
+  if (proofExport.latestExecution.id !== execution.executionId) {
+    throw new Error(
+      `Expected proof export to use ${execution.executionId}, got ${proofExport.latestExecution.id}`
     );
-    if (finalReadiness.status !== "evidence_ready") {
-      throw new Error(`Expected evidence_ready after execution, got ${finalReadiness.status}`);
-    }
+  }
+  if (proofExport.readiness.status !== "evidence_ready") {
+    throw new Error(`Expected proof export readiness evidence_ready, got ${proofExport.readiness.status}`);
+  }
 
-    console.log(
-      JSON.stringify(
+  console.log(
+    JSON.stringify(
         {
           health,
           openApiPathCount: Object.keys(openapi.paths).length,
@@ -165,6 +178,7 @@ async function main(): Promise<void> {
           executionId: execution.executionId,
           contactedTargets: execution.proofPack.metrics.contactedTargets,
           sentMessages: execution.proofPack.metrics.sentMessages,
+          proofExportContactedTargets: proofExport.metrics.contactedTargets,
           readiness: finalReadiness.status,
           storePath
         },

@@ -44,6 +44,7 @@ This repo currently contains the first API/control-plane slice:
 | Managed provider execution contract | Working MVP | `adapter.kind=managed_provider` accepts provider-reported outcomes |
 | Execution readiness enforcement | Working MVP | executions return 409 until approval/sender gates pass |
 | Managed service smoke path | Working MVP | `npm run smoke:service`, `/health` store check, Dockerfile |
+| Latest proof export | Working MVP | `GET /campaigns/:id/proof-pack` |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs verified delivery operations and live pilot evidence |
 
@@ -68,7 +69,8 @@ ports fail at startup instead of binding to an unintended port.
 `npm run smoke:service` starts the compiled `dist/index.js` process with an
 isolated JSON store, verifies `/health` and `/openapi.json`, registers a sender,
 creates and approves a campaign, runs a managed-provider contract execution,
-and confirms the campaign reaches `evidence_ready`.
+checks the latest proof export, and confirms the campaign reaches
+`evidence_ready`.
 
 `npm run demo:pilot` runs a deterministic local proof-pack demo with mock
 delivery, simulated signed webhook delivery records, and no live Instagram
@@ -200,6 +202,16 @@ The readiness report returns pass/fail/warn gates, next actions, and external
 inputs still needed before a live pilot, such as creator approval, approved
 copy, a healthy sender or provider, operator evidence, or permission to run the
 selected delivery path.
+
+Export the latest proof pack for review after an execution:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/proof-pack
+```
+
+The export returns the latest execution id, adapter risk posture, readiness,
+metrics, renewal recommendation, and the proof-pack Markdown so a buyer or
+operator can review the pilot result without walking raw execution records.
 
 Run a safe execution dry-run:
 
@@ -337,6 +349,11 @@ stored campaign, approval workbench, current managed sender health, and
 execution proof records. It is the fastest way to see whether the campaign is
 blocked, needs approval, is ready to execute, is waiting on manual evidence, or
 has proof ready for review.
+
+`GET /campaigns/:id/proof-pack` exports the latest proof record with readiness
+context, source URLs, metrics, renewal recommendation, and Markdown. It returns
+`404 proof_pack_not_found` when the campaign has not produced execution proof
+yet, including the current readiness report so the next action is still clear.
 
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It refuses to
 create proof records until readiness approval gates pass through a stored

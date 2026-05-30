@@ -205,6 +205,32 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     });
   });
 
+  app.get("/campaigns/:id/proof-pack", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    const report = await buildLatestProofPackReport(store, campaign);
+    if (!report) {
+      const campaignForReadiness = await withCurrentSenderInventorySnapshot(store, campaign);
+      return reply.code(404).send({
+        error: "proof_pack_not_found",
+        message: "No execution proof record exists for this campaign yet.",
+        campaignId: id,
+        readiness: buildPilotReadinessReport({
+          campaign: campaignForReadiness,
+          approvalWorkbench: await store.getApprovalWorkbench(id),
+          executions: []
+        })
+      });
+    }
+
+    return report;
+  });
+
   app.post("/campaigns/:id/events", async (request, reply) => {
     const { id } = request.params as { id: string };
     const campaign = await store.get(id);
@@ -791,6 +817,16 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           responses: {
             "200": { description: "Pilot readiness report returned" },
             "404": { description: "Campaign not found" }
+          }
+        }
+      },
+      "/campaigns/{id}/proof-pack": {
+        parameters: openApiPathParameters("id"),
+        get: {
+          summary: "Export the latest campaign proof pack and readiness context",
+          responses: {
+            "200": { description: "Latest proof pack report returned" },
+            "404": { description: "Campaign or proof pack not found" }
           }
         }
       },
@@ -1609,6 +1645,55 @@ class NotFoundError extends Error {}
 class ConflictError extends Error {}
 
 type ManualQueueStatus = "pending_initial_evidence" | "reply_monitoring" | "done";
+
+async function buildLatestProofPackReport(
+  store: CampaignStore,
+  campaign: Campaign
+) {
+  const executions = await store.listExecutions(campaign.id);
+  const latestExecution = [...executions].sort((left, right) =>
+    right.createdAt.localeCompare(left.createdAt)
+  )[0];
+  if (!latestExecution) {
+    return null;
+  }
+
+  const campaignForReadiness = await withCurrentSenderInventorySnapshot(store, campaign);
+  const readiness = buildPilotReadinessReport({
+    campaign: campaignForReadiness,
+    approvalWorkbench: await store.getApprovalWorkbench(campaign.id),
+    executions
+  });
+
+  return {
+    campaignId: campaign.id,
+    campaignName: campaign.campaign,
+    campaignStatus: campaignForReadiness.status,
+    status: campaignForReadiness.status,
+    summary: campaignForReadiness.summary,
+    senderHealth: campaignForReadiness.senderHealth,
+    readiness,
+    latestExecution: {
+      id: latestExecution.id,
+      createdAt: latestExecution.createdAt,
+      adapterRiskPosture: latestExecution.adapterRiskPosture,
+      intentCount: latestExecution.intents.length,
+      deliveryAttemptCount: latestExecution.deliveryAttempts.length,
+      webhookDeliveryCount: latestExecution.webhookDeliveries.length
+    },
+    proofPack: latestExecution.proofPack,
+    metrics: latestExecution.proofPack.metrics,
+    renewalRecommendation: latestExecution.proofPack.renewalRecommendation,
+    markdown: latestExecution.proofPack.markdown,
+    nextActions: readiness.nextActions,
+    externalInputs: readiness.externalInputs,
+    source: {
+      readinessUrl: `/campaigns/${campaign.id}/readiness`,
+      executionUrl: `/campaigns/${campaign.id}/executions/${latestExecution.id}`,
+      executionsUrl: `/campaigns/${campaign.id}/executions`
+    }
+  };
+}
 
 async function buildOperatorManualQueue(
   store: CampaignStore,

@@ -74,9 +74,10 @@ npm run smoke:service
 
 The smoke command starts `dist/index.js` on a temporary port with an isolated
 JSON store, checks `/health` and `/openapi.json`, creates a stored sender,
-approves a campaign, runs a provider-reported managed execution, and confirms
-the final readiness status is `evidence_ready`. It uses no real credentials and
-does not claim live Instagram delivery.
+approves a campaign, runs a provider-reported managed execution, checks
+`GET /campaigns/:id/proof-pack`, and confirms the final readiness status is
+`evidence_ready`. It uses no real credentials and does not claim live Instagram
+delivery.
 
 ## Pilot Flow
 
@@ -107,7 +108,10 @@ does not claim live Instagram delivery.
    `Idempotency-Key` for retry safety.
 11. Campaign events update status and outgoing webhooks notify Graphed.
 12. Execution proof record is persisted for audit replay.
-13. Proof-pack generator produces the renewal report with operator skipped and
+13. Operator or buyer fetches `GET /campaigns/:id/proof-pack` for the latest
+    proof export, readiness state, source URLs, metrics, renewal decision, and
+    Markdown report.
+14. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
 
 ## Readiness Gates
@@ -190,9 +194,10 @@ The local OpenAPI contract is available at `/openapi.json`. Use it as the
 operator contract for the credential-free pilot path: campaign creation,
 approval, readiness, sender inventory, manual-safe execution,
 provider-reported managed execution, operator manual queue, manual evidence,
-execution proof records, `/health`, and `/webhooks/preview`. Manual evidence
-schemas are event-specific, so sent, failed, restricted, and replied events
-list the required evidence fields separately.
+execution proof records, latest proof export, `/health`, and
+`/webhooks/preview`. Manual evidence schemas are event-specific, so sent,
+failed, restricted, and replied events list the required evidence fields
+separately.
 
 For a repeatable local proof-pack demo, run:
 
