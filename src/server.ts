@@ -1,5 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
+import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -346,11 +348,20 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     try {
       const event = targetEventSchema.parse(request.body ?? {});
       const result = await recordProviderEventAndRefreshProof(store, campaign, event);
-      const updated = result.campaign;
+      let updated = result.campaign;
       const webhookTarget = result.webhookTarget;
       const webhookDelivery = webhookTarget
         ? await dispatchTargetWebhook(runtimeWebhookDispatcher, updated, webhookTarget)
         : null;
+      if (webhookDelivery && result.execution) {
+        updated =
+          (await appendWebhookDeliveryToLatestExecutionProof(
+            store,
+            updated,
+            result.execution.id,
+            webhookDelivery
+          )) ?? updated;
+      }
       return {
         campaignId: updated.id,
         status: updated.status,
@@ -1519,9 +1530,10 @@ function guardedWebhookSender(
   sender: OutgoingWebhookSender
 ): OutgoingWebhookSender {
   return async (request) => {
+    let resolvedAddresses: WebhookDnsAddress[] | undefined;
     try {
       const url = assertWebhookUrlAllowed(request.url, policy);
-      await assertWebhookDnsAllowed(url, policy);
+      resolvedAddresses = await assertWebhookDnsAllowed(url, policy);
     } catch (error) {
       if (error instanceof WebhookDestinationPolicyError) {
         return {
@@ -1536,7 +1548,7 @@ function guardedWebhookSender(
       throw error;
     }
 
-    return sender(request);
+    return sender(resolvedAddresses ? { ...request, resolvedAddresses } : request);
   };
 }
 
@@ -1555,6 +1567,10 @@ async function lookupWebhookHostname(hostname: string): Promise<WebhookDnsAddres
 async function sendOutgoingWebhook(
   request: OutgoingWebhookRequest
 ): Promise<OutgoingWebhookSenderResult> {
+  if (request.resolvedAddresses?.length) {
+    return sendOutgoingWebhookWithPinnedDns(request);
+  }
+
   const response = await fetch(request.url, {
     method: "POST",
     headers: request.headers,
@@ -1565,6 +1581,84 @@ async function sendOutgoingWebhook(
   return {
     statusCode: response.status,
     body
+  };
+}
+
+function sendOutgoingWebhookWithPinnedDns(
+  request: OutgoingWebhookRequest
+): Promise<OutgoingWebhookSenderResult> {
+  const url = new URL(request.url);
+  const resolvedAddresses = request.resolvedAddresses ?? [];
+  return new Promise((resolve, reject) => {
+    const outgoing = httpsRequest(
+      url,
+      {
+        method: "POST",
+        headers: request.headers,
+        timeout: 10_000,
+        lookup: pinnedWebhookLookup(resolvedAddresses)
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => {
+          chunks.push(chunk);
+        });
+        response.on("end", () => {
+          resolve({
+            statusCode: response.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString("utf8")
+          });
+        });
+      }
+    );
+
+    outgoing.on("timeout", () => {
+      outgoing.destroy(new Error("Webhook request timed out"));
+    });
+    outgoing.on("error", reject);
+    outgoing.end(JSON.stringify(request.payload));
+  });
+}
+
+function pinnedWebhookLookup(
+  resolvedAddresses: WebhookDnsAddress[]
+): NonNullable<import("node:https").RequestOptions["lookup"]> {
+  return (_hostname, options, callback) => {
+    const lookupOptions = typeof options === "object" ? options : {};
+    const requestedFamily =
+      lookupOptions.family === 4 || lookupOptions.family === 6
+        ? lookupOptions.family
+        : undefined;
+    const eligibleAddresses = requestedFamily
+      ? resolvedAddresses.filter((address) => address.family === requestedFamily)
+      : resolvedAddresses;
+
+    if (lookupOptions.all) {
+      callback(
+        null,
+        eligibleAddresses.map(
+          (address): LookupAddress => ({
+            address: address.address,
+            family: address.family
+          })
+        )
+      );
+      return;
+    }
+
+    const [address] = eligibleAddresses;
+    if (!address) {
+      callback(
+        new Error(
+          "Webhook URL host did not resolve to a prevalidated public address"
+        ) as NodeJS.ErrnoException,
+        "",
+        0
+      );
+      return;
+    }
+
+    callback(null, address.address, address.family);
   };
 }
 
@@ -1620,17 +1714,26 @@ function assertWebhookUrlAllowed(rawUrl: string, policy: WebhookDestinationPolic
 async function assertWebhookDnsAllowed(
   url: URL,
   policy: WebhookDestinationPolicy
-): Promise<void> {
+): Promise<WebhookDnsAddress[] | undefined> {
   if (!policy.dnsLookup) {
-    return;
+    return undefined;
   }
 
   const hostname = normalizeWebhookHostname(url.hostname);
   if (isIP(hostname) !== 0) {
-    return;
+    return [
+      {
+        address: hostname,
+        family: isIP(hostname) === 6 ? 6 : 4
+      }
+    ];
   }
 
   const addresses = await policy.dnsLookup(hostname);
+  if (addresses.length === 0) {
+    throw new WebhookDestinationPolicyError(`Webhook URL host ${hostname} did not resolve`);
+  }
+
   const blocked = addresses.find((address) =>
     isBlockedWebhookIpAddress(normalizeWebhookHostname(address.address))
   );
@@ -1639,6 +1742,8 @@ async function assertWebhookDnsAllowed(
       `Webhook URL host ${hostname} resolved to blocked address ${blocked.address}`
     );
   }
+
+  return addresses;
 }
 
 function normalizeAllowedWebhookHost(value: string): string | null {
@@ -1859,6 +1964,44 @@ function refreshExecutionProofForProviderEvent(
       launchAuthorization: execution.launchAuthorization
     })
   };
+}
+
+async function appendWebhookDeliveryToLatestExecutionProof(
+  store: CampaignStore,
+  campaign: Campaign,
+  executionId: string,
+  webhookDelivery: WebhookDeliveryRecord
+): Promise<Campaign | null> {
+  return store.updateCampaignExecution(
+    campaign.id,
+    executionId,
+    async (currentCampaign, currentExecution) => {
+      const webhookDeliveries = currentExecution.webhookDeliveries.some(
+        (delivery) => delivery.id === webhookDelivery.id
+      )
+        ? currentExecution.webhookDeliveries
+        : [...currentExecution.webhookDeliveries, webhookDelivery];
+      const execution = {
+        ...currentExecution,
+        webhookDeliveries,
+        proofPack: generatePilotProofPack({
+          campaign: currentCampaign,
+          approvalWorkbench: currentExecution.approvalWorkbench,
+          deliveryAttempts: currentExecution.deliveryAttempts,
+          webhookDeliveries,
+          replyAssessments: currentExecution.replyAssessments,
+          incidents: currentExecution.incidents,
+          launchAuthorization: currentExecution.launchAuthorization
+        })
+      };
+
+      return {
+        campaign: currentCampaign,
+        execution,
+        result: currentCampaign
+      };
+    }
+  );
 }
 
 function deliveryAttemptsWithProviderEvent(

@@ -76,16 +76,18 @@ The smoke command starts `dist/index.js` on a temporary port with an isolated
 JSON store and `INSCHNEIDERGRAM_API_KEY` enabled, checks `/health` and
 `/openapi.json`, confirms protected routes reject unauthenticated requests,
 validates `GET /pilot-launch-packet`, creates a stored sender, approves a
-campaign, runs a provider-reported managed execution, checks
-`GET /campaigns/:id/proof-pack`, and confirms the final readiness status is
+campaign, runs a provider-reported managed execution, then runs the selected
+manual path through the HTTP manual queue and manual evidence endpoints. It
+checks `GET /campaigns/:id/proof-pack` and confirms both paths reach
 `evidence_ready`. It uses no real credentials and does not claim live Instagram
 delivery.
 
-For any service bound outside localhost, set `INSCHNEIDERGRAM_API_KEY` and send
-either `X-API-Key` or `Authorization: Bearer` on every operator or Graphed API
-call. Only `GET /health`, `GET /openapi.json`, and CORS `OPTIONS` preflight
-remain public. `POST /webhooks/preview` is protected because it signs arbitrary
-payloads with the configured webhook secret.
+For production or any service bound outside localhost, set both
+`INSCHNEIDERGRAM_API_KEY` and `INSCHNEIDERGRAM_WEBHOOK_SECRET` to at least 16
+characters. Send either `X-API-Key` or `Authorization: Bearer` on every operator
+or Graphed API call. Only `GET /health`, `GET /openapi.json`, and CORS
+`OPTIONS` preflight remain public. `POST /webhooks/preview` is protected
+because it signs arbitrary payloads with the configured webhook secret.
 
 For live callback delivery, set `INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS` to the
 Graphed callback host or tenant wildcard before accepting campaigns. The API

@@ -84,12 +84,12 @@ The repo now models this as a domain-level managed delivery adapter contract:
 
 ## Next Build Slice
 
-The service-hardening slice now exists: startup config is validated,
-`INSCHNEIDERGRAM_API_KEY` can protect every non-public route for network-exposed
-deployments, `/health` checks the JSON store, `npm run smoke:service` starts the
-compiled API with auth enabled and runs the approval-to-provider-execution flow
-through real HTTP, and the repo includes Docker packaging for a
-`/data/campaigns.json` runtime store.
+The service-hardening slice now exists: startup config is validated, production
+or non-loopback startup requires strong API/webhook secrets, `/health` checks
+the JSON store, `npm run smoke:service` builds and starts the compiled API with
+auth enabled, runs the approval-to-provider-execution flow through real HTTP,
+runs the selected manual evidence flow through real HTTP, and the repo includes
+Docker packaging for a `/data/campaigns.json` runtime store.
 
 The proof-export ergonomics slice now exists at `GET /campaigns/:id/proof-pack`:
 buyers/operators can retrieve the latest execution proof pack, readiness

@@ -171,7 +171,7 @@ describe("pilot proof pack", () => {
       webhookDeadLetters: 1
     });
     expect(proofPack.renewalRecommendation).toMatchObject({
-      decision: "renew"
+      decision: "iterate"
     });
     expect(proofPack.markdown).toContain("| Interested replies | 1 |");
     expect(proofPack.markdown).toContain("| Vetted targets | 0 |");
@@ -180,7 +180,7 @@ describe("pilot proof pack", () => {
     expect(proofPack.markdown).toContain("| Operator skipped targets | 0 |");
     expect(proofPack.markdown).toContain("| Operator blocked targets | 0 |");
     expect(proofPack.markdown).toContain("Available senders: 1/2");
-    expect(proofPack.markdown).toContain("Decision: renew");
+    expect(proofPack.markdown).toContain("Decision: iterate");
   });
 
   it("reports operator skip and block evidence separately from policy blocks", () => {

@@ -12,9 +12,10 @@
 | "Pre-campaign pilot launch packet" | True for MVP scope | `GET /pilot-launch-packet` exports the private-input checklist, creator schema, sender boundary, delivery-path options, authorization template, proof metrics, and stop conditions before a campaign exists. |
 | "Pilot handoff packet" | True for MVP scope | `GET /campaigns/:id/pilot-handoff` turns readiness into missing inputs, next API actions, source URLs, evidence requirements, and proof-review state. |
 | "Launch authorization gate" | True for MVP scope | Manual and managed-provider executions require a structured authorization object and preserve it in proof exports; mock demos remain exempt. |
+| "Current local proof dossier" | True for MVP scope | `docs/proof/delivery-path-dry-run.md` records test, typecheck, build, service-smoke, manual-rehearsal, mock-demo, and MMDX preflight evidence while excluding live delivery claims. |
 | "Delivery and reply reporting" | Partly true | Provider events refresh campaign status, latest proof metrics, follow-up state, and signed runtime callbacks by default; live provider integration still pending. |
-| "API-key protected service" | True for MVP scope | Optional `INSCHNEIDERGRAM_API_KEY` protects non-public routes; smoke runs with auth enabled. |
-| "Guarded callback delivery" | True for MVP scope | Webhook URLs must be public HTTPS destinations; local/private/special-use hosts are blocked and production allowlists are supported. |
+| "API-key protected service" | True for MVP scope | Production or non-loopback startup requires strong `INSCHNEIDERGRAM_API_KEY` and `INSCHNEIDERGRAM_WEBHOOK_SECRET`; smoke runs with auth enabled. |
+| "Guarded callback delivery" | True for MVP scope | Webhook URLs must be public HTTPS destinations; local/private/special-use hosts are blocked, production allowlists are supported, and dispatch uses prevalidated DNS answers. |
 | "Sender-risk-aware manual evidence" | True for MVP scope | Manual restriction evidence for managed senders writes back into sender risk state, proof metrics, and readiness/execution gates. |
 | "Production-ready" | Not yet | Requires stronger persistence, monitoring, real adapter operations, and pilot evidence. |
 

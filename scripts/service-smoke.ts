@@ -17,10 +17,22 @@ interface CampaignResponse {
 
 interface ExecutionResponse {
   executionId: string;
+  adapterRiskPosture?: {
+    kind: string;
+  };
   proofPack: {
     metrics: {
       contactedTargets: number;
       sentMessages: number;
+      replies?: number;
+      interestedReplies?: number;
+      deliveryFailures?: number;
+      senderWarnings?: number;
+      webhookDelivered?: number;
+      webhookDeadLetters?: number;
+    };
+    renewalRecommendation?: {
+      decision: string;
     };
   };
 }
@@ -34,11 +46,22 @@ interface ReadinessResponse {
   };
 }
 
+interface ManualQueueResponse {
+  counts: {
+    pendingInitialEvidence: number;
+    replyMonitoring: number;
+    done: number;
+  };
+  items: unknown[];
+}
+
 interface FetchJsonInit {
   method?: string;
   body?: unknown;
   headers?: Record<string, string>;
 }
+
+type ProtectedFetch = <T>(path: string, init?: FetchJsonInit) => Promise<T>;
 
 async function main(): Promise<void> {
   const distIndex = resolve("dist/index.js");
@@ -214,6 +237,7 @@ async function main(): Promise<void> {
     if (proofExport.readiness.status !== "evidence_ready") {
       throw new Error(`Expected proof export readiness evidence_ready, got ${proofExport.readiness.status}`);
     }
+    const manualServicePath = await runManualServicePath(protectedFetch);
 
     console.log(
       JSON.stringify(
@@ -227,6 +251,7 @@ async function main(): Promise<void> {
           contactedTargets: execution.proofPack.metrics.contactedTargets,
           sentMessages: execution.proofPack.metrics.sentMessages,
           proofExportContactedTargets: proofExport.metrics.contactedTargets,
+          manualServicePath,
           readiness: finalReadiness.status,
           storePath
         },
@@ -278,6 +303,210 @@ async function waitForHealth(
   throw new Error(
     `Timed out waiting for /health. Last error: ${lastError}\n${output.stdout}${output.stderr}`
   );
+}
+
+async function runManualServicePath(protectedFetch: ProtectedFetch) {
+  await protectedFetch("/senders/sender-b", {
+    method: "PUT",
+    body: {
+      status: "healthy",
+      dailyLimit: 10,
+      warmupNote: "manual service smoke backup sender"
+    }
+  });
+
+  const campaign = await protectedFetch<CampaignResponse>("/campaigns", {
+    method: "POST",
+    body: {
+      targets: [
+        {
+          target: "@service_manual_creator_one",
+          profileUrl: "https://www.instagram.com/service_manual_creator_one/",
+          displayName: "Service Manual Creator One",
+          source: "service-smoke:manual-row-1",
+          fitReason: "Matches the low-volume managed manual pilot path",
+          tags: ["creator", "manual", "service-smoke"],
+          followerCount: 12_400,
+          engagementRate: 4.2
+        },
+        {
+          target: "@service_manual_creator_two",
+          profileUrl: "https://www.instagram.com/service_manual_creator_two/",
+          displayName: "Service Manual Creator Two",
+          source: "service-smoke:manual-row-2",
+          fitReason: "Exercises restricted evidence and sender risk reconciliation",
+          tags: ["creator", "manual", "risk-smoke"],
+          followerCount: 17_900,
+          engagementRate: 3.7
+        }
+      ],
+      message: "Open to a managed manual creator outreach pilot?",
+      campaign: "service_manual_smoke",
+      metadata: {
+        source: "smoke:service",
+        client: "graphed"
+      },
+      settings: {
+        webhookUrl: "https://example.com/webhooks/service-manual-smoke",
+        senderPool: ["sender-a", "sender-b"],
+        requireTargetProvenance: true
+      }
+    }
+  });
+
+  await protectedFetch(`/campaigns/${campaign.campaignId}/approval-workbench`, {
+    method: "POST",
+    body: {
+      approvedTargets: ["@service_manual_creator_one", "@service_manual_creator_two"],
+      approveMessage: true,
+      actor: "service-smoke-approver"
+    }
+  });
+  const workbench = await protectedFetch<{
+    approvalWorkbench: { candidates: Array<{ id: string }> };
+  }>(`/campaigns/${campaign.campaignId}/approval-workbench`);
+  for (const candidate of workbench.approvalWorkbench.candidates) {
+    await protectedFetch(
+      `/campaigns/${campaign.campaignId}/approval-workbench/candidates/${candidate.id}/claim`,
+      {
+        method: "POST",
+        body: {
+          operator: "service-smoke-operator"
+        }
+      }
+    );
+  }
+
+  const execution = await protectedFetch<ExecutionResponse>(
+    `/campaigns/${campaign.campaignId}/executions`,
+    {
+      method: "POST",
+      body: {
+        adapter: { kind: "manual" },
+        launchAuthorization: {
+          actor: "service-smoke-approver",
+          deliveryPath: "manual",
+          approvedTargetLimit: 2,
+          approvedAt: "2026-05-30T01:00:00.000Z",
+          reference: "service-smoke-manual-launch-approval",
+          notes: "Compiled-service manual path smoke; no live Instagram delivery."
+        }
+      }
+    }
+  );
+  if (execution.adapterRiskPosture?.kind !== "manual") {
+    throw new Error(`Expected manual adapter posture, got ${execution.adapterRiskPosture?.kind}`);
+  }
+
+  const queued = await protectedFetch<ManualQueueResponse>(
+    `/operator/manual-queue?campaignId=${campaign.campaignId}`
+  );
+  if (queued.counts.pendingInitialEvidence !== 2) {
+    throw new Error(
+      `Expected 2 pending manual evidence items, got ${queued.counts.pendingInitialEvidence}`
+    );
+  }
+
+  await protectedFetch(
+    `/campaigns/${campaign.campaignId}/executions/${execution.executionId}/manual-events`,
+    {
+      method: "POST",
+      body: {
+        eventId: "service-manual-sent-1",
+        target: "@service_manual_creator_one",
+        type: "sent",
+        occurredAt: "2026-05-30T01:15:00.000Z",
+        messageId: "service_manual_msg_1",
+        simulateWebhookDelivery: true,
+        evidence: {
+          operatorId: "service-smoke-operator",
+          conversationUrl: "https://instagram.com/direct/t/service_manual_creator_one",
+          screenshotUrl: "s3://proof/service-manual-sent.png"
+        }
+      }
+    }
+  );
+  await protectedFetch(
+    `/campaigns/${campaign.campaignId}/executions/${execution.executionId}/manual-events`,
+    {
+      method: "POST",
+      body: {
+        eventId: "service-manual-reply-1",
+        target: "@service_manual_creator_one",
+        type: "replied",
+        occurredAt: "2026-05-30T01:45:00.000Z",
+        messageId: "service_manual_msg_1",
+        replyText: "Interested - send the brief",
+        simulateWebhookDelivery: true,
+        evidence: {
+          operatorId: "service-smoke-operator",
+          conversationUrl: "https://instagram.com/direct/t/service_manual_creator_one",
+          screenshotUrl: "s3://proof/service-manual-reply.png",
+          replyCapturedAt: "2026-05-30T01:45:00.000Z"
+        },
+        replyAssessment: {
+          disposition: "interested",
+          qualified: true,
+          note: "Service smoke creator asked for the brief"
+        }
+      }
+    }
+  );
+  const finalEvidence = await protectedFetch<{
+    proofPack: ExecutionResponse["proofPack"];
+  }>(`/campaigns/${campaign.campaignId}/executions/${execution.executionId}/manual-events`, {
+    method: "POST",
+    body: {
+      eventId: "service-manual-restricted-1",
+      target: "@service_manual_creator_two",
+      type: "restricted",
+      occurredAt: "2026-05-30T01:50:00.000Z",
+      reason: "Service smoke restricted path",
+      simulateWebhookDelivery: true,
+      evidence: {
+        operatorId: "service-smoke-operator",
+        screenshotUrl: "s3://proof/service-manual-restricted.png",
+        restrictionSource: "service-smoke"
+      }
+    }
+  });
+  const finalReadiness = await protectedFetch<ReadinessResponse>(
+    `/campaigns/${campaign.campaignId}/readiness`
+  );
+  if (finalReadiness.status !== "evidence_ready") {
+    throw new Error(`Expected manual service path evidence_ready, got ${finalReadiness.status}`);
+  }
+  const finalQueue = await protectedFetch<ManualQueueResponse>(
+    `/operator/manual-queue?campaignId=${campaign.campaignId}&status=all`
+  );
+  if (finalQueue.counts.done !== 2) {
+    throw new Error(`Expected 2 completed manual queue items, got ${finalQueue.counts.done}`);
+  }
+  const metrics = finalEvidence.proofPack.metrics;
+  if (
+    metrics.contactedTargets !== 1 ||
+    metrics.interestedReplies !== 1 ||
+    metrics.deliveryFailures !== 1 ||
+    metrics.senderWarnings !== 1 ||
+    metrics.webhookDelivered !== 3 ||
+    metrics.webhookDeadLetters !== 0
+  ) {
+    throw new Error(`Unexpected manual service proof metrics: ${JSON.stringify(metrics)}`);
+  }
+
+  return {
+    campaignId: campaign.campaignId,
+    executionId: execution.executionId,
+    readiness: finalReadiness.status,
+    queueDone: finalQueue.counts.done,
+    contactedTargets: metrics.contactedTargets,
+    interestedReplies: metrics.interestedReplies,
+    deliveryFailures: metrics.deliveryFailures,
+    senderWarnings: metrics.senderWarnings,
+    webhookDelivered: metrics.webhookDelivered,
+    webhookDeadLetters: metrics.webhookDeadLetters,
+    renewalDecision: finalEvidence.proofPack.renewalRecommendation?.decision
+  };
 }
 
 async function assertRouteRequiresApiKey(baseUrl: string, path: string): Promise<void> {

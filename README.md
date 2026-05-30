@@ -53,7 +53,7 @@ This repo currently contains the first API/control-plane slice:
 | Execution readiness enforcement | Working MVP | executions return 409 until approval/sender gates pass |
 | Managed service smoke path | Working MVP | `npm run smoke:service`, `/health` store check, Dockerfile |
 | Latest proof export | Working MVP | `GET /campaigns/:id/proof-pack`, refreshed by late provider replies/failures |
-| Optional API key protection | Working MVP | `INSCHNEIDERGRAM_API_KEY`, `X-API-Key`, bearer auth |
+| Service secret enforcement | Working MVP | production or non-loopback startup requires strong API/webhook secrets |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs verified delivery operations and live pilot evidence |
 
@@ -75,8 +75,10 @@ Startup config is read from `HOST`, `PORT`, `INSCHNEIDERGRAM_PROVIDER`,
 `INSCHNEIDERGRAM_STORE_PATH`, `INSCHNEIDERGRAM_WEBHOOK_SECRET`, and
 `INSCHNEIDERGRAM_API_KEY`, and `INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS`.
 Invalid ports fail at startup instead of binding to an unintended port. Leave
-`INSCHNEIDERGRAM_API_KEY` unset for local demos; set it for any
-network-exposed service. Outgoing callbacks must use public HTTPS URLs;
+the API key and webhook secret unset for local loopback demos; production or
+non-loopback startup requires both `INSCHNEIDERGRAM_API_KEY` and
+`INSCHNEIDERGRAM_WEBHOOK_SECRET` to be at least 16 characters. Outgoing
+callbacks must use public HTTPS URLs;
 localhost, private-network, link-local, and special-use IP destinations are
 blocked. Set `INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS` to a comma-separated
 allowlist such as `hooks.graphed.com,*.tenant-hooks.graphed.com` to restrict
@@ -87,7 +89,8 @@ isolated JSON store and API key protection enabled, verifies `/health` and
 `/openapi.json` remain public, confirms campaign routes reject unauthenticated
 requests, validates the protected pre-campaign launch packet, registers a
 sender, creates and approves a campaign, runs a managed-provider contract
-execution, checks the latest proof export, and confirms the campaign reaches
+execution, then runs the selected manual path through HTTP manual-queue and
+manual-evidence endpoints. It checks proof exports and confirms both paths reach
 `evidence_ready`.
 
 `npm run demo:pilot` runs a deterministic local proof-pack demo with mock
@@ -97,9 +100,9 @@ sending.
 `npm run demo:manual-pilot` runs the credential-free operator rehearsal path
 through the public API surface: managed sender registration, strict
 creator-provenance intake, campaign creation from stored sender ids, approval,
-readiness, manual-safe execution, sent/replied/restricted evidence, sender-risk
-cooldown reconciliation, simulated webhook records, and final proof-pack renewal
-output.
+readiness, manual-safe execution, sent/replied/restricted evidence with
+timestamps, sender-risk cooldown reconciliation, simulated webhook records, and
+final proof-pack renewal output.
 
 Inspect the local API contract:
 
@@ -135,6 +138,7 @@ HOST=0.0.0.0 PORT=3107 \
   INSCHNEIDERGRAM_PROVIDER=mock \
   INSCHNEIDERGRAM_STORE_PATH=/tmp/inschneidergram/campaigns.json \
   INSCHNEIDERGRAM_API_KEY=replace-with-a-long-random-api-key \
+  INSCHNEIDERGRAM_WEBHOOK_SECRET=replace-with-a-long-random-webhook-secret \
   INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS=hooks.graphed.com \
   npm start
 ```
@@ -147,6 +151,7 @@ docker run --rm -p 3107:3107 \
   -v "$PWD/.data:/data" \
   -e INSCHNEIDERGRAM_PROVIDER=mock \
   -e INSCHNEIDERGRAM_API_KEY=replace-with-a-long-random-api-key \
+  -e INSCHNEIDERGRAM_WEBHOOK_SECRET=replace-with-a-long-random-webhook-secret \
   -e INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS=hooks.graphed.com \
   inschneidergram
 ```
@@ -627,6 +632,7 @@ a pilot that completes meaningful creator outreach.
 - [Domain plan](docs/DOMAIN_PLAN.md)
 - [Pilot spec](docs/PILOT_SPEC.md)
 - [Pilot runbook](docs/PILOT_RUNBOOK.md)
+- [Bounty local proof dossier](docs/proof/delivery-path-dry-run.md)
 - [Marketing surface](docs/MARKETING-SURFACE.md)
 - [Project status MMDX](diagrams/inschneidergram-project-status.mmdx) -
   repo-local source of truth; public Buildooor short link is tracked by

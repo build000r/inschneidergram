@@ -175,7 +175,7 @@ describe("campaign execution runner", () => {
       senderWarnings: 1,
       webhookDelivered: 4
     });
-    expect(result.proofPack.markdown).toContain("Decision: renew");
+    expect(result.proofPack.markdown).toContain("Decision: iterate");
   });
 
   it("refuses execution without approved copy", async () => {

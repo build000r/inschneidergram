@@ -66,6 +66,12 @@ export interface OutgoingWebhookRequest {
   payload: OutgoingWebhookPayload;
   headers: Record<string, string>;
   attempt: number;
+  resolvedAddresses?: OutgoingWebhookResolvedAddress[];
+}
+
+export interface OutgoingWebhookResolvedAddress {
+  address: string;
+  family: 4 | 6;
 }
 
 export interface OutgoingWebhookSenderResult {

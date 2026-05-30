@@ -194,6 +194,7 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
     const sentPayload = {
       target: "@manual_demo_creator_one",
       type: "sent",
+      occurredAt: "2026-05-30T01:15:00.000Z",
       messageId: "manual_msg_1",
       simulateWebhookDelivery: true,
       evidence: {
@@ -234,6 +235,7 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
         eventId: "manual-rehearsal-reply-1",
         target: "@manual_demo_creator_one",
         type: "replied",
+        occurredAt: "2026-05-30T01:45:00.000Z",
         messageId: "manual_msg_1",
         replyText: "Interested - send the brief",
         simulateWebhookDelivery: true,
@@ -258,6 +260,7 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
         eventId: "manual-rehearsal-restricted-1",
         target: "@manual_demo_creator_two",
         type: "restricted",
+        occurredAt: "2026-05-30T01:50:00.000Z",
         reason: "Manual rehearsal restricted path",
         simulateWebhookDelivery: true,
         evidence: {

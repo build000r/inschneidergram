@@ -317,6 +317,20 @@ function recommendRenewal(
     return { decision: "stop", reasons };
   }
 
+  if (metrics.senderWarnings > 0) {
+    reasons.push(`${metrics.senderWarnings} sender warning(s) require operator review.`);
+  }
+  if (metrics.deliveryFailures > 0) {
+    reasons.push(`${metrics.deliveryFailures} delivery failure(s) require resolution.`);
+  }
+  if (metrics.webhookDeadLetters > 0) {
+    reasons.push(`${metrics.webhookDeadLetters} webhook dead letter(s) require replay or remediation.`);
+  }
+
+  if (reasons.length > 0) {
+    return { decision: "iterate", reasons };
+  }
+
   if (metrics.interestedReplies > 0) {
     return {
       decision: "renew",

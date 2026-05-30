@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 export interface RuntimeConfig {
   host: string;
   port: number;
@@ -11,13 +13,23 @@ export interface RuntimeConfig {
 export function readRuntimeConfig(
   env: Record<string, string | undefined> = process.env
 ): RuntimeConfig {
+  const host = nonEmpty(env.HOST) ?? "127.0.0.1";
+  const apiKey = nonEmpty(env.INSCHNEIDERGRAM_API_KEY);
+  const webhookSecret = nonEmpty(env.INSCHNEIDERGRAM_WEBHOOK_SECRET);
+  assertDeploymentSecrets({
+    host,
+    nodeEnv: nonEmpty(env.NODE_ENV),
+    apiKey,
+    webhookSecret
+  });
+
   return {
-    host: nonEmpty(env.HOST) ?? "127.0.0.1",
+    host,
     port: parsePort(env.PORT ?? "3107"),
     provider: nonEmpty(env.INSCHNEIDERGRAM_PROVIDER) ?? "mock",
     storePath: nonEmpty(env.INSCHNEIDERGRAM_STORE_PATH) ?? ".data/campaigns.json",
-    webhookSecret: nonEmpty(env.INSCHNEIDERGRAM_WEBHOOK_SECRET),
-    apiKey: nonEmpty(env.INSCHNEIDERGRAM_API_KEY),
+    webhookSecret,
+    apiKey,
     webhookAllowedHosts: parseList(env.INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS)
   };
 }
@@ -47,4 +59,41 @@ function parseList(value: string | undefined): string[] {
       .map((entry) => entry.trim())
       .filter(Boolean) ?? []
   );
+}
+
+function assertDeploymentSecrets(input: {
+  host: string;
+  nodeEnv?: string;
+  apiKey?: string;
+  webhookSecret?: string;
+}): void {
+  if (input.nodeEnv !== "production" && isLoopbackHost(input.host)) {
+    return;
+  }
+
+  assertStrongRuntimeSecret("INSCHNEIDERGRAM_API_KEY", input.apiKey);
+  assertStrongRuntimeSecret("INSCHNEIDERGRAM_WEBHOOK_SECRET", input.webhookSecret);
+}
+
+function assertStrongRuntimeSecret(name: string, value: string | undefined): void {
+  if (!value || value.length < 16) {
+    throw new Error(
+      `${name} must be set to at least 16 characters when NODE_ENV=production or HOST is non-loopback`
+    );
+  }
+}
+
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  if (normalized === "localhost" || normalized.endsWith(".localhost")) {
+    return true;
+  }
+  if (normalized === "::1") {
+    return true;
+  }
+  if (isIP(normalized) === 4) {
+    return normalized.startsWith("127.");
+  }
+
+  return false;
 }

@@ -129,8 +129,8 @@ describe("manual pilot rehearsal", () => {
       deliveryFailures: 1,
       senderWarnings: 1
     });
-    expect(result.renewalDecision).toBe("renew");
+    expect(result.renewalDecision).toBe("iterate");
     expect(result.proofMarkdown).toContain("| Vetted targets | 2 |");
-    expect(result.proofMarkdown).toContain("Decision: renew");
+    expect(result.proofMarkdown).toContain("Decision: iterate");
   });
 });

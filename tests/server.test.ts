@@ -608,6 +608,50 @@ describe("API", () => {
     await app.close();
   });
 
+  it("passes prevalidated public webhook DNS answers into the sender", async () => {
+    const webhookRequests: OutgoingWebhookRequest[] = [];
+    const app = await buildServer({
+      webhookSecret: "dns-pin-secret",
+      webhookDnsLookup: async () => [{ address: "93.184.216.34", family: 4 }],
+      async webhookSender(request) {
+        webhookRequests.push(request);
+        return { statusCode: 204 };
+      }
+    });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@dns_pin_creator"],
+        message: "Open to a creator pilot?",
+        campaign: "dns-pin-webhook",
+        settings: {
+          webhookUrl: "https://callback.example.com/webhooks/dns-pin"
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const eventResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/events`,
+      payload: {
+        target: "@dns_pin_creator",
+        event: "sent",
+        eventId: "evt_dns_pin",
+        messageId: "msg_dns_pin"
+      }
+    });
+
+    expect(eventResponse.statusCode).toBe(200);
+    expect(webhookRequests).toHaveLength(1);
+    expect(webhookRequests[0]!.resolvedAddresses).toEqual([
+      { address: "93.184.216.34", family: 4 }
+    ]);
+
+    await app.close();
+  });
+
   it("returns validation errors for invalid campaigns", async () => {
     const app = await buildServer();
 
@@ -2632,7 +2676,7 @@ describe("API", () => {
         interestedReplies: 1
       },
       renewalRecommendation: {
-        decision: "renew"
+        decision: "iterate"
       },
       source: {
         readinessUrl: `/campaigns/${campaignId}/readiness`,
@@ -2657,7 +2701,7 @@ describe("API", () => {
         ]
       }
     });
-    expect(proofExport.json().markdown).toContain("Decision: renew");
+    expect(proofExport.json().markdown).toContain("Decision: iterate");
 
     const followUps = await app.inject({
       method: "GET",
@@ -2687,7 +2731,16 @@ describe("API", () => {
   });
 
   it("refreshes proof export and follow-ups after late provider events", async () => {
-    const app = await buildServer({ webhookSecret: "late-provider-proof-secret" });
+    const webhookRequests: OutgoingWebhookRequest[] = [];
+    const app = await buildServer({
+      webhookSecret: "late-provider-proof-secret",
+      async webhookSender(request) {
+        webhookRequests.push(request);
+        return {
+          statusCode: request.payload.type === "target.failed" ? 400 : 204
+        };
+      }
+    });
     const createResponse = await app.inject({
       method: "POST",
       url: "/campaigns",
@@ -2696,6 +2749,7 @@ describe("API", () => {
         message: "Open to an affiliate pilot?",
         campaign: "late-provider-proof-pilot",
         settings: {
+          webhookUrl: "https://example.com/webhooks/late-provider-proof",
           senderPool: ["sender-a"],
           senderAccounts: [
             {
@@ -2729,6 +2783,7 @@ describe("API", () => {
       method: "POST",
       url: `/campaigns/${campaignId}/executions`,
       payload: {
+        simulateWebhooks: false,
         adapter: {
           kind: "managed_provider",
           id: "late_provider_contract",
@@ -2832,7 +2887,12 @@ describe("API", () => {
       metrics: {
         contactedTargets: 2,
         replies: 1,
-        deliveryFailures: 1
+        deliveryFailures: 1,
+        webhookDelivered: 3,
+        webhookDeadLetters: 1
+      },
+      renewalRecommendation: {
+        decision: "iterate"
       },
       followUpPlan: {
         counts: {
@@ -2873,11 +2933,21 @@ describe("API", () => {
         reference: "late-provider-launch"
       },
       proofPack: {
+        metrics: {
+          webhookDelivered: 3,
+          webhookDeadLetters: 1
+        },
         launchAuthorization: {
           reference: "late-provider-launch"
         }
       }
     });
+    expect(webhookRequests.map((request) => request.payload.type)).toEqual([
+      "target.sent",
+      "target.sent",
+      "target.replied",
+      "target.failed"
+    ]);
 
     const followUps = await app.inject({
       method: "GET",
@@ -3472,7 +3542,7 @@ describe("API", () => {
           webhookDelivered: 4
         },
         renewalRecommendation: {
-          decision: "renew"
+          decision: "iterate"
         }
       }
     });
@@ -3487,7 +3557,7 @@ describe("API", () => {
     });
     expect(executionResponse.json().deliveryAttempts).toHaveLength(3);
     expect(executionResponse.json().webhookDeliveries).toHaveLength(4);
-    expect(executionResponse.json().proofPack.markdown).toContain("Decision: renew");
+    expect(executionResponse.json().proofPack.markdown).toContain("Decision: iterate");
 
     const stored = await app.inject({
       method: "GET",
@@ -3509,7 +3579,7 @@ describe("API", () => {
           id: executionId,
           proofPack: {
             renewalRecommendation: {
-              decision: "renew"
+              decision: "iterate"
             }
           }
         }

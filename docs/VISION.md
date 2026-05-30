@@ -99,12 +99,13 @@ pending-manual-evidence, and launch-authorization gates before live manual/provi
 records are created; late provider replies/failures refresh the latest proof
 export plus follow-up plan after the original execution. The service path is also
 operator-testable: startup config is validated, `/health` checks the JSON
-store, optional API key protection gates non-public routes for exposed
-deployments, provider events and non-simulated executions can dispatch signed
-webhook callbacks, callback destinations are constrained to public HTTPS hosts
+store, production or non-loopback startup requires strong API/webhook secrets,
+provider events and non-simulated executions can dispatch signed webhook
+callbacks, callback destinations are constrained to public HTTPS hosts
 with private-network blocking and optional production allowlists,
 `npm run smoke:service` drives the compiled API through real HTTP with auth
-enabled, and a Dockerfile packages the runtime store at `/data/campaigns.json`.
+enabled for both managed-provider and manual-evidence paths, and a Dockerfile
+packages the runtime store at `/data/campaigns.json`.
 Buyers and operators can fetch
 `GET /pilot-launch-packet` before campaign creation to see the private input
 checklist, creator schema, sender boundary, delivery-path options,
