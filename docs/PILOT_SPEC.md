@@ -34,7 +34,13 @@ content collaborations, or qualified pipeline.
 
 ## Launch Readiness
 
-Before running a pilot, Graphed or the operator should call
+Before campaign creation, Graphed or the operator should call
+`GET /pilot-launch-packet`. The packet names the private external inputs,
+profile-object creator schema, sender credential boundary, delivery-path
+options, launch-authorization template, proof metrics, validation commands, and
+stop conditions needed for a real pilot.
+
+Before running a created campaign, Graphed or the operator should call
 `GET /campaigns/:id/readiness`. The report classifies the campaign as blocked,
 needing approval, ready to execute, awaiting manual evidence, or evidence-ready.
 It also names the missing external inputs so the pilot cannot look ready while

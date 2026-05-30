@@ -28,6 +28,7 @@ interface ExecutionResponse {
 interface ReadinessResponse {
   status: string;
   readyForExecution: boolean;
+  externalInputs: string[];
   counts: {
     contactedTargets: number;
   };
@@ -85,6 +86,7 @@ async function main(): Promise<void> {
     const health = await waitForHealth(baseUrl, () => exit, () => ({ stdout, stderr }));
     const openapi = await fetchJson<{ paths: Record<string, unknown> }>(baseUrl, "/openapi.json");
     await assertRouteRequiresApiKey(baseUrl, "/campaigns");
+    await assertRouteRequiresApiKey(baseUrl, "/pilot-launch-packet");
     const protectedFetch = <T>(path: string, init: FetchJsonInit = {}) =>
       fetchJson<T>(baseUrl, path, {
         ...init,
@@ -93,6 +95,20 @@ async function main(): Promise<void> {
           "x-api-key": apiKey
         }
       });
+    const launchPacket = await protectedFetch<{
+      requiredExternalInputs: string[];
+      routeMap: { createCampaign: string };
+    }>("/pilot-launch-packet");
+    if (launchPacket.routeMap.createCampaign !== "/campaigns") {
+      throw new Error("Pilot launch packet did not include the campaign creation route");
+    }
+    if (
+      !launchPacket.requiredExternalInputs.includes(
+        "vetted Instagram creator list with source and fit rationale"
+      )
+    ) {
+      throw new Error("Pilot launch packet did not include the vetted creator-list input");
+    }
     await protectedFetch("/senders/sender-a", {
       method: "PUT",
       body: {
@@ -129,8 +145,17 @@ async function main(): Promise<void> {
     const approvedReadiness = await protectedFetch<ReadinessResponse>(
       `/campaigns/${campaign.campaignId}/readiness`
     );
-    if (!approvedReadiness.readyForExecution) {
-      throw new Error(`Expected campaign to be ready for execution, got ${approvedReadiness.status}`);
+    if (approvedReadiness.status !== "needs_approval") {
+      throw new Error(
+        `Expected needs_approval until launch authorization is supplied, got ${approvedReadiness.status}`
+      );
+    }
+    if (
+      !approvedReadiness.externalInputs.includes(
+        "permission to run the selected pilot delivery path"
+      )
+    ) {
+      throw new Error("Expected approved campaign readiness to require launch authorization");
     }
 
     const execution = await protectedFetch<ExecutionResponse>(
@@ -196,6 +221,7 @@ async function main(): Promise<void> {
           health,
           apiAuth: "enabled",
           openApiPathCount: Object.keys(openapi.paths).length,
+          launchPacketInputs: launchPacket.requiredExternalInputs.length,
           campaignId: campaign.campaignId,
           executionId: execution.executionId,
           contactedTargets: execution.proofPack.metrics.contactedTargets,

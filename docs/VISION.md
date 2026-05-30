@@ -106,6 +106,10 @@ with private-network blocking and optional production allowlists,
 `npm run smoke:service` drives the compiled API through real HTTP with auth
 enabled, and a Dockerfile packages the runtime store at `/data/campaigns.json`.
 Buyers and operators can fetch
+`GET /pilot-launch-packet` before campaign creation to see the private input
+checklist, creator schema, sender boundary, delivery-path options,
+launch-authorization template, proof criteria, stop conditions, sample payload,
+and validation commands. After a campaign exists, they can fetch
 `GET /campaigns/:id/proof-pack` to review the latest readiness-linked proof
 pack without knowing the internal execution id, and
 `GET /campaigns/:id/pilot-handoff` turns readiness into a campaign-level

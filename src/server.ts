@@ -51,6 +51,7 @@ import {
   type WebhookDeliveryRecord
 } from "./domain/outgoingWebhook.js";
 import { generatePilotProofPack, type ReplyAssessment } from "./domain/proofPack.js";
+import { buildPilotLaunchPacket } from "./domain/pilotLaunchPacket.js";
 import {
   createCampaignExecutionRecord,
   InMemoryCampaignStore,
@@ -142,6 +143,8 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       store: storeHealth
     });
   });
+
+  app.get("/pilot-launch-packet", async () => buildPilotLaunchPacket());
 
   app.get("/operator/manual-queue", async (request, reply) => {
     try {
@@ -823,6 +826,23 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           security: [],
           responses: {
             "200": { description: "OpenAPI contract returned" }
+          }
+        }
+      },
+      "/pilot-launch-packet": {
+        get: {
+          summary: "Export pre-campaign pilot launch requirements",
+          responses: {
+            "200": {
+              description:
+                "Pre-campaign pilot launch packet returned with required inputs, route map, contracts, and validation commands",
+              content: {
+                "application/json": {
+                  schema: openApiPilotLaunchPacketSchema()
+                }
+              }
+            },
+            "401": { description: "Valid API key required when deployment auth is enabled" }
           }
         }
       },
@@ -1978,6 +1998,149 @@ function openApiIdempotencyHeader() {
     required: false,
     schema: { type: "string" },
     description: "Optional retry-safe idempotency key for create or manual evidence requests."
+  };
+}
+
+function openApiPilotLaunchPacketSchema() {
+  return {
+    type: "object",
+    required: [
+      "generatedAt",
+      "product",
+      "recommendedFirstPilotPath",
+      "requiredExternalInputs",
+      "routeMap",
+      "creatorListContract",
+      "senderOperationsContract",
+      "launchAuthorizationTemplate",
+      "deliveryPathOptions",
+      "proofContract",
+      "nextApiActions",
+      "sampleCampaignRequest",
+      "validationCommands",
+      "stopConditions",
+      "nonGoals"
+    ],
+    properties: {
+      generatedAt: { type: "string", format: "date-time" },
+      product: {
+        type: "object",
+        required: ["name", "promise", "buyer"],
+        properties: {
+          name: { type: "string" },
+          promise: { type: "string" },
+          buyer: { type: "string" }
+        }
+      },
+      recommendedFirstPilotPath: { const: "operator_managed_manual_delivery" },
+      requiredExternalInputs: { type: "array", items: { type: "string" } },
+      routeMap: {
+        type: "object",
+        required: [
+          "createCampaign",
+          "campaignReadiness",
+          "campaignHandoff",
+          "executeCampaign",
+          "proofPack"
+        ],
+        additionalProperties: { type: "string" }
+      },
+      creatorListContract: {
+        type: "object",
+        required: [
+          "strictProvenanceRequiredForLivePilot",
+          "requiredFields",
+          "optionalFields",
+          "exampleTarget"
+        ],
+        properties: {
+          strictProvenanceRequiredForLivePilot: { type: "boolean" },
+          requiredFields: { type: "array", items: { type: "string" } },
+          optionalFields: { type: "array", items: { type: "string" } },
+          exampleTarget: { type: "object", additionalProperties: true }
+        }
+      },
+      senderOperationsContract: {
+        type: "object",
+        required: [
+          "credentialBoundary",
+          "publicInventoryFields",
+          "privateOperationalInputs",
+          "exampleSender"
+        ],
+        properties: {
+          credentialBoundary: { type: "string" },
+          publicInventoryFields: { type: "array", items: { type: "string" } },
+          privateOperationalInputs: { type: "array", items: { type: "string" } },
+          exampleSender: { type: "object", additionalProperties: true }
+        }
+      },
+      launchAuthorizationTemplate: {
+        type: "object",
+        required: [
+          "actor",
+          "deliveryPath",
+          "approvedTargetLimit",
+          "approvedAt",
+          "reference",
+          "evidenceUrl",
+          "notes"
+        ],
+        properties: {
+          actor: { type: "string" },
+          deliveryPath: { const: "manual" },
+          approvedTargetLimit: { type: "integer", minimum: 1 },
+          approvedAt: { type: "string", format: "date-time" },
+          reference: { type: "string" },
+          evidenceUrl: { type: "string" },
+          notes: { type: "string" }
+        }
+      },
+      deliveryPathOptions: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["kind", "whenToUse", "requiredBeforeExecution", "liveEvidenceSource"],
+          properties: {
+            kind: { type: "string", enum: ["manual", "managed_provider"] },
+            whenToUse: { type: "string" },
+            requiredBeforeExecution: { type: "array", items: { type: "string" } },
+            liveEvidenceSource: { type: "string" }
+          }
+        }
+      },
+      proofContract: {
+        type: "object",
+        required: ["proofPackUrl", "handoffUrl", "followUpsUrl", "requiredMetrics"],
+        properties: {
+          proofPackUrl: { type: "string" },
+          handoffUrl: { type: "string" },
+          followUpsUrl: { type: "string" },
+          requiredMetrics: { type: "array", items: { type: "string" } }
+        }
+      },
+      nextApiActions: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["id", "method", "path", "state", "purpose"],
+          properties: {
+            id: { type: "string" },
+            method: { type: "string" },
+            path: { type: "string" },
+            state: {
+              type: "string",
+              enum: ["operator_required", "graphed_required", "available_after_campaign"]
+            },
+            purpose: { type: "string" }
+          }
+        }
+      },
+      sampleCampaignRequest: { type: "object", additionalProperties: true },
+      validationCommands: { type: "array", items: { type: "string" } },
+      stopConditions: { type: "array", items: { type: "string" } },
+      nonGoals: { type: "array", items: { type: "string" } }
+    }
   };
 }
 

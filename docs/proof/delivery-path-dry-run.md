@@ -1,6 +1,6 @@
 # Delivery Path Dry-Run Evidence
 
-Baseline generated: 2026-05-30T01:23:51Z
+Baseline generated: 2026-05-30T07:39:36Z
 
 Commit at baseline dry run: `2083d62`
 
@@ -96,17 +96,17 @@ strict provenance path:
 - leaves one sender healthy and one sender in cooldown
 - reports `vettedTargets: 2` and `senderWarnings: 1` in the proof pack while
   final readiness remains `evidence_ready`
-- reports 26 OpenAPI paths, including the pilot handoff packet and execution
-  launch-authorization schema
+- reports 27 OpenAPI paths, including the pre-campaign launch packet, pilot
+  handoff packet, and execution launch-authorization schema
 
-Last verified for the launch-authorization slice with
+Last verified for the pre-campaign launch-packet slice with
 `npm run demo:manual-pilot`. The demo uses explicit
 `simulateWebhookDelivery=true` payloads so the local proof can count simulated
 callbacks without claiming a runtime Graphed receiver was contacted.
 
 ```json
 {
-  "openApiPathCount": 26,
+  "openApiPathCount": 27,
   "finalMetrics": {
     "sourcedTargets": 2,
     "acceptedTargets": 2,

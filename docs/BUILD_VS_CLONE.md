@@ -96,6 +96,12 @@ buyers/operators can retrieve the latest execution proof pack, readiness
 context, source URLs, metrics, renewal recommendation, and Markdown from one
 campaign-level API call.
 
+The pre-campaign launch packet now exists at `GET /pilot-launch-packet`:
+Graphed can see the private-input checklist, creator profile schema, sender
+credential boundary, delivery-path options, launch-authorization template,
+proof metrics, stop conditions, sample campaign payload, and validation
+commands before submitting a live creator list.
+
 The next build work should stay in this repo but move closer to pilot
 operations: operator-facing status views and the adapter implementation for
 whichever real provider/account operation the pilot uses. A real Instagram

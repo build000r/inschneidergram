@@ -75,10 +75,11 @@ npm run smoke:service
 The smoke command starts `dist/index.js` on a temporary port with an isolated
 JSON store and `INSCHNEIDERGRAM_API_KEY` enabled, checks `/health` and
 `/openapi.json`, confirms protected routes reject unauthenticated requests,
-creates a stored sender, approves a campaign, runs a provider-reported managed
-execution, checks `GET /campaigns/:id/proof-pack`, and confirms the final
-readiness status is `evidence_ready`. It uses no real credentials and does not
-claim live Instagram delivery.
+validates `GET /pilot-launch-packet`, creates a stored sender, approves a
+campaign, runs a provider-reported managed execution, checks
+`GET /campaigns/:id/proof-pack`, and confirms the final readiness status is
+`evidence_ready`. It uses no real credentials and does not claim live Instagram
+delivery.
 
 For any service bound outside localhost, set `INSCHNEIDERGRAM_API_KEY` and send
 either `X-API-Key` or `Authorization: Bearer` on every operator or Graphed API
@@ -95,6 +96,9 @@ private or special-use addresses before the outbound request is made.
 
 ## Pilot Flow
 
+0. Graphed or the operator fetches `GET /pilot-launch-packet` before campaign
+   creation to collect the private creator list, sender operation, callback,
+   delivery-path, launch-authorization, proof, and stop-condition inputs.
 1. Operator registers non-secret sender inventory with `PUT /senders/:id`.
 2. Graphed or the operator authenticates with the deployment API key when the
    service is network exposed.
@@ -170,6 +174,12 @@ Readiness and execution use the current managed sender inventory when a
 campaign was scheduled from stored sender ids. If a sender is locked or cooling
 down after campaign creation, readiness blocks and execution returns a conflict
 instead of creating send intents for that account.
+
+`GET /pilot-launch-packet` is the pre-campaign launch document for Graphed and
+the operator. It wraps the route map, profile-object creator schema, sender
+credential boundary, delivery-path options, launch-authorization template,
+proof metrics, validation commands, and stop conditions before any private
+creator list is sent to the service.
 
 `GET /campaigns/:id/pilot-handoff` is the campaign-level handoff document for
 operators and evaluators. It wraps readiness with next API actions, source

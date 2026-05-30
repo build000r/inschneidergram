@@ -700,6 +700,12 @@ describe("API", () => {
         message: "Valid API key required"
       });
 
+      const missingLaunchPacket = await app.inject({
+        method: "GET",
+        url: "/pilot-launch-packet"
+      });
+      expect(missingLaunchPacket.statusCode).toBe(401);
+
       const wrong = await app.inject({
         method: "GET",
         url: "/campaigns",
@@ -717,6 +723,15 @@ describe("API", () => {
         }
       });
       expect(xApiKey.statusCode).toBe(200);
+
+      const launchPacket = await app.inject({
+        method: "GET",
+        url: "/pilot-launch-packet",
+        headers: {
+          "x-api-key": "deploy-secret"
+        }
+      });
+      expect(launchPacket.statusCode).toBe(200);
 
       const bearer = await app.inject({
         method: "GET",
@@ -1884,6 +1899,106 @@ describe("API", () => {
       },
       externalInputs: []
     });
+
+    await app.close();
+  });
+
+  it("exports pre-campaign pilot launch packet", async () => {
+    const app = await buildServer({ webhookSecret: "launch-packet-secret" });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/pilot-launch-packet"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      product: {
+        name: "Inschneidergram",
+        buyer: "Graphed growth-agent operator"
+      },
+      recommendedFirstPilotPath: "operator_managed_manual_delivery",
+      requiredExternalInputs: expect.arrayContaining([
+        "vetted Instagram creator list with source and fit rationale",
+        "healthy managed sender account operated outside this repo",
+        "Graphed or client launch authorization for the selected delivery path"
+      ]),
+      routeMap: {
+        createCampaign: "/campaigns",
+        campaignHandoff: "/campaigns/{campaignId}/pilot-handoff",
+        proofPack: "/campaigns/{campaignId}/proof-pack"
+      },
+      creatorListContract: {
+        strictProvenanceRequiredForLivePilot: true,
+        requiredFields: ["target", "source", "fitReason"],
+        exampleTarget: {
+          source: "graphed-sheet:row-12",
+          fitReason: "Audience overlaps the affiliate offer"
+        }
+      },
+      senderOperationsContract: {
+        credentialBoundary: expect.stringContaining("outside this API and outside git"),
+        privateOperationalInputs: expect.arrayContaining([
+          "account credential or provider access",
+          "manual operator who can capture evidence"
+        ])
+      },
+      launchAuthorizationTemplate: {
+        deliveryPath: "manual",
+        approvedTargetLimit: 10,
+        reference: "approval ticket, signed note, or operator launch log"
+      },
+      proofContract: {
+        proofPackUrl: "/campaigns/{campaignId}/proof-pack",
+        requiredMetrics: expect.arrayContaining([
+          "contactedTargets",
+          "replies",
+          "operatorSkippedTargets",
+          "webhookDeadLetters"
+        ])
+      },
+      sampleCampaignRequest: {
+        settings: {
+          requireTargetProvenance: true,
+          senderPool: ["sender-a"]
+        }
+      },
+      validationCommands: expect.arrayContaining([
+        "npm run smoke:service",
+        "npm run demo:manual-pilot"
+      ]),
+      stopConditions: expect.arrayContaining([
+        "sender warning or restriction",
+        "missing launch authorization"
+      ]),
+      nonGoals: expect.arrayContaining([
+        "mock delivery is not represented as live Instagram proof",
+        "Graphed is not asked to host browser automation"
+      ])
+    });
+    expect(response.json().deliveryPathOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "manual",
+          requiredBeforeExecution: expect.arrayContaining([
+            "launchAuthorization.deliveryPath=manual"
+          ])
+        }),
+        expect.objectContaining({
+          kind: "managed_provider",
+          requiredBeforeExecution: expect.arrayContaining([
+            "launchAuthorization.deliveryPath=managed_provider"
+          ])
+        })
+      ])
+    );
+    expect(response.json().nextApiActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "register_sender", method: "PUT" }),
+        expect.objectContaining({ id: "create_campaign", method: "POST" }),
+        expect.objectContaining({ id: "publish_proof", method: "GET" })
+      ])
+    );
 
     await app.close();
   });
@@ -3950,6 +4065,57 @@ describe("API", () => {
     expect(openapi.paths["/openapi.json"].get).toMatchObject({
       summary: "Fetch the OpenAPI contract",
       security: []
+    });
+    expect(openapi.paths["/pilot-launch-packet"].get).toMatchObject({
+      summary: "Export pre-campaign pilot launch requirements",
+      responses: {
+        "200": {
+          content: {
+            "application/json": {
+              schema: {
+                required: expect.arrayContaining([
+                  "requiredExternalInputs",
+                  "creatorListContract",
+                  "senderOperationsContract",
+                  "launchAuthorizationTemplate",
+                  "deliveryPathOptions",
+                  "proofContract",
+                  "sampleCampaignRequest"
+                ]),
+                properties: expect.objectContaining({
+                  requiredExternalInputs: expect.objectContaining({
+                    items: { type: "string" }
+                  }),
+                  creatorListContract: expect.objectContaining({
+                    required: expect.arrayContaining(["requiredFields", "exampleTarget"])
+                  }),
+                  launchAuthorizationTemplate: expect.objectContaining({
+                    required: expect.arrayContaining([
+                      "actor",
+                      "deliveryPath",
+                      "approvedTargetLimit",
+                      "approvedAt",
+                      "reference"
+                    ])
+                  }),
+                  deliveryPathOptions: expect.objectContaining({
+                    items: expect.objectContaining({
+                      properties: expect.objectContaining({
+                        kind: expect.objectContaining({
+                          enum: ["manual", "managed_provider"]
+                        })
+                      })
+                    })
+                  })
+                })
+              }
+            }
+          }
+        },
+        "401": {
+          description: "Valid API key required when deployment auth is enabled"
+        }
+      }
     });
     expect(openapi.paths["/webhooks/preview"].post).toMatchObject({
       summary: "Preview a signed webhook payload"

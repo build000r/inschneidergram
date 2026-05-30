@@ -39,6 +39,7 @@ This repo currently contains the first API/control-plane slice:
 | Approval workbench API | Working MVP | `POST /campaigns/:id/approval-workbench` |
 | Operator workbench state | Working MVP | claim, skip, block routes before execution |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
+| Pre-campaign launch packet | Working MVP | `GET /pilot-launch-packet` exports private-input requirements before a campaign exists |
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
 | Pilot handoff packet | Working MVP | `GET /campaigns/:id/pilot-handoff` turns readiness into operator actions |
 | Launch authorization gate | Working MVP | manual/provider execution requires a structured approval reference |
@@ -84,9 +85,10 @@ callback hosts in production.
 `npm run smoke:service` starts the compiled `dist/index.js` process with an
 isolated JSON store and API key protection enabled, verifies `/health` and
 `/openapi.json` remain public, confirms campaign routes reject unauthenticated
-requests, registers a sender, creates and approves a campaign, runs a
-managed-provider contract execution, checks the latest proof export, and
-confirms the campaign reaches `evidence_ready`.
+requests, validates the protected pre-campaign launch packet, registers a
+sender, creates and approves a campaign, runs a managed-provider contract
+execution, checks the latest proof export, and confirms the campaign reaches
+`evidence_ready`.
 
 `npm run demo:pilot` runs a deterministic local proof-pack demo with mock
 delivery, simulated signed webhook delivery records, and no live Instagram
@@ -104,6 +106,18 @@ Inspect the local API contract:
 ```bash
 curl -s http://127.0.0.1:3107/openapi.json
 ```
+
+Export the pre-campaign pilot launch packet:
+
+```bash
+curl -s http://127.0.0.1:3107/pilot-launch-packet
+```
+
+The launch packet is the first buyer/operator handoff before Graphed has
+submitted a private creator list. It names the required external inputs,
+profile-object creator schema, sender credential boundary, delivery-path
+options, `launchAuthorization` template, proof metrics, stop conditions,
+sample `POST /campaigns` payload, and validation commands.
 
 When `INSCHNEIDERGRAM_API_KEY` is set, all routes except `GET /health`,
 `GET /openapi.json`, and CORS `OPTIONS` preflight require either:
@@ -463,6 +477,12 @@ with evidence before execution. Executions without inline approval overrides use
 the stored workbench when one exists and only create send intents for approved
 candidates whose work state is still `queued` or `claimed`.
 
+`GET /pilot-launch-packet` exports the pre-campaign launch contract before
+Graphed submits private inputs. It gives a route map, creator-list schema,
+sender operations boundary, manual and managed-provider path expectations,
+launch-authorization template, proof criteria, stop conditions, sample campaign
+payload, and validation commands.
+
 `GET /campaigns/:id/readiness` returns a pilot launch checklist derived from the
 stored campaign, approval workbench, current managed sender health, and
 execution proof records. It is the fastest way to see whether the campaign is
@@ -583,10 +603,12 @@ owns that operational risk.
 
 ## Roadmap to Bounty Pilot
 
-1. Connect verified provider/account operations to the managed-provider contract.
-2. Bring a verified sender account and vetted creator list into a controlled pilot.
-3. Run the pilot with structured launch authorization and low sender limits.
-4. Publish live reliability evidence using the proof-pack generator.
+1. Use `GET /pilot-launch-packet` to collect the private creator, sender,
+   callback, and authorization inputs.
+2. Connect verified provider/account operations to the managed-provider contract.
+3. Bring a verified sender account and vetted creator list into a controlled pilot.
+4. Run the pilot with structured launch authorization and low sender limits.
+5. Publish live reliability evidence using the proof-pack generator.
 
 ## Limitations
 

@@ -9,6 +9,7 @@
 | "Duplicate-safe campaigns" | True for MVP scope | Domain tests cover duplicate prevention inside a campaign. |
 | "Provenance-backed creator intake" | True for MVP scope | Campaign targets can carry source and fit rationale; strict campaigns block unvetted targets and proof packs count vetted targets. |
 | "Follow-up planning" | True for MVP scope | Campaign follow-up rules now produce due/pending operator work after execution and suppress targets after late provider replies/failures; automatic follow-up sending is not claimed. |
+| "Pre-campaign pilot launch packet" | True for MVP scope | `GET /pilot-launch-packet` exports the private-input checklist, creator schema, sender boundary, delivery-path options, authorization template, proof metrics, and stop conditions before a campaign exists. |
 | "Pilot handoff packet" | True for MVP scope | `GET /campaigns/:id/pilot-handoff` turns readiness into missing inputs, next API actions, source URLs, evidence requirements, and proof-review state. |
 | "Launch authorization gate" | True for MVP scope | Manual and managed-provider executions require a structured authorization object and preserve it in proof exports; mock demos remain exempt. |
 | "Delivery and reply reporting" | Partly true | Provider events refresh campaign status, latest proof metrics, follow-up state, and signed runtime callbacks by default; live provider integration still pending. |
