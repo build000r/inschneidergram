@@ -41,6 +41,12 @@ export interface CampaignExecutionRecord extends CampaignExecutionRecordInput {
   createdAt: string;
 }
 
+export interface CampaignExecutionMutation<T> {
+  campaign: Campaign;
+  execution: CampaignExecutionRecord;
+  result: T;
+}
+
 export interface CampaignStore {
   insert(campaign: Campaign): Promise<Campaign>;
   get(id: string): Promise<Campaign | null>;
@@ -60,6 +66,14 @@ export interface CampaignStore {
   insertExecution(record: CampaignExecutionRecord): Promise<CampaignExecutionRecord>;
   getExecution(id: string): Promise<CampaignExecutionRecord | null>;
   listExecutions(campaignId: string): Promise<CampaignExecutionRecord[]>;
+  updateCampaignExecution<T>(
+    campaignId: string,
+    executionId: string,
+    updater: (
+      campaign: Campaign,
+      execution: CampaignExecutionRecord
+    ) => Promise<CampaignExecutionMutation<T>>
+  ): Promise<T | null>;
 }
 
 export class InMemoryCampaignStore implements CampaignStore {
@@ -160,6 +174,27 @@ export class InMemoryCampaignStore implements CampaignStore {
     return [...this.executions.values()]
       .filter((record) => record.campaignId === campaignId)
       .map((record) => structuredClone(record));
+  }
+
+  async updateCampaignExecution<T>(
+    campaignId: string,
+    executionId: string,
+    updater: (
+      campaign: Campaign,
+      execution: CampaignExecutionRecord
+    ) => Promise<CampaignExecutionMutation<T>>
+  ): Promise<T | null> {
+    const campaign = this.campaigns.get(campaignId);
+    const execution = this.executions.get(executionId);
+    if (!campaign || !execution || execution.campaignId !== campaignId) {
+      return null;
+    }
+
+    const mutation = await updater(structuredClone(campaign), structuredClone(execution));
+    this.campaigns.set(mutation.campaign.id, structuredClone(mutation.campaign));
+    this.executions.set(mutation.execution.id, structuredClone(mutation.execution));
+    this.mergeSuppressions(suppressionRecordsForCampaign(mutation.campaign));
+    return structuredClone(mutation.result);
   }
 
   private findByIdempotencyKey(idempotencyKey: string | undefined): Campaign | null {
@@ -368,6 +403,40 @@ export class JsonFileCampaignStore implements CampaignStore {
       return snapshot.executions
         .filter((record) => record.campaignId === campaignId)
         .map((record) => structuredClone(record));
+    });
+  }
+
+  async updateCampaignExecution<T>(
+    campaignId: string,
+    executionId: string,
+    updater: (
+      campaign: Campaign,
+      execution: CampaignExecutionRecord
+    ) => Promise<CampaignExecutionMutation<T>>
+  ): Promise<T | null> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      const campaignIndex = snapshot.campaigns.findIndex((candidate) => candidate.id === campaignId);
+      const executionIndex = snapshot.executions.findIndex(
+        (candidate) => candidate.id === executionId && candidate.campaignId === campaignId
+      );
+
+      if (campaignIndex === -1 || executionIndex === -1) {
+        return null;
+      }
+
+      const mutation = await updater(
+        structuredClone(snapshot.campaigns[campaignIndex]),
+        structuredClone(snapshot.executions[executionIndex])
+      );
+      snapshot.campaigns[campaignIndex] = structuredClone(mutation.campaign);
+      snapshot.executions[executionIndex] = structuredClone(mutation.execution);
+      snapshot.suppressions = mergeSuppressionRecords(
+        snapshot.suppressions,
+        suppressionRecordsForCampaign(mutation.campaign)
+      );
+      await this.writeSnapshot(snapshot);
+      return structuredClone(mutation.result);
     });
   }
 

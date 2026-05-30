@@ -71,6 +71,8 @@ The current implementation covers:
   terminal manual attempts without exposing raw execution internals
 - manual evidence recording API that validates operator evidence, updates
   campaign state, appends webhook delivery records, and refreshes proof packs
+- store-level campaign/execution mutation for manual evidence so concurrent
+  operator submissions do not overwrite each other
 - pilot launch readiness report that turns campaign, approval, sender,
   execution, and proof state into pass/fail/warn gates plus next actions
 - readiness and execution recheck current stored sender health for campaigns
@@ -107,7 +109,7 @@ The current implementation covers:
     without claiming live Instagram delivery.
 15. Execution proof records can be listed and fetched after the run.
 16. Manual execution evidence can be recorded idempotently and refreshes the
-    stored proof pack.
+    stored proof pack without losing concurrent operator updates.
 17. Launch readiness can be inspected from one API response before execution,
     during manual evidence collection, and after proof is ready.
 18. OpenAPI documents the runtime pilot contract closely enough for a local

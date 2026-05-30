@@ -1,4 +1,8 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { buildServer } from "../src/server.js";
+import { JsonFileCampaignStore } from "../src/domain/store.js";
 
 describe("API", () => {
   it("accepts campaign creation through POST /campaigns", async () => {
@@ -1035,6 +1039,128 @@ describe("API", () => {
     });
 
     await app.close();
+  });
+
+  it("records concurrent manual evidence without losing execution events", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "inschneidergram-manual-evidence-"));
+    const app = await buildServer({
+      store: new JsonFileCampaignStore(join(dir, "campaigns.json")),
+      webhookSecret: "atomic-secret"
+    });
+
+    try {
+      const createResponse = await app.inject({
+        method: "POST",
+        url: "/campaigns",
+        payload: {
+          targets: ["@atomic_creator_one", "@atomic_creator_two"],
+          message: "Open to an affiliate pilot?",
+          campaign: "atomic-manual-evidence",
+          settings: {
+            webhookUrl: "https://example.com/webhooks/inschneidergram",
+            senderPool: ["sender-a"],
+            senderAccounts: [
+              {
+                id: "sender-a",
+                status: "healthy",
+                dailyLimit: 20,
+                riskEvents: []
+              }
+            ]
+          }
+        }
+      });
+      const campaignId = createResponse.json().campaignId;
+
+      await app.inject({
+        method: "POST",
+        url: `/campaigns/${campaignId}/approval-workbench`,
+        payload: {
+          approvedTargets: ["@atomic_creator_one", "@atomic_creator_two"],
+          approveMessage: true,
+          actor: "approver"
+        }
+      });
+      const executionResponse = await app.inject({
+        method: "POST",
+        url: `/campaigns/${campaignId}/executions`,
+        payload: {
+          adapter: { kind: "manual" }
+        }
+      });
+      const executionId = executionResponse.json().executionId;
+
+      const [sentResponse, restrictedResponse] = await Promise.all([
+        app.inject({
+          method: "POST",
+          url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+          payload: {
+            eventId: "atomic-sent-1",
+            target: "@atomic_creator_one",
+            type: "sent",
+            messageId: "manual_atomic_1",
+            evidence: {
+              operatorId: "op_1",
+              conversationUrl: "https://instagram.com/direct/t/atomic_creator_one",
+              screenshotUrl: "s3://proof/atomic-sent.png"
+            }
+          }
+        }),
+        app.inject({
+          method: "POST",
+          url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+          payload: {
+            eventId: "atomic-restricted-1",
+            target: "@atomic_creator_two",
+            type: "restricted",
+            reason: "Concurrent restriction evidence",
+            evidence: {
+              operatorId: "op_2",
+              screenshotUrl: "s3://proof/atomic-restricted.png",
+              restrictionSource: "operator"
+            }
+          }
+        })
+      ]);
+      expect(sentResponse.statusCode).toBe(200);
+      expect(restrictedResponse.statusCode).toBe(200);
+
+      const storedExecution = await app.inject({
+        method: "GET",
+        url: `/campaigns/${campaignId}/executions/${executionId}`
+      });
+      const eventsByTarget = Object.fromEntries(
+        storedExecution.json().deliveryAttempts.map(
+          (attempt: { intent: { targetHandle: string }; events: Array<{ type: string }> }) => [
+            attempt.intent.targetHandle,
+            attempt.events.map((event) => event.type)
+          ]
+        )
+      );
+      expect(eventsByTarget).toEqual({
+        atomic_creator_one: ["sent"],
+        atomic_creator_two: ["restricted"]
+      });
+      expect(storedExecution.json().proofPack.metrics).toMatchObject({
+        sentMessages: 1,
+        deliveryFailures: 1
+      });
+
+      const queue = await app.inject({
+        method: "GET",
+        url: "/operator/manual-queue?status=all"
+      });
+      expect(queue.json()).toMatchObject({
+        counts: {
+          pendingInitialEvidence: 0,
+          replyMonitoring: 1,
+          done: 1
+        }
+      });
+    } finally {
+      await app.close();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("excludes mock executions from the manual delivery queue", async () => {

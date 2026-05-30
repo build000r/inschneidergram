@@ -122,6 +122,10 @@ latest manual execution per campaign. Use `status=reply_monitoring` for sent
 messages that can still receive reply evidence, `status=done` for terminal
 attempts, and `status=all` for an audit view.
 
+Manual evidence writes update the campaign and execution proof record together
+inside the store. That makes the queue/evidence loop safe for a small pilot with
+more than one operator submitting evidence at the same time.
+
 ## Evidence Rules
 
 Every real sent or replied event must include:

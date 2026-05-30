@@ -40,7 +40,7 @@ This repo currently contains the first API/control-plane slice:
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
 | Operator manual delivery queue | Working MVP | `GET /operator/manual-queue` |
-| Manual evidence recording | Working MVP | `POST /campaigns/:id/executions/:executionId/manual-events` |
+| Manual evidence recording | Working MVP | atomic campaign/execution update via `manual-events` |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs real delivery adapter and live pilot evidence |
 
@@ -294,8 +294,9 @@ and terminal attempts. The campaign-scoped execution view
 manual work projection for one execution. Manual executions can be updated with
 `POST /campaigns/:id/executions/:executionId/manual-events`; that route
 validates required operator evidence, updates campaign status, appends webhook
-delivery records, and refreshes the stored proof pack. It does not claim live
-Instagram delivery.
+delivery records, and refreshes the stored proof pack under one store-level
+mutation so small multi-operator pilots do not lose concurrent evidence writes.
+It does not claim live Instagram delivery.
 
 ## Architecture
 

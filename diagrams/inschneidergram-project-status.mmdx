@@ -21,7 +21,7 @@ flowchart LR
   ops["GREEN Managed sender inventory + risk events"]
   beads["YELLOW Beads planning active"]
   proof["GREEN Proof pack generator"]
-  runner["GREEN API execution + operator manual queue"]
+  runner["GREEN API execution + atomic manual queue"]
   readiness["GREEN Pilot readiness report"]
   contract["GREEN Hardened OpenAPI pilot contract"]
   rehearsal["GREEN Manual pilot rehearsal"]
@@ -76,7 +76,7 @@ gantt
   GREEN Manual pilot rehearsal :done, 2026-05-30, 1d
   GREEN Managed sender inventory + risk events :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
-  GREEN API execution + operator manual queue :done, 2026-05-30, 1d
+  GREEN API execution + atomic manual queue :done, 2026-05-30, 1d
   YELLOW Live pilot preparation :active, 2026-05-31, 2d
   section RED Unproven
   RED Real delivery adapter :crit, 2026-06-01, 5d
@@ -93,7 +93,7 @@ flowchart TD
   sender["DONE GREEN Managed sender inventory + health"]
   webhooks["DONE GREEN Outgoing webhook retry domain"]
   proof["DONE GREEN Proof pack generator"]
-  runner["DONE GREEN API execution + operator manual queue"]
+  runner["DONE GREEN API execution + atomic manual queue"]
   readiness["DONE GREEN Pilot readiness report"]
   contract["DONE GREEN OpenAPI pilot contract"]
   rehearsal["DONE GREEN Manual pilot rehearsal"]
@@ -191,7 +191,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/execution/manual-evidence/operator-proof/readiness/openapi/manual-rehearsal/domain"]
+  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/atomic-evidence/execution/operator-proof/readiness/openapi/manual-rehearsal/domain"]
   typecheck["GREEN typecheck green"]
   mmdx["YELLOW MMDX preflight required"]
   live["RED no live Instagram delivery proof"]
@@ -214,7 +214,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/manual-evidence/proof/openapi/rehearsal claims"]
+  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/atomic-evidence/proof/openapi/rehearsal claims"]
   beads["GREEN Beads closed for current scaffold"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -230,7 +230,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, sender inventory, approval/operator API, operator manual queue, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics, manual evidence records"]
+  now["Current: API, durable store, sender inventory, approval/operator API, operator manual queue, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
   first["Next: real delivery/provider operations"]
   second["Then: live Graphed pilot"]
   third["Then: deployment hardening"]

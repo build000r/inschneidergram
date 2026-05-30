@@ -503,25 +503,34 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       const evidenceRequest = manualEvidenceRequestSchema.parse(
         withManualEventId(request.body, request.headers["idempotency-key"])
       );
-      const result = await recordManualEvidence({
-        campaign,
-        execution,
-        request: evidenceRequest,
-        webhookSecret
+      const result = await store.updateCampaignExecution(id, executionId, async (currentCampaign, currentExecution) => {
+        const evidenceResult = await recordManualEvidence({
+          campaign: currentCampaign,
+          execution: currentExecution,
+          request: evidenceRequest,
+          webhookSecret
+        });
+        return {
+          campaign: evidenceResult.campaign,
+          execution: evidenceResult.execution,
+          result: evidenceResult
+        };
       });
-      const updatedCampaign = await store.update(result.campaign);
-      const updatedExecution = await store.insertExecution(result.execution);
+
+      if (!result) {
+        return reply.code(404).send({ error: "execution_not_found" });
+      }
 
       return {
-        campaignId: updatedCampaign.id,
-        executionId: updatedExecution.id,
-        status: updatedCampaign.status,
-        summary: updatedCampaign.summary,
-        senderHealth: updatedCampaign.senderHealth,
+        campaignId: result.campaign.id,
+        executionId: result.execution.id,
+        status: result.campaign.status,
+        summary: result.campaign.summary,
+        senderHealth: result.campaign.senderHealth,
         event: result.event,
         webhookDelivery: result.webhookDelivery,
-        execution: updatedExecution,
-        proofPack: updatedExecution.proofPack
+        execution: result.execution,
+        proofPack: result.execution.proofPack
       };
     } catch (error) {
       return sendDomainError(reply, error);
