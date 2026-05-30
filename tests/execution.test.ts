@@ -255,7 +255,8 @@ describe("campaign execution runner", () => {
     expect(result.intents.map((intent) => intent.targetHandle)).toEqual(["creator_one"]);
     expect(result.proofPack.metrics).toMatchObject({
       approvedTargets: 2,
-      contactedTargets: 1
+      contactedTargets: 1,
+      operatorBlockedTargets: 1
     });
   });
 });

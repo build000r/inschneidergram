@@ -56,8 +56,8 @@ The current implementation covers:
 - scheduler refusal when no healthy sender is available
 - outgoing signed webhook payloads and jobs
 - retry/backoff, dead-letter, and replay behavior for injected webhook senders
-- pilot proof-pack metrics, incidents, sender health, reply assessment, and
-  renewal recommendation
+- pilot proof-pack metrics, operator skip/block evidence, incidents, sender
+  health, reply assessment, and renewal recommendation
 - execution runner that connects approval, delivery adapter events, outgoing
   webhooks, and proof-pack generation
 - API pilot-demo execution route for safe mock/manual runs
@@ -82,7 +82,8 @@ The current implementation covers:
 10. Unhealthy senders are refused before scheduling and reported in campaign
    status.
 11. Outgoing webhooks can be signed, retried, dead-lettered, and replayed.
-12. A sample pilot fixture generates proof metrics and a Markdown report.
+12. A sample pilot fixture generates proof metrics and a Markdown report,
+    including operator skip/block evidence when it exists.
 13. Approved campaign execution routes send intents through an injected adapter,
     records events, sends webhooks, and returns proof.
 14. `POST /campaigns/:id/executions` exposes the safe execution/proof workflow
@@ -131,6 +132,10 @@ can be updated through
 operator evidence into campaign events, webhook records, and refreshed proof
 metrics.
 
+The refreshed proof pack keeps campaign ingest/policy blocks separate from
+operator skipped and operator blocked targets captured in the approval
+workbench.
+
 ### Sender Account Operations
 
 Connect real account operations to the current sender-health model: account
@@ -151,6 +156,10 @@ webhook, and incident data. The domain module already produces accepted targets,
 sent messages, delivery, replies, qualified replies, opt-outs, complaints,
 duplicate prevention, failures, sender health, incidents, and a renewal
 recommendation from a sample fixture.
+
+It now reports explicit operator skipped/blocked targets from workbench
+evidence without conflating those with campaign policy blocks or approval
+rejections.
 
 ## Validation Commands
 

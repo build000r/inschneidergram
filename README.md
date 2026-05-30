@@ -35,7 +35,7 @@ This repo currently contains the first API/control-plane slice:
 | Operator workbench state | Working MVP | claim, skip, block routes before execution |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Managed sender infrastructure | Partial | health model exists; real account operations next |
-| Pilot proof pack | Working MVP | metrics, incidents, sender health, renewal decision |
+| Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
 | Manual evidence recording | Working MVP | `POST /campaigns/:id/executions/:executionId/manual-events` |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
@@ -219,7 +219,8 @@ candidates whose work state is still `queued` or `claimed`.
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It builds an
 approval workbench from the stored campaign, routes approved targets through a
 safe `mock` or `manual` adapter, records campaign events, simulates signed
-webhook delivery records, and returns the proof-pack metrics plus Markdown. It
+webhook delivery records, and returns the proof-pack metrics plus Markdown,
+including explicit operator skipped/blocked counts from workbench evidence. It
 also persists an execution proof record that can be listed with
 `GET /campaigns/:id/executions` or fetched with
 `GET /campaigns/:id/executions/:executionId`. Manual executions can be updated

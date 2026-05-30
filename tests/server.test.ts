@@ -331,7 +331,8 @@ describe("API", () => {
           approvedTargets: 1,
           approvedCopy: 1,
           contactedTargets: 1,
-          replies: 1
+          replies: 1,
+          operatorBlockedTargets: 0
         }
       }
     });
@@ -451,7 +452,9 @@ describe("API", () => {
         metrics: {
           approvedTargets: 2,
           contactedTargets: 1,
-          replies: 1
+          replies: 1,
+          operatorSkippedTargets: 1,
+          operatorBlockedTargets: 0
         }
       }
     });

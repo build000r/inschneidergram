@@ -60,6 +60,8 @@ export interface PilotProofMetrics {
   interestedReplies: number;
   duplicateSkips: number;
   blockedTargets: number;
+  operatorSkippedTargets: number;
+  operatorBlockedTargets: number;
   optOuts: number;
   complaints: number;
   deliveryFailures: number;
@@ -127,7 +129,9 @@ export function renderPilotProofMarkdown(pack: Omit<PilotProofPack, "markdown">)
     metricRow("Replies", pack.metrics.replies),
     metricRow("Interested replies", pack.metrics.interestedReplies),
     metricRow("Duplicate skips", pack.metrics.duplicateSkips),
-    metricRow("Blocked targets", pack.metrics.blockedTargets),
+    metricRow("Policy blocked targets", pack.metrics.blockedTargets),
+    metricRow("Operator skipped targets", pack.metrics.operatorSkippedTargets),
+    metricRow("Operator blocked targets", pack.metrics.operatorBlockedTargets),
     metricRow("Opt-outs", pack.metrics.optOuts),
     metricRow("Complaints", pack.metrics.complaints),
     metricRow("Delivery failures", pack.metrics.deliveryFailures),
@@ -196,6 +200,8 @@ function buildMetrics(input: PilotProofPackInput): PilotProofMetrics {
   const replyAssessments = input.replyAssessments ?? [];
   const incidents = input.incidents ?? [];
   const webhookDeliveries = input.webhookDeliveries ?? [];
+  const operatorSkippedTargets = countWorkbenchEvidence(input.approvalWorkbench, "skip");
+  const operatorBlockedTargets = countWorkbenchEvidence(input.approvalWorkbench, "block");
   const senderRiskEvents = input.campaign.senderHealth.accounts.flatMap(
     (account) => account.riskEvents
   );
@@ -224,6 +230,8 @@ function buildMetrics(input: PilotProofPackInput): PilotProofMetrics {
     ).length,
     duplicateSkips: input.campaign.summary.skippedDuplicate,
     blockedTargets: input.campaign.summary.blockedPolicy,
+    operatorSkippedTargets,
+    operatorBlockedTargets,
     optOuts:
       replyAssessments.filter((reply) => reply.disposition === "opt_out").length +
       incidents.filter((incident) => incident.kind === "opt_out").length,
@@ -238,6 +246,19 @@ function buildMetrics(input: PilotProofPackInput): PilotProofMetrics {
     webhookDeadLetters: webhookDeliveries.filter((delivery) => delivery.status === "dead_letter")
       .length
   };
+}
+
+function countWorkbenchEvidence(
+  workbench: ApprovalWorkbench | undefined,
+  kind: "skip" | "block"
+): number {
+  if (!workbench) {
+    return 0;
+  }
+
+  return workbench.candidates.filter((candidate) =>
+    candidate.evidence.some((evidence) => evidence.kind === kind)
+  ).length;
 }
 
 function recommendRenewal(

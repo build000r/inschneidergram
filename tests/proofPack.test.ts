@@ -1,8 +1,11 @@
 import {
   approveCandidate,
   approveMessage,
+  blockCandidate,
+  claimCandidate,
   createApprovalWorkbench,
-  rejectCandidate
+  rejectCandidate,
+  skipCandidate
 } from "../src/domain/approval.js";
 import { createCampaign, recordTargetEvent } from "../src/domain/campaign.js";
 import {
@@ -157,6 +160,8 @@ describe("pilot proof pack", () => {
       interestedReplies: 1,
       duplicateSkips: 1,
       blockedTargets: 1,
+      operatorSkippedTargets: 0,
+      operatorBlockedTargets: 0,
       optOuts: 1,
       complaints: 0,
       deliveryFailures: 1,
@@ -169,8 +174,67 @@ describe("pilot proof pack", () => {
     });
     expect(proofPack.markdown).toContain("| Interested replies | 1 |");
     expect(proofPack.markdown).toContain("| Duplicate skips | 1 |");
+    expect(proofPack.markdown).toContain("| Policy blocked targets | 1 |");
+    expect(proofPack.markdown).toContain("| Operator skipped targets | 0 |");
+    expect(proofPack.markdown).toContain("| Operator blocked targets | 0 |");
     expect(proofPack.markdown).toContain("Available senders: 1/2");
     expect(proofPack.markdown).toContain("Decision: renew");
+  });
+
+  it("reports operator skip and block evidence separately from policy blocks", () => {
+    const campaign = createCampaign(
+      {
+        targets: ["@skip_creator", "@block_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "operator-proof-pilot"
+      },
+      new Date("2026-05-30T01:00:00.000Z")
+    );
+    let approval = createApprovalWorkbench(
+      {
+        campaignId: campaign.id,
+        candidates: [
+          { id: "skip_creator", target: "@skip_creator" },
+          { id: "block_creator", target: "@block_creator" }
+        ],
+        messages: [{ id: "copy_1", body: "Open to an affiliate pilot?" }]
+      },
+      new Date("2026-05-30T01:01:00.000Z")
+    );
+    approval = approveCandidate(approval, { candidateId: "skip_creator", actor: "approver" });
+    approval = approveCandidate(approval, { candidateId: "block_creator", actor: "approver" });
+    approval = approveMessage(approval, { messageId: "copy_1", actor: "approver" });
+    approval = claimCandidate(approval, { candidateId: "skip_creator", operator: "operator-a" });
+    approval = skipCandidate(approval, {
+      candidateId: "skip_creator",
+      operator: "operator-a",
+      reason: "duplicate found in Graphed source list",
+      evidence: { source: "operator-review", reference: "sheet://row/41" }
+    });
+    approval = claimCandidate(approval, { candidateId: "block_creator", operator: "operator-a" });
+    approval = blockCandidate(approval, {
+      candidateId: "block_creator",
+      operator: "operator-a",
+      reason: "creator provenance could not be defended",
+      evidence: { source: "operator-review", reference: "sheet://row/42" }
+    });
+
+    const proofPack = generatePilotProofPack({
+      campaign,
+      approvalWorkbench: approval,
+      generatedAt: "2026-05-30T02:00:00.000Z"
+    });
+
+    expect(proofPack.metrics).toMatchObject({
+      acceptedTargets: 2,
+      approvedTargets: 2,
+      blockedTargets: 0,
+      operatorSkippedTargets: 1,
+      operatorBlockedTargets: 1
+    });
+    expect(proofPack.markdown).toContain("| Policy blocked targets | 0 |");
+    expect(proofPack.markdown).toContain("| Operator skipped targets | 1 |");
+    expect(proofPack.markdown).toContain("| Operator blocked targets | 1 |");
   });
 
   it("recommends stopping when complaints or critical incidents appear", () => {

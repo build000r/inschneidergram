@@ -160,7 +160,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/approval/operator/execution/manual-evidence/proof/domain"]
+  tests["GREEN npm test covers API/store/approval/operator/execution/manual-evidence/operator-proof/domain"]
   typecheck["GREEN typecheck green"]
   mmdx["YELLOW MMDX preflight required"]
   live["RED no live Instagram delivery proof"]
@@ -199,7 +199,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, approval/operator API, webhooks, proof, manual evidence records"]
+  now["Current: API, durable store, approval/operator API, webhooks, operator-proof metrics, manual evidence records"]
   first["Next: real sender operations"]
   second["Then: live Graphed pilot"]
   third["Then: deployment hardening"]

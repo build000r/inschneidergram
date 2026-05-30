@@ -41,6 +41,8 @@ default proof pack should include:
 - positive or qualified interested replies
 - duplicate skips
 - blocked or policy-skipped targets
+- operator-skipped targets with evidence
+- operator-blocked targets with evidence
 - opt-outs or complaints
 - sender warnings or restrictions
 - operator time and incident notes
@@ -86,5 +88,8 @@ blocked.
 
 The domain proof pack turns campaign status, approval state, delivery attempts,
 webhook delivery records, sender health, reply assessments, and incidents into
-metrics plus a Markdown renewal report. It is still sample-fixture proof until a
-live Graphed pilot runs through the managed delivery path.
+metrics plus a Markdown renewal report. Campaign policy blocks stay separate
+from operator skipped/blocked targets so the renewal report shows manual triage
+decisions without counting approval rejections as operator blocks. It is still
+sample-fixture proof until a live Graphed pilot runs through the managed
+delivery path.

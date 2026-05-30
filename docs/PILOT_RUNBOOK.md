@@ -62,7 +62,8 @@ For the first pilot, maintain a private sender inventory outside git with:
    `Idempotency-Key` for retry safety.
 8. Campaign events update status and outgoing webhooks notify Graphed.
 9. Execution proof record is persisted for audit replay.
-10. Proof-pack generator produces the renewal report.
+10. Proof-pack generator produces the renewal report with operator skipped and
+    blocked counts from workbench evidence.
 
 ## Evidence Rules
 
@@ -80,6 +81,12 @@ Restricted or failed events must include:
 - sender account id
 - operator note
 - decision on cooldown, reconnect, or replacement
+
+Skipped or blocked workbench items must include:
+
+- operator id
+- reason
+- source or reference that explains the triage decision
 
 ## Stop Conditions
 
