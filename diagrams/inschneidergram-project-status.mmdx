@@ -19,7 +19,7 @@ flowchart LR
   delivery["YELLOW Adapter contract only"]
   ops["YELLOW Sender health model only"]
   beads["YELLOW Beads planning active"]
-  next["Next: execution routing + webhook proof"]
+  next["Next: proof pack + execution routing"]
   bounty --> api
   api --> store
   bounty --> delivery
@@ -60,7 +60,7 @@ flowchart TD
   approval["DONE GREEN Approval workbench domain"]
   adapter["PARTIAL YELLOW Delivery adapter contract"]
   sender["PARTIAL YELLOW Sender health model"]
-  webhooks["PLANNED YELLOW Outgoing webhooks"]
+  webhooks["DONE GREEN Outgoing webhook retry domain"]
   pilot["FUTURE RED Graphed pilot"]
   api --> store
   api --> approval
@@ -74,7 +74,7 @@ flowchart TD
   class approval green
   class adapter yellow
   class sender yellow
-  class webhooks yellow
+  class webhooks green
   class pilot red
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -173,8 +173,8 @@ flowchart LR
 ```mermaid
 flowchart TD
   now["Current: API, durable store, approvals, adapter contract"]
-  first["Next: execution routing and webhooks"]
-  second["Then: proof pack"]
+  first["Next: proof pack generator"]
+  second["Then: execution routing"]
   third["Then: real Graphed pilot"]
   now --> first --> second --> third
 ```
