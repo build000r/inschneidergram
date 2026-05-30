@@ -330,6 +330,24 @@ describe("API", () => {
       }
     });
 
+    const manualEvidenceForMock = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        target: "@creator_one",
+        type: "sent",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/creator_one",
+          screenshotUrl: "s3://proof/mock-manual.png"
+        }
+      }
+    });
+    expect(manualEvidenceForMock.statusCode).toBe(409);
+    expect(manualEvidenceForMock.json()).toMatchObject({
+      error: "conflict"
+    });
+
     await app.close();
   });
 
@@ -376,6 +394,210 @@ describe("API", () => {
     await app.close();
   });
 
+  it("records manual execution evidence and refreshes persisted proof", async () => {
+    const app = await buildServer({ webhookSecret: "manual-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@manual_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "manual-evidence-pilot",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/inschneidergram",
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const manualExecution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" }
+      }
+    });
+    expect(manualExecution.statusCode).toBe(200);
+    const executionId = manualExecution.json().executionId;
+    expect(manualExecution.json().deliveryAttempts[0]).toMatchObject({
+      outcome: "needs_manual_evidence",
+      riskPosture: {
+        kind: "manual",
+        requiresHumanEvidence: true
+      }
+    });
+    expect(manualExecution.json().proofPack.metrics.contactedTargets).toBe(0);
+
+    const unknownIntent = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        intentId: "intent_missing",
+        type: "sent",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/manual_creator",
+          screenshotUrl: "s3://proof/manual-missing.png"
+        }
+      }
+    });
+    expect(unknownIntent.statusCode).toBe(404);
+    expect(unknownIntent.json()).toMatchObject({
+      error: "not_found"
+    });
+
+    const incompleteEvidence = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        target: "@manual_creator",
+        type: "sent",
+        evidence: {
+          operatorId: "op_1"
+        }
+      }
+    });
+    expect(incompleteEvidence.statusCode).toBe(400);
+    expect(incompleteEvidence.json().message).toContain("Missing manual evidence for sent");
+
+    const sentEvidence = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      headers: {
+        "idempotency-key": "manual-sent-1"
+      },
+      payload: {
+        target: "@manual_creator",
+        type: "sent",
+        messageId: "manual_msg_1",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/manual_creator",
+          screenshotUrl: "s3://proof/manual-sent.png"
+        }
+      }
+    });
+    expect(sentEvidence.statusCode).toBe(200);
+    expect(sentEvidence.json()).toMatchObject({
+      summary: {
+        sent: 1
+      },
+      event: {
+        id: "manual-sent-1",
+        type: "sent",
+        messageId: "manual_msg_1"
+      },
+      proofPack: {
+        metrics: {
+          approvedTargets: 1,
+          contactedTargets: 1,
+          webhookDelivered: 1
+        }
+      }
+    });
+
+    const repeatedSentEvidence = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      headers: {
+        "idempotency-key": "manual-sent-1"
+      },
+      payload: {
+        target: "@manual_creator",
+        type: "sent",
+        messageId: "manual_msg_1",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/manual_creator",
+          screenshotUrl: "s3://proof/manual-sent.png"
+        }
+      }
+    });
+    expect(repeatedSentEvidence.statusCode).toBe(200);
+    expect(repeatedSentEvidence.json()).toMatchObject({
+      summary: {
+        sent: 1
+      },
+      proofPack: {
+        metrics: {
+          webhookDelivered: 1
+        }
+      }
+    });
+
+    const replyEvidence = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        eventId: "manual-reply-1",
+        target: "@manual_creator",
+        type: "replied",
+        messageId: "manual_msg_1",
+        replyText: "Interested - send details",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/manual_creator",
+          screenshotUrl: "s3://proof/manual-reply.png",
+          replyCapturedAt: "2026-05-30T01:45:00.000Z"
+        },
+        replyAssessment: {
+          disposition: "interested",
+          qualified: true,
+          note: "Qualified creator asked for the brief"
+        }
+      }
+    });
+    expect(replyEvidence.statusCode).toBe(200);
+    expect(replyEvidence.json()).toMatchObject({
+      summary: {
+        replied: 1
+      },
+      proofPack: {
+        metrics: {
+          approvedTargets: 1,
+          contactedTargets: 1,
+          sentMessages: 1,
+          replies: 1,
+          interestedReplies: 1,
+          webhookDelivered: 2
+        },
+        renewalRecommendation: {
+          decision: "renew"
+        }
+      }
+    });
+    expect(
+      replyEvidence.json().execution.deliveryAttempts[0].events.map(
+        (event: { type: string }) => event.type
+      )
+    ).toEqual(["sent", "replied"]);
+
+    const storedExecution = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions/${executionId}`
+    });
+    expect(storedExecution.json()).toMatchObject({
+      id: executionId,
+      proofPack: {
+        metrics: {
+          approvedTargets: 1,
+          interestedReplies: 1
+        }
+      }
+    });
+
+    await app.close();
+  });
+
   it("documents the execution workflow in OpenAPI", async () => {
     const app = await buildServer();
 
@@ -411,6 +633,14 @@ describe("API", () => {
     });
     expect(openapi.paths["/campaigns/{id}/executions/{executionId}"].get).toMatchObject({
       summary: "Get one persisted execution proof record"
+    });
+    expect(openapi.paths["/campaigns/{id}/executions/{executionId}/manual-events"].post).toMatchObject({
+      summary: "Record manual evidence for one execution intent",
+      responses: {
+        "409": {
+          description: "Execution or manual event state conflict"
+        }
+      }
     });
 
     await app.close();

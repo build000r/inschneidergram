@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import type { ApprovalWorkbench } from "./approval.js";
 import { summarizeCampaign, type Campaign } from "./campaign.js";
 import type {
   DeliveryAdapterRiskPosture,
@@ -8,7 +9,7 @@ import type {
   SendIntent
 } from "./delivery.js";
 import type { WebhookDeliveryRecord } from "./outgoingWebhook.js";
-import type { PilotProofPack } from "./proofPack.js";
+import type { PilotIncident, PilotProofPack, ReplyAssessment } from "./proofPack.js";
 
 export interface SuppressionRecord {
   handle: string;
@@ -24,6 +25,9 @@ export interface CampaignExecutionRecordInput {
   intents: SendIntent[];
   deliveryAttempts: DeliveryAttempt[];
   webhookDeliveries: WebhookDeliveryRecord[];
+  approvalWorkbench?: ApprovalWorkbench;
+  replyAssessments?: ReplyAssessment[];
+  incidents?: PilotIncident[];
   proofPack: PilotProofPack;
 }
 
@@ -277,6 +281,11 @@ export function createCampaignExecutionRecord(
     intents: structuredClone(input.intents),
     deliveryAttempts: structuredClone(input.deliveryAttempts),
     webhookDeliveries: structuredClone(input.webhookDeliveries),
+    approvalWorkbench: input.approvalWorkbench
+      ? structuredClone(input.approvalWorkbench)
+      : undefined,
+    replyAssessments: structuredClone(input.replyAssessments ?? []),
+    incidents: structuredClone(input.incidents ?? []),
     proofPack: structuredClone(input.proofPack)
   };
 }

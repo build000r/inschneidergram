@@ -35,6 +35,7 @@ This repo currently contains the first API/control-plane slice:
 | Managed sender infrastructure | Partial | health model exists; real account operations next |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
+| Manual evidence recording | Working MVP | `POST /campaigns/:id/executions/:executionId/manual-events` |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs real delivery adapter and live pilot evidence |
 
@@ -118,6 +119,24 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions \
   }'
 ```
 
+Record manual send evidence for a manual execution:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions/<execution-id>/manual-events \
+  -H 'content-type: application/json' \
+  -H 'idempotency-key: manual-send-1' \
+  -d '{
+    "target": "instagram_profile_1",
+    "type": "sent",
+    "messageId": "manual_msg_1",
+    "evidence": {
+      "operatorId": "op_1",
+      "conversationUrl": "https://instagram.com/direct/t/example",
+      "screenshotUrl": "s3://proof/manual-send-1.png"
+    }
+  }'
+```
+
 ## API Shape
 
 `POST /campaigns`
@@ -162,8 +181,11 @@ safe `mock` or `manual` adapter, records campaign events, simulates signed
 webhook delivery records, and returns the proof-pack metrics plus Markdown. It
 also persists an execution proof record that can be listed with
 `GET /campaigns/:id/executions` or fetched with
-`GET /campaigns/:id/executions/:executionId`. It does not claim live Instagram
-delivery.
+`GET /campaigns/:id/executions/:executionId`. Manual executions can be updated
+with `POST /campaigns/:id/executions/:executionId/manual-events`; that route
+validates required operator evidence, updates campaign status, appends webhook
+delivery records, and refreshes the stored proof pack. It does not claim live
+Instagram delivery.
 
 ## Architecture
 

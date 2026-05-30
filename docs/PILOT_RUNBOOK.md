@@ -54,7 +54,9 @@ For the first pilot, maintain a private sender inventory outside git with:
    `needs_manual_evidence`.
 5. Operator performs or verifies manual sends outside the codebase when the
    adapter requires human evidence.
-6. Operator records sent, failed, restricted, skipped, or replied evidence.
+6. Operator records sent, failed, restricted, or replied evidence through
+   `POST /campaigns/:id/executions/:executionId/manual-events` with an
+   `Idempotency-Key` for retry safety.
 7. Campaign events update status and outgoing webhooks notify Graphed.
 8. Execution proof record is persisted for audit replay.
 9. Proof-pack generator produces the renewal report.

@@ -58,6 +58,8 @@ The current implementation covers:
   webhooks, and proof-pack generation
 - API pilot-demo execution route for safe mock/manual runs
 - persisted execution proof records for audit replay after the initial response
+- manual evidence recording API that validates operator evidence, updates
+  campaign state, appends webhook delivery records, and refreshes proof packs
 
 ## Acceptance Criteria
 
@@ -79,7 +81,9 @@ The current implementation covers:
 12. `POST /campaigns/:id/executions` exposes the safe execution/proof workflow
     without claiming live Instagram delivery.
 13. Execution proof records can be listed and fetched after the run.
-14. Tests prove the API contract and domain rules.
+14. Manual execution evidence can be recorded idempotently and refreshes the
+    stored proof pack.
+15. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -110,7 +114,11 @@ runner already creates approved send intents, routes through an injected
 adapter, records delivery/reply/restricted/failed events, dispatches outgoing
 webhooks, and feeds the proof-pack generator. The API now exposes a safe
 `POST /campaigns/:id/executions` workflow for mock/manual pilot dry runs and
-persists execution proof records for later inspection.
+persists execution proof records for later inspection. Manual execution records
+can be updated through
+`POST /campaigns/:id/executions/:executionId/manual-events`, which turns
+operator evidence into campaign events, webhook records, and refreshed proof
+metrics.
 
 ### Sender Account Operations
 

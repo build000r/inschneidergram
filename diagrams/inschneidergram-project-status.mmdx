@@ -20,7 +20,7 @@ flowchart LR
   ops["YELLOW Sender health model only"]
   beads["YELLOW Beads planning active"]
   proof["GREEN Proof pack generator"]
-  runner["GREEN API-callable execution + proof records"]
+  runner["GREEN API-callable execution + manual evidence records"]
   next["Next: real sender ops + live pilot"]
   bounty --> api
   api --> store
@@ -55,7 +55,7 @@ gantt
   GREEN Durable store and approvals :done, 2026-05-30, 1d
   GREEN Proof pack generator :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
-  GREEN API-callable execution + proof records :done, 2026-05-30, 1d
+  GREEN API-callable execution + manual evidence records :done, 2026-05-30, 1d
   YELLOW Live pilot preparation :active, 2026-05-30, 2d
   section RED Unproven
   RED Real delivery adapter :crit, 2026-06-01, 5d
@@ -72,7 +72,7 @@ flowchart TD
   sender["PARTIAL YELLOW Sender health model"]
   webhooks["DONE GREEN Outgoing webhook retry domain"]
   proof["DONE GREEN Proof pack generator"]
-  runner["DONE GREEN API execution + proof records"]
+  runner["DONE GREEN API execution + manual evidence records"]
   pilot["FUTURE RED Graphed pilot"]
   api --> store
   api --> approval
@@ -109,6 +109,7 @@ sequenceDiagram
   I->>I: validate, normalize, suppress, schedule
   G->>I: POST /campaigns/:id/executions
   I->>I: approval gates, safe adapter, proof pack
+  G->>I: POST /manual-events for operator evidence when manual
   I->>P: hand off approved send intent when adapter is real
   P->>C: Instagram DM
   C-->>P: reply
@@ -151,7 +152,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/execution/proof/domain"]
+  tests["GREEN npm test covers API/store/execution/manual-evidence/proof/domain"]
   typecheck["GREEN typecheck green"]
   mmdx["YELLOW MMDX preflight required"]
   live["RED no live Instagram delivery proof"]
@@ -174,7 +175,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/execution-record/proof claims"]
+  code["GREEN Code matches API/store/manual-evidence/proof claims"]
   beads["GREEN Beads closed for current scaffold"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -190,7 +191,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, approvals, webhooks, proof, execution records"]
+  now["Current: API, durable store, approvals, webhooks, proof, manual evidence records"]
   first["Next: real sender operations"]
   second["Then: live Graphed pilot"]
   third["Then: deployment hardening"]
@@ -258,5 +259,6 @@ erDiagram
     string adapterId
     datetime executedAt
     string proofPack
+    string manualEvents
   }
 ```
