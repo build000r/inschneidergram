@@ -96,8 +96,9 @@ contract for provider-reported outcomes. Execution now enforces readiness
 approval gates before proof records are created. The service path is also
 operator-testable: startup config is validated, `/health` checks the JSON
 store, optional API key protection gates non-public routes for exposed
-deployments, `npm run smoke:service` drives the compiled API through real HTTP
-with auth enabled, and a Dockerfile packages the runtime store at
+deployments, provider events and non-simulated executions can dispatch signed
+webhook callbacks, `npm run smoke:service` drives the compiled API through real
+HTTP with auth enabled, and a Dockerfile packages the runtime store at
 `/data/campaigns.json`. Buyers and operators can fetch
 `GET /campaigns/:id/proof-pack` to review the latest readiness-linked proof
 pack without knowing the internal execution id.

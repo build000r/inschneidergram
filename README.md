@@ -27,7 +27,8 @@ This repo currently contains the first API/control-plane slice:
 | Safe sending limits and scheduling | Working MVP | per-sender limits, delay windows, domain tests |
 | Delivery/reply status tracking | Working MVP | `POST /campaigns/:id/events` |
 | Webhook signing helper | Working MVP | `src/domain/webhook.ts` |
-| Outgoing webhook retries | Working MVP | signed jobs, backoff, dead letters, replay |
+| Runtime webhook callbacks | Working MVP | provider events and non-simulated executions dispatch signed callbacks |
+| Outgoing webhook retries | Working MVP | signed jobs, backoff, dead-letter list and replay routes |
 | Persistent local campaign store | Working MVP | `JsonFileCampaignStore`, idempotency/suppression tests |
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
@@ -124,10 +125,10 @@ docker run --rm -p 3107:3107 \
 The OpenAPI document includes the no-credential pilot flow: managed sender
 inventory, campaign creation, approval workbench, readiness, manual-safe
 execution, provider-reported managed execution, operator manual queue, manual
-evidence, proof records, health, webhook signature preview, and optional API
-key security schemes. Templated routes document path parameters, and manual
-evidence schemas are split by event type so operators can see the required
-proof fields before a run.
+evidence, proof records, webhook dead-letter replay, health, webhook signature
+preview, and optional API key security schemes. Templated routes document path
+parameters, and manual evidence schemas are split by event type so operators
+can see the required proof fields before a run.
 
 Register a non-secret sender account before scheduling a managed campaign:
 
@@ -176,6 +177,11 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/events \
     "messageId": "msg_123"
   }'
 ```
+
+When the campaign has `settings.webhookUrl`, provider events also dispatch a
+signed callback to that URL. The response includes the webhook delivery record
+so callers can see whether the callback was delivered, is pending retry, or
+dead-lettered.
 
 Create an approval workbench before execution:
 
@@ -376,12 +382,13 @@ approval workbench or explicit inline execution approvals, rechecks current
 managed sender health for assigned approved targets, routes approved targets
 through a safe
 `mock`, `manual`, or `managed_provider` adapter, records campaign events,
-simulates signed webhook delivery records, and returns the proof-pack metrics
-plus Markdown, including explicit operator skipped/blocked counts from
-workbench evidence. The managed-provider adapter requires an explicit outcome
-for every approved executable target and treats events as provider-reported
-evidence, not as a claim that this repo performs live Instagram delivery. It
-also persists an execution proof record that can be listed with
+dispatches signed webhook records through the runtime sender when
+`simulateWebhooks` is false, and returns the proof-pack metrics plus Markdown,
+including explicit operator skipped/blocked counts from workbench evidence.
+The managed-provider adapter requires an explicit outcome for every approved
+executable target and treats events as provider-reported evidence, not as a
+claim that this repo performs live Instagram delivery. It also persists an
+execution proof record that can be listed with
 `GET /campaigns/:id/executions` or fetched with
 `GET /campaigns/:id/executions/:executionId`. Operators do not have to inspect
 the raw execution record to know what to do next:
@@ -395,6 +402,11 @@ validates required operator evidence, updates campaign status, appends webhook
 delivery records, and refreshes the stored proof pack under one store-level
 mutation so small multi-operator pilots do not lose concurrent evidence writes.
 It does not claim live Instagram delivery.
+
+`GET /webhooks/dead-letters` lists callback deliveries that exhausted retry or
+failed permanently. `POST /webhooks/dead-letters/:id/replay` requeues one
+dead-lettered delivery and immediately drains due work, returning the replayed
+delivery state for operator review.
 
 ## Architecture
 

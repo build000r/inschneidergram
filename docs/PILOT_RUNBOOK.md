@@ -203,11 +203,24 @@ The local OpenAPI contract is available at `/openapi.json`. Use it as the
 operator contract for the credential-free pilot path: campaign creation,
 approval, readiness, sender inventory, manual-safe execution,
 provider-reported managed execution, operator manual queue, manual evidence,
-execution proof records, latest proof export, `/health`, and
-`/webhooks/preview`. It also documents the optional API key schemes used by
-network-exposed deployments. Manual evidence schemas are event-specific, so
-sent, failed, restricted, and replied events list the required evidence fields
-separately.
+execution proof records, runtime webhook callbacks, webhook dead-letter replay,
+latest proof export, `/health`, and `/webhooks/preview`. It also documents the
+optional API key schemes used by network-exposed deployments. Manual evidence
+schemas are event-specific, so sent, failed, restricted, and replied events
+list the required evidence fields separately.
+
+## Webhook Callback Operations
+
+When a campaign includes `settings.webhookUrl`, provider events recorded through
+`POST /campaigns/:id/events` dispatch a signed callback to that URL. Execution
+runs also use the runtime webhook sender when `simulateWebhooks` is false. Keep
+`simulateWebhooks` enabled for local proof rehearsals and disable it only when
+Graphed has a reachable callback endpoint.
+
+Use `GET /webhooks/dead-letters` before final proof generation. If a callback
+dead-lettered, fix the receiving endpoint or network issue, then run
+`POST /webhooks/dead-letters/:id/replay` and verify the delivery state before
+publishing the proof pack.
 
 For a repeatable local proof-pack demo, run:
 

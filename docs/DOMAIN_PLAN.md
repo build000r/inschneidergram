@@ -61,6 +61,11 @@ The current implementation covers:
 - scheduler refusal when no healthy sender is available
 - outgoing signed webhook payloads and jobs
 - retry/backoff, dead-letter, and replay behavior for injected webhook senders
+- runtime callback dispatch from provider event ingestion when a campaign has
+  `settings.webhookUrl`
+- non-simulated executions route proof webhook deliveries through the runtime
+  webhook sender instead of the local simulator
+- operator routes list dead-lettered webhooks and replay one failed delivery
 - pilot proof-pack metrics, operator skip/block evidence, incidents, sender
   health, reply assessment, and renewal recommendation
 - execution runner that connects approval, delivery adapter events, outgoing
@@ -152,7 +157,10 @@ The current implementation covers:
     JSON store.
 27. Public service deployments can require `X-API-Key` or bearer credentials
     without breaking local default-open demos.
-28. Tests prove the API contract and domain rules.
+28. Provider event ingestion and non-simulated executions dispatch signed
+    webhook callbacks through the runtime sender.
+29. Operators can inspect and replay dead-lettered callback deliveries.
+30. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -240,9 +248,12 @@ outside the repo and must be connected before a live pilot.
 
 ### Webhook Delivery
 
-Wire the current outgoing webhook dispatcher into campaign creation and provider
-event writes. Signed payloads, retries, backoff, dead-letter state, and replay
-tooling now exist as a domain module with injected sender tests.
+The current outgoing webhook dispatcher is wired into provider event writes and
+non-simulated executions. Signed payloads, retries, backoff, dead-letter state,
+dead-letter listing, and replay tooling now exist with injected sender tests.
+Campaign creation still does not emit a `campaign.created` callback; the
+highest-value callback path for the Graphed pilot is delivery/reply event
+status.
 
 ### Pilot Evidence
 

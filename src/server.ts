@@ -13,7 +13,13 @@ import {
   skipCandidate,
   type ApprovalWorkbench
 } from "./domain/approval.js";
-import { createCampaign, recordTargetEvent, type Campaign } from "./domain/campaign.js";
+import {
+  createCampaign,
+  recordTargetEvent,
+  targetEventSchema,
+  type Campaign,
+  type CampaignTarget
+} from "./domain/campaign.js";
 import {
   createManagedProviderDeliveryAdapter,
   createManualDeliveryAdapter,
@@ -28,7 +34,11 @@ import { executeApprovedCampaign } from "./domain/execution.js";
 import { normalizeInstagramHandle } from "./domain/handles.js";
 import {
   createTargetWebhookJob,
-  OutgoingWebhookDispatcher
+  OutgoingWebhookDispatcher,
+  type OutgoingWebhookRequest,
+  type OutgoingWebhookSender,
+  type OutgoingWebhookSenderResult,
+  type WebhookDeliveryRecord
 } from "./domain/outgoingWebhook.js";
 import { generatePilotProofPack, type ReplyAssessment } from "./domain/proofPack.js";
 import {
@@ -50,6 +60,7 @@ export interface ServerOptions {
   webhookSecret?: string;
   provider?: string;
   apiKey?: string;
+  webhookSender?: OutgoingWebhookSender;
 }
 
 export async function buildServer(options: ServerOptions = {}): Promise<FastifyInstance> {
@@ -57,6 +68,10 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
   const webhookSecret = options.webhookSecret ?? "dev-secret";
   const provider = options.provider ?? process.env.INSCHNEIDERGRAM_PROVIDER ?? "mock";
   const apiKey = normalizeOptionalApiKey(options.apiKey);
+  const runtimeWebhookDispatcher = new OutgoingWebhookDispatcher({
+    secret: webhookSecret,
+    sender: options.webhookSender ?? sendOutgoingWebhook
+  });
   const app = Fastify({ logger: false });
 
   await app.register(cors, {
@@ -262,12 +277,19 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     }
 
     try {
-      const updated = await store.update(recordTargetEvent(campaign, request.body));
+      const event = targetEventSchema.parse(request.body ?? {});
+      const campaignBeforeEvent = structuredClone(campaign);
+      const updated = await store.update(recordTargetEvent(campaign, event));
+      const webhookTarget = targetWithNewEvent(campaignBeforeEvent, updated, event.target);
+      const webhookDelivery = webhookTarget
+        ? await dispatchTargetWebhook(runtimeWebhookDispatcher, updated, webhookTarget)
+        : null;
       return {
         campaignId: updated.id,
         status: updated.status,
         summary: updated.summary,
-        senderHealth: updated.senderHealth
+        senderHealth: updated.senderHealth,
+        webhookDelivery
       };
     } catch (error) {
       return sendDomainError(reply, error);
@@ -510,7 +532,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
               statusCode: executionRequest.simulatedWebhookStatusCode
             })
           })
-        : undefined;
+        : runtimeWebhookDispatcher;
       const result = await executeApprovedCampaign({
         campaign: campaignForExecution,
         workbench,
@@ -647,6 +669,25 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     }
 
     return buildManualDeliveryQueue(execution, campaign);
+  });
+
+  app.get("/webhooks/dead-letters", async () => ({
+    deadLetters: runtimeWebhookDispatcher.deadLetters()
+  }));
+
+  app.post("/webhooks/dead-letters/:id/replay", async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    try {
+      const replayed = runtimeWebhookDispatcher.replay(id);
+      await runtimeWebhookDispatcher.drainDue();
+      return {
+        replayed,
+        delivery: runtimeWebhookDispatcher.get(id)
+      };
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
   });
 
   app.post("/webhooks/preview", async (request) => {
@@ -881,7 +922,9 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       "/campaigns/{id}/events": {
         parameters: openApiPathParameters("id"),
         post: {
-          summary: "Record provider delivery or reply event",
+          summary: "Record provider delivery or reply event and dispatch callback",
+          description:
+            "Updates campaign target status and, when settings.webhookUrl exists, dispatches one signed outgoing webhook for newly recorded event ids. Duplicate event ids return webhookDelivery null.",
           requestBody: {
             required: true,
             content: {
@@ -904,7 +947,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
             }
           },
           responses: {
-            "200": { description: "Campaign event recorded" },
+            "200": { description: "Campaign event recorded with webhook delivery state" },
             "400": { description: "Invalid event request" },
             "404": { description: "Campaign not found" }
           }
@@ -1076,6 +1119,8 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         },
         post: {
           summary: "Execute approved campaign targets through a mock, manual-safe, or managed-provider adapter",
+          description:
+            "simulateWebhooks defaults to true for local rehearsals. Set simulateWebhooks=false to dispatch signed callbacks through the runtime webhook sender.",
           requestBody: {
             required: false,
             content: {
@@ -1249,6 +1294,24 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           }
         }
       },
+      "/webhooks/dead-letters": {
+        get: {
+          summary: "List dead-lettered outgoing webhook deliveries",
+          responses: {
+            "200": { description: "Dead-lettered webhook deliveries returned" }
+          }
+        }
+      },
+      "/webhooks/dead-letters/{id}/replay": {
+        parameters: openApiPathParameters("id"),
+        post: {
+          summary: "Replay one dead-lettered outgoing webhook delivery",
+          responses: {
+            "200": { description: "Webhook replay attempted and delivery state returned" },
+            "400": { description: "Webhook delivery is missing or not dead-lettered" }
+          }
+        }
+      },
       "/webhooks/preview": {
         post: {
           summary: "Preview a signed webhook payload",
@@ -1272,6 +1335,51 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
   }));
 
   return app;
+}
+
+async function sendOutgoingWebhook(
+  request: OutgoingWebhookRequest
+): Promise<OutgoingWebhookSenderResult> {
+  const response = await fetch(request.url, {
+    method: "POST",
+    headers: request.headers,
+    body: JSON.stringify(request.payload),
+    signal: AbortSignal.timeout(10_000)
+  });
+  const body = await response.text().catch(() => undefined);
+  return {
+    statusCode: response.status,
+    body
+  };
+}
+
+function targetWithNewEvent(
+  previous: Campaign,
+  updated: Campaign,
+  target: string
+): CampaignTarget | null {
+  const handle = normalizeInstagramHandle(target);
+  const previousTarget = previous.targets.find((candidate) => candidate.handle === handle);
+  const updatedTarget = updated.targets.find((candidate) => candidate.handle === handle);
+  if (!updatedTarget) {
+    return null;
+  }
+
+  const previousEventIds = new Set(
+    previousTarget?.events.map((event) => event.eventId) ?? []
+  );
+  return updatedTarget.events.some((event) => !previousEventIds.has(event.eventId))
+    ? updatedTarget
+    : null;
+}
+
+async function dispatchTargetWebhook(
+  dispatcher: OutgoingWebhookDispatcher,
+  campaign: Campaign,
+  target: CampaignTarget
+): Promise<WebhookDeliveryRecord | null> {
+  const job = createTargetWebhookJob(campaign, target);
+  return job ? dispatcher.dispatch(job) : null;
 }
 
 function normalizeOptionalApiKey(value: string | undefined): string | undefined {

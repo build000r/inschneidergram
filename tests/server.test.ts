@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildServer } from "../src/server.js";
 import { JsonFileCampaignStore } from "../src/domain/store.js";
+import type { OutgoingWebhookRequest } from "../src/domain/outgoingWebhook.js";
+import { verifyWebhookSignature } from "../src/domain/webhook.js";
 
 describe("API", () => {
   it("accepts campaign creation through POST /campaigns", async () => {
@@ -60,6 +62,190 @@ describe("API", () => {
         replied: 1
       }
     });
+
+    await app.close();
+  });
+
+  it("dispatches signed webhooks from provider event ingestion", async () => {
+    const webhookRequests: OutgoingWebhookRequest[] = [];
+    const app = await buildServer({
+      webhookSecret: "event-webhook-secret",
+      async webhookSender(request) {
+        webhookRequests.push(request);
+        return { statusCode: 202 };
+      }
+    });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@webhook_event_creator"],
+        message: "Hey - loved your content.",
+        campaign: "provider-event-webhook",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/inschneidergram"
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const eventResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/events`,
+      payload: {
+        target: "@webhook_event_creator",
+        event: "reply",
+        eventId: "evt_provider_reply",
+        messageId: "msg_provider_reply"
+      }
+    });
+
+    expect(eventResponse.statusCode).toBe(200);
+    expect(eventResponse.json()).toMatchObject({
+      status: "completed",
+      webhookDelivery: {
+        id: "evt_provider_reply",
+        status: "delivered",
+        attempts: [expect.objectContaining({ statusCode: 202, success: true })]
+      }
+    });
+    expect(webhookRequests).toHaveLength(1);
+    expect(webhookRequests[0]).toMatchObject({
+      url: "https://example.com/webhooks/inschneidergram",
+      payload: {
+        id: "evt_provider_reply",
+        type: "target.replied",
+        target: {
+          handle: "webhook_event_creator",
+          messageId: "msg_provider_reply"
+        }
+      }
+    });
+    expect(
+      verifyWebhookSignature(
+        webhookRequests[0]!.payload,
+        "event-webhook-secret",
+        webhookRequests[0]!.headers["x-inschneidergram-signature"]!
+      )
+    ).toBe(true);
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/events`,
+      payload: {
+        target: "@webhook_event_creator",
+        event: "reply",
+        eventId: "evt_provider_reply",
+        messageId: "msg_provider_reply"
+      }
+    });
+    expect(duplicate.statusCode).toBe(200);
+    expect(duplicate.json().webhookDelivery).toBeNull();
+    expect(webhookRequests).toHaveLength(1);
+
+    await app.close();
+  });
+
+  it("records webhook dead letters and replays them from operator routes", async () => {
+    const webhookRequests: OutgoingWebhookRequest[] = [];
+    let acceptReplay = false;
+    const app = await buildServer({
+      webhookSecret: "dead-letter-secret",
+      async webhookSender(request) {
+        webhookRequests.push(request);
+        return { statusCode: acceptReplay ? 204 : 400 };
+      }
+    });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@dead_letter_creator"],
+        message: "Hey - loved your content.",
+        campaign: "dead-letter-webhook",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/dead-letter"
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const eventResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/events`,
+      payload: {
+        target: "@dead_letter_creator",
+        event: "failed",
+        eventId: "evt_dead_letter",
+        error: "provider rejected callback"
+      }
+    });
+    expect(eventResponse.statusCode).toBe(200);
+    expect(eventResponse.json().webhookDelivery).toMatchObject({
+      id: "evt_dead_letter",
+      status: "dead_letter",
+      lastError: "HTTP 400"
+    });
+
+    const deadLetters = await app.inject({
+      method: "GET",
+      url: "/webhooks/dead-letters"
+    });
+    expect(deadLetters.statusCode).toBe(200);
+    expect(deadLetters.json().deadLetters).toEqual([
+      expect.objectContaining({ id: "evt_dead_letter", status: "dead_letter" })
+    ]);
+
+    acceptReplay = true;
+    const replay = await app.inject({
+      method: "POST",
+      url: "/webhooks/dead-letters/evt_dead_letter/replay"
+    });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().delivery).toMatchObject({
+      id: "evt_dead_letter",
+      status: "delivered",
+      deliveredAt: expect.any(String)
+    });
+    expect(webhookRequests).toHaveLength(2);
+
+    await app.close();
+  });
+
+  it("does not dispatch provider event webhooks when no webhook URL is configured", async () => {
+    const webhookRequests: OutgoingWebhookRequest[] = [];
+    const app = await buildServer({
+      async webhookSender(request) {
+        webhookRequests.push(request);
+        return { statusCode: 204 };
+      }
+    });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@no_webhook_creator"],
+        message: "Hey - loved your content.",
+        campaign: "no-webhook-event"
+      }
+    });
+
+    const eventResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${createResponse.json().campaignId}/events`,
+      payload: {
+        target: "@no_webhook_creator",
+        event: "sent",
+        eventId: "evt_no_webhook"
+      }
+    });
+
+    expect(eventResponse.statusCode).toBe(200);
+    expect(eventResponse.json()).toMatchObject({
+      status: "running",
+      webhookDelivery: null
+    });
+    expect(webhookRequests).toEqual([]);
 
     await app.close();
   });
@@ -603,6 +789,78 @@ describe("API", () => {
       url: `/campaigns/${campaignId}/executions`
     });
     expect(executions.json().executions).toEqual([]);
+
+    await app.close();
+  });
+
+  it("uses the runtime webhook sender for non-simulated executions", async () => {
+    const webhookRequests: OutgoingWebhookRequest[] = [];
+    const app = await buildServer({
+      webhookSecret: "runtime-execution-secret",
+      async webhookSender(request) {
+        webhookRequests.push(request);
+        return { statusCode: 204 };
+      }
+    });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@runtime_execution_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "runtime-execution-webhook",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/runtime-execution",
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@runtime_execution_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    const execution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        simulateWebhooks: false,
+        adapter: {
+          kind: "mock",
+          replyTargets: ["@runtime_execution_creator"]
+        }
+      }
+    });
+
+    expect(execution.statusCode).toBe(200);
+    expect(execution.json().webhookDeliveries).toEqual([
+      expect.objectContaining({
+        status: "delivered",
+        attempts: [expect.objectContaining({ statusCode: 204 })]
+      }),
+      expect.objectContaining({
+        status: "delivered",
+        attempts: [expect.objectContaining({ statusCode: 204 })]
+      })
+    ]);
+    expect(webhookRequests.map((request) => request.payload.type)).toEqual([
+      "target.sent",
+      "target.replied"
+    ]);
 
     await app.close();
   });
@@ -2534,6 +2792,12 @@ describe("API", () => {
           description: "Execution or manual event state conflict"
         }
       }
+    });
+    expect(openapi.paths["/webhooks/dead-letters"].get).toMatchObject({
+      summary: "List dead-lettered outgoing webhook deliveries"
+    });
+    expect(openapi.paths["/webhooks/dead-letters/{id}/replay"].post).toMatchObject({
+      summary: "Replay one dead-lettered outgoing webhook delivery"
     });
 
     await app.close();
