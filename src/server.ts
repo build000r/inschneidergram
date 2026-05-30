@@ -27,6 +27,7 @@ import {
   createManagedProviderDeliveryAdapter,
   createManualDeliveryAdapter,
   createMockDeliveryAdapter,
+  manualEvidenceRequirements,
   recordManualDeliveryEvent,
   type DeliveryAttempt,
   type DeliveryEvent,
@@ -274,6 +275,17 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       approvalWorkbench: await store.getApprovalWorkbench(id),
       executions: await store.listExecutions(id)
     });
+  });
+
+  app.get("/campaigns/:id/pilot-handoff", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    return buildPilotHandoffPacket(store, campaign);
   });
 
   app.get("/campaigns/:id/proof-pack", async (request, reply) => {
@@ -976,6 +988,16 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           summary: "Get pilot launch readiness gates",
           responses: {
             "200": { description: "Pilot readiness report returned" },
+            "404": { description: "Campaign not found" }
+          }
+        }
+      },
+      "/campaigns/{id}/pilot-handoff": {
+        parameters: openApiPathParameters("id"),
+        get: {
+          summary: "Export live-pilot handoff actions and required inputs",
+          responses: {
+            "200": { description: "Pilot handoff packet returned" },
             "404": { description: "Campaign not found" }
           }
         }
@@ -2417,6 +2439,368 @@ async function buildLatestProofPackReport(
       executionsUrl: `/campaigns/${campaign.id}/executions`
     }
   };
+}
+
+async function buildPilotHandoffPacket(
+  store: CampaignStore,
+  campaign: Campaign,
+  now = new Date()
+) {
+  const campaignForReadiness = await withCurrentSenderInventorySnapshot(store, campaign);
+  const approvalWorkbench = await store.getApprovalWorkbench(campaign.id);
+  const executions = await store.listExecutions(campaign.id);
+  const latestExecution = latestExecutionForCampaign(executions);
+  const readiness = buildPilotReadinessReport({
+    campaign: campaignForReadiness,
+    approvalWorkbench,
+    executions
+  });
+  const followUpPlan = buildFollowUpPlan({
+    campaign: campaignForReadiness,
+    executions,
+    generatedAt: now
+  });
+  const manualQueue =
+    latestExecution?.adapterRiskPosture?.kind === "manual"
+      ? buildManualDeliveryQueue(latestExecution, campaignForReadiness)
+      : null;
+
+  return {
+    generatedAt: now.toISOString(),
+    campaignId: campaignForReadiness.id,
+    campaignName: campaignForReadiness.campaign,
+    status: campaignForReadiness.status,
+    readiness,
+    missingExternalInputs: readiness.externalInputs,
+    source: pilotHandoffSourceUrls(campaignForReadiness.id, latestExecution?.id),
+    nextActions: pilotHandoffActions({
+      campaign: campaignForReadiness,
+      readiness,
+      latestExecution,
+      manualQueue
+    }),
+    contracts: {
+      creatorInput: creatorInputContract(campaignForReadiness),
+      senderOperations: senderOperationsContract(campaignForReadiness),
+      launchPermission: launchPermissionContract(),
+      manualEvidence: manualEvidenceContract(),
+      providerExecution: providerExecutionContract(),
+      proofCriteria: proofCriteriaContract(),
+      stopConditions: pilotStopConditions()
+    },
+    currentState: {
+      latestExecution: latestExecution
+        ? {
+            id: latestExecution.id,
+            createdAt: latestExecution.createdAt,
+            adapterRiskPosture: latestExecution.adapterRiskPosture,
+            intentCount: latestExecution.intents.length,
+            deliveryAttemptCount: latestExecution.deliveryAttempts.length,
+            proofMetrics: latestExecution.proofPack.metrics,
+            renewalDecision: latestExecution.proofPack.renewalRecommendation.decision
+          }
+        : null,
+      manualQueue: manualQueue
+        ? {
+            counts: manualQueue.counts,
+            manualQueueUrl: `/campaigns/${campaignForReadiness.id}/executions/${manualQueue.executionId}/manual-queue`
+          }
+        : null,
+      followUpPlan
+    }
+  };
+}
+
+function pilotHandoffSourceUrls(campaignId: string, executionId?: string) {
+  return {
+    campaignUrl: `/campaigns/${campaignId}`,
+    readinessUrl: `/campaigns/${campaignId}/readiness`,
+    approvalWorkbenchUrl: `/campaigns/${campaignId}/approval-workbench`,
+    executionsUrl: `/campaigns/${campaignId}/executions`,
+    manualQueueUrl: `/operator/manual-queue?campaignId=${campaignId}`,
+    proofPackUrl: `/campaigns/${campaignId}/proof-pack`,
+    followUpsUrl: `/campaigns/${campaignId}/follow-ups`,
+    webhookDeadLettersUrl: "/webhooks/dead-letters",
+    senderInventoryUrl: "/senders",
+    senderHealthUrl: "/senders/health",
+    ...(executionId
+      ? {
+          latestExecutionUrl: `/campaigns/${campaignId}/executions/${executionId}`,
+          latestExecutionManualQueueUrl:
+            `/campaigns/${campaignId}/executions/${executionId}/manual-queue`
+        }
+      : {})
+  };
+}
+
+function pilotHandoffActions(input: {
+  campaign: Campaign;
+  readiness: ReturnType<typeof buildPilotReadinessReport>;
+  latestExecution: CampaignExecutionRecord | null;
+  manualQueue: ReturnType<typeof buildManualDeliveryQueue> | null;
+}) {
+  const actions: Array<Record<string, unknown>> = [];
+  const failingGateIds = new Set(
+    input.readiness.gates.filter((gate) => gate.status === "fail").map((gate) => gate.id)
+  );
+
+  if (failingGateIds.has("sender_health")) {
+    actions.push({
+      id: "register_sender",
+      label: "Register or repair a healthy managed sender",
+      state: "required",
+      method: "PUT",
+      path: "/senders/{senderId}",
+      body: {
+        status: "healthy",
+        dailyLimit: 20,
+        warmupNote: "low-volume pilot sender; credentials stay outside this API"
+      },
+      satisfiesExternalInput: "healthy sender account or managed provider"
+    });
+  }
+
+  if (failingGateIds.has("target_intake") || failingGateIds.has("creator_vetting")) {
+    actions.push({
+      id: "submit_vetted_campaign",
+      label: "Submit a campaign with vetted creator profile objects",
+      state: "required",
+      method: "POST",
+      path: "/campaigns",
+      body: {
+        targets: [
+          {
+            target: "instagram_profile_1",
+            source: "graphed-sheet:row-12",
+            fitReason: "Audience overlaps the offer"
+          }
+        ],
+        message: input.campaign.message,
+        campaign: input.campaign.campaign,
+        settings: {
+          senderPool: input.campaign.settings.senderPool,
+          requireTargetProvenance: true
+        }
+      },
+      satisfiesExternalInput: "vetted Instagram creator list"
+    });
+  }
+
+  if (
+    failingGateIds.has("approval_workbench") ||
+    failingGateIds.has("creator_approval") ||
+    failingGateIds.has("copy_approval")
+  ) {
+    actions.push({
+      id: "approval_workbench",
+      label: "Approve creator targets and first-touch copy",
+      state: "required",
+      method: "POST",
+      path: `/campaigns/${input.campaign.id}/approval-workbench`,
+      body: {
+        approvedTargets: approvedTargetSkeleton(input.campaign),
+        approveMessage: true,
+        actor: "approver"
+      },
+      satisfiesExternalInput: "creator approval decision"
+    });
+  }
+
+  if (!input.latestExecution) {
+    actions.push({
+      id: "collect_launch_permission",
+      label: "Collect explicit permission for the selected pilot delivery path",
+      state: "external_required",
+      method: "EXTERNAL",
+      path: null,
+      evidence: {
+        actor: "Graphed or client approver",
+        reference: "approval ticket, signed note, or operator launch log",
+        scope: "approved sender, creator list, message, volume, and stop conditions"
+      },
+      satisfiesExternalInput: "permission to run the selected pilot delivery path"
+    });
+  }
+
+  if (input.readiness.readyForExecution && !input.latestExecution) {
+    actions.push({
+      id: "execute_campaign",
+      label: "Run the approved campaign through manual or managed-provider execution",
+      state: "available_after_launch_permission",
+      method: "POST",
+      path: `/campaigns/${input.campaign.id}/executions`,
+      body: {
+        adapter: {
+          kind: "manual"
+        }
+      }
+    });
+  }
+
+  if (input.readiness.counts.pendingManualEvidence > 0 && input.manualQueue) {
+    actions.push({
+      id: "record_manual_evidence",
+      label: "Record evidence for pending manual delivery attempts",
+      state: "required",
+      method: "POST",
+      path: `/campaigns/${input.campaign.id}/executions/${input.manualQueue.executionId}/manual-events`,
+      body: {
+        intentId: "<intent-id-from-manual-queue>",
+        type: "sent",
+        messageId: "<platform-message-id>",
+        evidence: {
+          operatorId: "<operator>",
+          conversationUrl: "<private-proof-pointer>",
+          screenshotUrl: "<non-secret-proof-pointer>"
+        }
+      },
+      sourceUrl: `/campaigns/${input.campaign.id}/executions/${input.manualQueue.executionId}/manual-queue`,
+      satisfiesExternalInput: "operator delivery evidence"
+    });
+  }
+
+  if (input.latestExecution) {
+    actions.push(
+      {
+        id: "proof_review",
+        label: "Review the latest proof pack and renewal recommendation",
+        state: "available",
+        method: "GET",
+        path: `/campaigns/${input.campaign.id}/proof-pack`
+      },
+      {
+        id: "follow_up_review",
+        label: "Inspect due or pending follow-up work",
+        state: "available",
+        method: "GET",
+        path: `/campaigns/${input.campaign.id}/follow-ups`
+      },
+      {
+        id: "webhook_dead_letter_review",
+        label: "Inspect callback failures before publishing proof",
+        state: "available",
+        method: "GET",
+        path: "/webhooks/dead-letters"
+      }
+    );
+  }
+
+  return actions;
+}
+
+function approvedTargetSkeleton(campaign: Campaign): string[] {
+  return campaign.targets
+    .filter(
+      (target) =>
+        target.handle &&
+        target.status !== "skipped_duplicate" &&
+        target.status !== "blocked_policy"
+    )
+    .slice(0, 5)
+    .map((target) => `@${target.handle}`);
+}
+
+function creatorInputContract(campaign: Campaign) {
+  return {
+    strictProvenanceRequired: campaign.settings.requireTargetProvenance,
+    requiredForStrictMode: ["target", "source", "fitReason"],
+    optionalProfileFields: [
+      "profileUrl",
+      "displayName",
+      "tags",
+      "followerCount",
+      "engagementRate"
+    ],
+    acceptedTargets: campaign.summary.total - campaign.summary.skippedDuplicate - campaign.summary.blockedPolicy,
+    vettedTargets: campaign.targets.filter((target) =>
+      target.status !== "skipped_duplicate" &&
+      target.status !== "blocked_policy" &&
+      target.profile?.source &&
+      target.profile.fitReason
+    ).length
+  };
+}
+
+function senderOperationsContract(campaign: Campaign) {
+  return {
+    credentialBoundary:
+      "Sender credentials, recovery secrets, proxies, and session material stay outside this API and outside git.",
+    senderPool: campaign.settings.senderPool,
+    accounts: campaign.senderHealth.accounts.map((account) => ({
+      id: account.id,
+      status: account.status,
+      dailyLimit: account.dailyLimit,
+      cooldownUntil: account.cooldownUntil,
+      blockers: account.blockers,
+      riskEvents: account.riskEvents.length
+    }))
+  };
+}
+
+function launchPermissionContract() {
+  return {
+    requiredBeforeLiveOutreach: true,
+    currentApiBehavior:
+      "The handoff packet names launch permission as an external input; operators must record the approval reference in their launch log before executing a real pilot.",
+    evidenceFields: ["actor", "reference", "approvedAt", "deliveryPath", "targetLimit", "stopConditions"]
+  };
+}
+
+function manualEvidenceContract() {
+  const eventTypes: DeliveryEventType[] = ["sent", "replied", "failed", "restricted"];
+  return {
+    requiredByEvent: Object.fromEntries(
+      eventTypes.map((type) => [type, requiredEvidenceForType(manualEvidenceRequirements, type)])
+    ),
+    skippedOrBlockedWorkbenchEvidence: ["operator", "reason", "evidence.source", "evidence.reference"]
+  };
+}
+
+function providerExecutionContract() {
+  return {
+    adapterKind: "managed_provider",
+    requiresOutcomeForEveryApprovedExecutableTarget: true,
+    eventTypes: ["sent", "failed", "restricted", "replied"],
+    riskPosture:
+      "Provider-reported outcomes are an integration contract, not a claim of official Instagram cold-DM compliance."
+  };
+}
+
+function proofCriteriaContract() {
+  return {
+    proofPackUrl: "/campaigns/{campaignId}/proof-pack",
+    requiredMetrics: [
+      "sourcedTargets",
+      "acceptedTargets",
+      "vettedTargets",
+      "approvedTargets",
+      "contactedTargets",
+      "sentMessages",
+      "deliveredMessages",
+      "replies",
+      "interestedReplies",
+      "duplicateSkips",
+      "operatorSkippedTargets",
+      "operatorBlockedTargets",
+      "optOuts",
+      "complaints",
+      "deliveryFailures",
+      "senderWarnings",
+      "webhookDelivered",
+      "webhookDeadLetters"
+    ]
+  };
+}
+
+function pilotStopConditions() {
+  return [
+    "sender warning or restriction",
+    "complaint or opt-out",
+    "duplicate send attempt",
+    "missing creator or copy approval",
+    "missing operator evidence",
+    "webhook dead-letter that cannot be replayed before proof publication"
+  ];
 }
 
 async function buildOperatorManualQueue(

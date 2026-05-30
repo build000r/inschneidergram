@@ -110,31 +110,35 @@ private or special-use addresses before the outbound request is made.
    skipped or blocked before execution.
 6. Graphed or the operator checks `GET /campaigns/:id/readiness` to confirm the
    campaign is ready to execute or to see the remaining external inputs.
-7. Execution runner rejects campaigns that are not ready, rechecks current
+7. Graphed or the operator fetches `GET /campaigns/:id/pilot-handoff` to see
+   the missing external inputs, exact next API actions, creator/sender/evidence
+   contracts, proof URLs, follow-up state, and stop conditions for this
+   campaign.
+8. Execution runner rejects campaigns that are not ready, rechecks current
    sender health, then creates `SendIntent` records only for approved creators
    that remain queued or claimed.
-8. Delivery adapter returns sent, failed, restricted, replied, or, for the
+9. Delivery adapter returns sent, failed, restricted, replied, or, for the
    manual-safe adapter, `needs_manual_evidence`.
-9. Operator checks `GET /operator/manual-queue` or
+10. Operator checks `GET /operator/manual-queue` or
    `GET /campaigns/:id/executions/:executionId/manual-queue` to see stable
    intent ids, target handles, sender accounts, messages, allowed manual
    events, and required evidence fields.
-10. Operator performs or verifies manual sends outside the codebase when the
+11. Operator performs or verifies manual sends outside the codebase when the
    adapter requires human evidence.
-11. Operator records sent, failed, restricted, or replied evidence through
+12. Operator records sent, failed, restricted, or replied evidence through
    `POST /campaigns/:id/executions/:executionId/manual-events` with an
    `Idempotency-Key` for retry safety.
-12. Campaign events update status, refresh latest proof/follow-up state, and
+13. Campaign events update status, refresh latest proof/follow-up state, and
     outgoing webhooks notify Graphed.
-13. Execution proof record is persisted for audit replay.
-14. Operator or buyer fetches `GET /campaigns/:id/proof-pack` for the latest
+14. Execution proof record is persisted for audit replay.
+15. Operator or buyer fetches `GET /campaigns/:id/proof-pack` for the latest
     proof export, readiness state, source URLs, metrics, renewal decision, and
     Markdown report.
-15. Operator checks `GET /campaigns/:id/follow-ups` when the campaign includes
+16. Operator checks `GET /campaigns/:id/follow-ups` when the campaign includes
     `settings.followUps`. The plan lists only contacted creators without reply,
     failure, or restriction evidence, with due/pending status, sequence,
     sender, message, and creator provenance for the next operator touch.
-16. Proof-pack generator produces the renewal report with operator skipped and
+17. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
 
 ## Readiness Gates
@@ -161,6 +165,14 @@ Readiness and execution use the current managed sender inventory when a
 campaign was scheduled from stored sender ids. If a sender is locked or cooling
 down after campaign creation, readiness blocks and execution returns a conflict
 instead of creating send intents for that account.
+
+`GET /campaigns/:id/pilot-handoff` is the campaign-level handoff document for
+operators and evaluators. It wraps readiness with next API actions, source
+URLs, missing external inputs, creator provenance requirements, sender
+credential boundaries, launch-permission evidence fields, manual evidence
+requirements, provider outcome expectations, stop conditions, follow-up state,
+and latest proof context. Use it before moving from local rehearsal to a real
+Graphed pilot.
 
 `GET /operator/manual-queue` defaults to the same blocking work readiness calls
 pending manual evidence: manual attempts with no recorded evidence from the

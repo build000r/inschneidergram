@@ -2,7 +2,7 @@
 
 Baseline generated: 2026-05-30T01:23:51Z
 
-Commit at dry run: `2083d62`
+Commit at baseline dry run: `2083d62`
 
 ## Decision
 
@@ -94,14 +94,16 @@ strict provenance path:
 - leaves one sender healthy and one sender in cooldown
 - reports `vettedTargets: 2` and `senderWarnings: 1` in the proof pack while
   final readiness remains `evidence_ready`
+- reports 26 OpenAPI paths after adding `GET /campaigns/:id/pilot-handoff`
 
-Last verified: 2026-05-30T06:29:13Z on the public demo command. The demo uses
-explicit `simulateWebhookDelivery=true` payloads so the local proof can count
-simulated callbacks without claiming a runtime Graphed receiver was contacted.
+Last verified for the pilot-handoff slice with `npm run demo:manual-pilot`.
+The demo uses explicit `simulateWebhookDelivery=true` payloads so the local
+proof can count simulated callbacks without claiming a runtime Graphed receiver
+was contacted.
 
 ```json
 {
-  "openApiPathCount": 25,
+  "openApiPathCount": 26,
   "finalMetrics": {
     "sourcedTargets": 2,
     "acceptedTargets": 2,

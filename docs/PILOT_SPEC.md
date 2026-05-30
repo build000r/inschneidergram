@@ -40,6 +40,10 @@ needing approval, ready to execute, awaiting manual evidence, or evidence-ready.
 It also names the missing external inputs so the pilot cannot look ready while
 creator approvals, approved copy, a healthy sender/provider, operator evidence,
 or launch permission are still missing.
+`GET /campaigns/:id/pilot-handoff` turns the same readiness state into an
+operator packet: source URLs, next API actions, missing external inputs,
+creator/sender/evidence contracts, launch-permission expectations, proof
+criteria, stop conditions, follow-up state, and latest execution context.
 For campaigns scheduled from managed sender ids, readiness rechecks the current
 stored sender inventory so post-creation lockouts or cooldowns block launch.
 Manual `restricted` evidence for managed senders writes back into that sender

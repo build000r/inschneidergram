@@ -106,6 +106,9 @@ The current implementation covers:
 - pilot launch readiness report that turns campaign, approval, sender,
   creator vetting, execution, and proof state into pass/fail/warn gates plus
   next actions
+- pilot handoff packet that turns readiness, missing external inputs, source
+  URLs, next API actions, creator/sender/evidence contracts, stop conditions,
+  follow-up state, and proof context into one campaign-level operator surface
 - latest proof export route that returns the most recent proof pack, readiness,
   metrics, renewal recommendation, source URLs, and Markdown from one
   campaign-level API call, with late provider replies/failures folded into the
@@ -160,42 +163,45 @@ The current implementation covers:
     stored proof pack without losing concurrent operator updates.
 18. Launch readiness can be inspected from one API response before execution,
     during manual evidence collection, and after proof is ready.
-19. Follow-up work can be inspected after execution with due/pending counts,
+19. Operators and evaluators can fetch one pilot handoff packet that names the
+    missing external inputs, next API actions, evidence contracts, source URLs,
+    stop conditions, and proof-review state for a campaign.
+20. Follow-up work can be inspected after execution with due/pending counts,
     sequence, message, sender, target, and preserved creator provenance.
-20. OpenAPI documents the runtime pilot contract closely enough for a local
+21. OpenAPI documents the runtime pilot contract closely enough for a local
     operator to run the no-credential manual flow without guessing schemas.
-21. A one-command manual rehearsal proves the operator-run pilot path,
+22. A one-command manual rehearsal proves the operator-run pilot path,
     strict creator-provenance gate, and managed sender-risk reconciliation
     still work before real sender/list inputs are available.
-22. Managed sender accounts can be registered, fetched, listed, health-checked,
+23. Managed sender accounts can be registered, fetched, listed, health-checked,
     and updated through risk events.
-23. Manual restriction evidence updates managed sender risk state, proof
+24. Manual restriction evidence updates managed sender risk state, proof
     sender-warning metrics, readiness, and subsequent execution gates.
-24. Campaign creation uses stored sender inventory when inline sender accounts
+25. Campaign creation uses stored sender inventory when inline sender accounts
     are absent and rejects unknown managed sender ids.
-25. Operators can list pending and completed manual delivery work with stable
+26. Operators can list pending and completed manual delivery work with stable
     intent ids and required evidence fields.
-26. Managed-provider executions require explicit outcomes for all approved
+27. Managed-provider executions require explicit outcomes for all approved
     executable targets and reject duplicate, missing, or unknown outcome
     targets.
-27. Executions cannot create proof records while approval readiness gates still
+28. Executions cannot create proof records while approval readiness gates still
     fail.
-28. Executions cannot create duplicate manual queues while pending manual
+29. Executions cannot create duplicate manual queues while pending manual
     evidence remains unresolved.
-29. Buyers/operators can export the latest proof pack and readiness context
+30. Buyers/operators can export the latest proof pack and readiness context
     without knowing which execution id to inspect.
-30. The built service can be smoke-tested through real HTTP with an isolated
+31. The built service can be smoke-tested through real HTTP with an isolated
     JSON store.
-31. Public service deployments can require `X-API-Key` or bearer credentials
+32. Public service deployments can require `X-API-Key` or bearer credentials
     without breaking local default-open demos.
-32. Provider event ingestion, non-simulated executions, and manual evidence
+33. Provider event ingestion, non-simulated executions, and manual evidence
     dispatch signed webhook callbacks through the runtime sender by default.
-33. Late provider replies and failures refresh the latest execution proof pack
+34. Late provider replies and failures refresh the latest execution proof pack
     and suppress stale follow-up work.
-34. Operators can inspect and replay dead-lettered callback deliveries.
-35. Network-exposed deployments reject unsafe webhook destinations before
+35. Operators can inspect and replay dead-lettered callback deliveries.
+36. Network-exposed deployments reject unsafe webhook destinations before
     storing campaigns and before dispatching legacy callback records.
-36. Tests prove the API contract and domain rules.
+37. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -247,6 +253,13 @@ sender health, approval workbench, creator approval, copy approval, execution
 proof, and manual evidence gates, then names next actions and external inputs.
 This keeps the live-pilot blocker explicit while sender credentials, creator
 lists, and permission remain outside the repo.
+
+`GET /campaigns/:id/pilot-handoff` builds on readiness by returning one
+operator/evaluator packet with missing external inputs, source URLs, next API
+actions, creator and sender contracts, manual evidence requirements,
+managed-provider expectations, proof criteria, stop conditions, follow-up state,
+and latest execution context. It is the campaign-level bridge from local product
+state to a real pilot handoff.
 
 ### Execution Runner
 

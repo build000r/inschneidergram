@@ -1743,6 +1743,227 @@ describe("API", () => {
     await app.close();
   });
 
+  it("returns a pilot handoff packet with missing inputs before approval", async () => {
+    const app = await buildServer({ webhookSecret: "handoff-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: [
+          {
+            target: "@handoff_creator",
+            source: "graphed-sheet:row-42",
+            fitReason: "Audience overlaps the affiliate offer"
+          }
+        ],
+        message: "Open to an affiliate pilot?",
+        campaign: "handoff-pilot",
+        settings: {
+          requireTargetProvenance: true,
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const handoff = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/pilot-handoff`
+    });
+
+    expect(handoff.statusCode).toBe(200);
+    expect(handoff.json()).toMatchObject({
+      campaignId,
+      campaignName: "handoff-pilot",
+      readiness: {
+        status: "needs_approval",
+        readyForExecution: false
+      },
+      missingExternalInputs: expect.arrayContaining([
+        "creator approval decision",
+        "approved first-touch copy",
+        "permission to run the selected pilot delivery path"
+      ]),
+      source: {
+        readinessUrl: `/campaigns/${campaignId}/readiness`,
+        approvalWorkbenchUrl: `/campaigns/${campaignId}/approval-workbench`,
+        proofPackUrl: `/campaigns/${campaignId}/proof-pack`
+      },
+      contracts: {
+        creatorInput: {
+          strictProvenanceRequired: true,
+          requiredForStrictMode: ["target", "source", "fitReason"],
+          acceptedTargets: 1,
+          vettedTargets: 1
+        },
+        senderOperations: {
+          senderPool: ["sender-a"],
+          accounts: [
+            expect.objectContaining({
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20
+            })
+          ]
+        },
+        launchPermission: {
+          requiredBeforeLiveOutreach: true
+        },
+        manualEvidence: {
+          requiredByEvent: {
+            sent: expect.arrayContaining([
+              expect.objectContaining({ key: "operatorId" }),
+              expect.objectContaining({ key: "conversationUrl" })
+            ]),
+            restricted: expect.arrayContaining([
+              expect.objectContaining({ key: "restrictionSource" })
+            ])
+          }
+        }
+      },
+      currentState: {
+        latestExecution: null
+      }
+    });
+    expect(handoff.json().nextActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "approval_workbench",
+          method: "POST",
+          path: `/campaigns/${campaignId}/approval-workbench`,
+          state: "required"
+        }),
+        expect.objectContaining({
+          id: "collect_launch_permission",
+          method: "EXTERNAL",
+          state: "external_required"
+        })
+      ])
+    );
+
+    await app.close();
+  });
+
+  it("returns proof review handoff after evidence is ready", async () => {
+    const app = await buildServer({ webhookSecret: "handoff-proof-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@handoff_ready_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "handoff-proof-pilot",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ],
+          followUps: [
+            {
+              delayHours: 24,
+              message: "Checking back once before I close the loop."
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@handoff_ready_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    const execution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "mock",
+          replyTargets: ["@handoff_ready_creator"]
+        },
+        replyAssessments: [
+          {
+            targetHandle: "@handoff_ready_creator",
+            disposition: "interested",
+            qualified: true
+          }
+        ]
+      }
+    });
+
+    const handoff = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/pilot-handoff`
+    });
+
+    expect(handoff.statusCode).toBe(200);
+    expect(handoff.json()).toMatchObject({
+      campaignId,
+      readiness: {
+        status: "evidence_ready",
+        readyForEvidenceReview: true
+      },
+      missingExternalInputs: [],
+      currentState: {
+        latestExecution: {
+          id: execution.json().executionId,
+          proofMetrics: {
+            contactedTargets: 1,
+            replies: 1,
+            interestedReplies: 1
+          },
+          renewalDecision: "renew"
+        },
+        followUpPlan: {
+          counts: {
+            total: 0
+          }
+        }
+      }
+    });
+    expect(handoff.json().nextActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "proof_review",
+          method: "GET",
+          path: `/campaigns/${campaignId}/proof-pack`,
+          state: "available"
+        }),
+        expect.objectContaining({
+          id: "follow_up_review",
+          method: "GET",
+          path: `/campaigns/${campaignId}/follow-ups`
+        }),
+        expect.objectContaining({
+          id: "webhook_dead_letter_review",
+          path: "/webhooks/dead-letters"
+        })
+      ])
+    );
+    expect(
+      handoff.json().nextActions.some((action: { id: string }) => action.id === "approval_workbench")
+    ).toBe(false);
+
+    await app.close();
+  });
+
   it("exposes an operator manual delivery queue across evidence states", async () => {
     const app = await buildServer({ webhookSecret: "queue-secret" });
     const createResponse = await app.inject({
@@ -3525,6 +3746,9 @@ describe("API", () => {
     });
     expect(openapi.paths["/campaigns/{id}/readiness"].get).toMatchObject({
       summary: "Get pilot launch readiness gates"
+    });
+    expect(openapi.paths["/campaigns/{id}/pilot-handoff"].get).toMatchObject({
+      summary: "Export live-pilot handoff actions and required inputs"
     });
     expect(openapi.paths["/campaigns/{id}/proof-pack"].get).toMatchObject({
       summary: "Export the latest campaign proof pack and readiness context",

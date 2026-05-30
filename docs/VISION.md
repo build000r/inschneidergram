@@ -106,11 +106,13 @@ with private-network blocking and optional production allowlists,
 enabled, and a Dockerfile packages the runtime store at `/data/campaigns.json`.
 Buyers and operators can fetch
 `GET /campaigns/:id/proof-pack` to review the latest readiness-linked proof
-pack without knowing the internal execution id. The credential-free manual
-rehearsal now uses stored managed senders and strict creator-provenance intake,
-then proves that restricted manual evidence writes back into sender
-cooldown/proof warning state before the live pilot path substitutes real
-accounts.
+pack without knowing the internal execution id, and
+`GET /campaigns/:id/pilot-handoff` turns readiness into a campaign-level
+operator packet with missing inputs, next API actions, evidence contracts, proof
+URLs, and stop conditions. The credential-free manual rehearsal now uses stored
+managed senders and strict creator-provenance intake, then proves that
+restricted manual evidence writes back into sender cooldown/proof warning state
+before the live pilot path substitutes real accounts.
 
 It is not yet bounty-complete because verified provider/account operations, a
 vetted Graphed creator list, explicit permission to run outreach, and live

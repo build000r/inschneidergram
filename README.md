@@ -40,6 +40,7 @@ This repo currently contains the first API/control-plane slice:
 | Operator workbench state | Working MVP | claim, skip, block routes before execution |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
+| Pilot handoff packet | Working MVP | `GET /campaigns/:id/pilot-handoff` turns readiness into operator actions |
 | Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from refreshed execution evidence |
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
@@ -263,6 +264,19 @@ inputs still needed before a live pilot, such as creator approval, approved
 copy, a healthy sender or provider, operator evidence, or permission to run the
 selected delivery path.
 
+Export the pilot handoff packet:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/pilot-handoff
+```
+
+The handoff packet wraps readiness, missing external inputs, source URLs, next
+API actions, creator/sender/evidence contracts, launch-permission expectations,
+stop conditions, manual queue state, follow-up state, and latest proof context.
+It is the operator/evaluator bridge from local product state to a real Graphed
+pilot; it does not claim permission or live Instagram delivery has already
+happened.
+
 Export the latest proof pack for review after an execution:
 
 ```bash
@@ -442,6 +456,13 @@ stored campaign, approval workbench, current managed sender health, and
 execution proof records. It is the fastest way to see whether the campaign is
 blocked, needs approval, is ready to execute, is waiting on manual evidence, or
 has proof ready for review.
+
+`GET /campaigns/:id/pilot-handoff` exports the operator handoff packet for the
+same campaign. It converts readiness gates into next API actions, missing
+external inputs, source URLs, creator intake requirements, sender operations
+boundaries, manual evidence requirements, managed-provider expectations, proof
+criteria, and stop conditions. Use it before a real pilot handoff so Graphed can
+see exactly which external input or API call remains.
 
 `GET /campaigns/:id/proof-pack` exports the latest proof record with readiness
 context, source URLs, metrics, renewal recommendation, and Markdown. It returns
