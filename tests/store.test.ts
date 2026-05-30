@@ -2,7 +2,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createCampaign } from "../src/domain/campaign.js";
-import { InMemoryCampaignStore, JsonFileCampaignStore } from "../src/domain/store.js";
+import { generatePilotProofPack } from "../src/domain/proofPack.js";
+import {
+  createCampaignExecutionRecord,
+  InMemoryCampaignStore,
+  JsonFileCampaignStore
+} from "../src/domain/store.js";
 
 describe("campaign stores", () => {
   it("deduplicates inserts by idempotency key in memory", async () => {
@@ -101,6 +106,37 @@ describe("campaign stores", () => {
       expect(await thirdStore.listSuppressions()).toEqual([
         expect.objectContaining({ handle: "creator_one", campaignId: campaign.id }),
         expect.objectContaining({ handle: "creator_three", campaignId: crossCampaign.id })
+      ]);
+
+      const execution = createCampaignExecutionRecord(
+        {
+          campaignId: campaign.id,
+          adapterRiskPosture: null,
+          intents: [],
+          deliveryAttempts: [],
+          webhookDeliveries: [],
+          proofPack: generatePilotProofPack({
+            campaign,
+            generatedAt: "2026-05-30T01:00:00.000Z"
+          })
+        },
+        new Date("2026-05-30T01:01:00.000Z")
+      );
+      await thirdStore.insertExecution(execution);
+      const fourthStore = new JsonFileCampaignStore(storePath);
+
+      expect(await fourthStore.getExecution(execution.id)).toMatchObject({
+        id: execution.id,
+        campaignId: campaign.id,
+        proofPack: {
+          campaignId: campaign.id,
+          metrics: {
+            sourcedTargets: 1
+          }
+        }
+      });
+      expect(await fourthStore.listExecutions(campaign.id)).toEqual([
+        expect.objectContaining({ id: execution.id, campaignId: campaign.id })
       ]);
     } finally {
       await rm(dir, { recursive: true, force: true });

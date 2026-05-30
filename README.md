@@ -34,6 +34,7 @@ This repo currently contains the first API/control-plane slice:
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Managed sender infrastructure | Partial | health model exists; real account operations next |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, renewal decision |
+| Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs real delivery adapter and live pilot evidence |
 
@@ -159,7 +160,10 @@ senders are blocked from scheduling and surfaced as account-health blockers.
 approval workbench from the stored campaign, routes approved targets through a
 safe `mock` or `manual` adapter, records campaign events, simulates signed
 webhook delivery records, and returns the proof-pack metrics plus Markdown. It
-does not claim live Instagram delivery.
+also persists an execution proof record that can be listed with
+`GET /campaigns/:id/executions` or fetched with
+`GET /campaigns/:id/executions/:executionId`. It does not claim live Instagram
+delivery.
 
 ## Architecture
 

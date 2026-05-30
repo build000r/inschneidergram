@@ -15,7 +15,11 @@ import {
 import { executeApprovedCampaign } from "./domain/execution.js";
 import { normalizeInstagramHandle } from "./domain/handles.js";
 import { OutgoingWebhookDispatcher } from "./domain/outgoingWebhook.js";
-import { InMemoryCampaignStore, type CampaignStore } from "./domain/store.js";
+import {
+  createCampaignExecutionRecord,
+  InMemoryCampaignStore,
+  type CampaignStore
+} from "./domain/store.js";
 import { signWebhookPayload } from "./domain/webhook.js";
 
 export interface ServerOptions {
@@ -118,21 +122,63 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         incidents: executionRequest.incidents
       });
       const updated = await store.update(result.campaign);
+      const execution = await store.insertExecution(
+        createCampaignExecutionRecord({
+          campaignId: updated.id,
+          adapterRiskPosture: result.deliveryAttempts[0]?.riskPosture ?? null,
+          intents: result.intents,
+          deliveryAttempts: result.deliveryAttempts,
+          webhookDeliveries: result.webhookDeliveries,
+          proofPack: result.proofPack
+        })
+      );
 
       return {
         campaignId: updated.id,
+        executionId: execution.id,
         status: updated.status,
         summary: updated.summary,
         senderHealth: updated.senderHealth,
-        adapterRiskPosture: result.deliveryAttempts[0]?.riskPosture ?? null,
+        adapterRiskPosture: execution.adapterRiskPosture,
         intents: result.intents,
         deliveryAttempts: result.deliveryAttempts,
         webhookDeliveries: result.webhookDeliveries,
-        proofPack: result.proofPack
+        proofPack: result.proofPack,
+        execution
       };
     } catch (error) {
       return sendDomainError(reply, error);
     }
+  });
+
+  app.get("/campaigns/:id/executions", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    return {
+      campaignId: id,
+      executions: await store.listExecutions(id)
+    };
+  });
+
+  app.get("/campaigns/:id/executions/:executionId", async (request, reply) => {
+    const { id, executionId } = request.params as { id: string; executionId: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    const execution = await store.getExecution(executionId);
+    if (!execution || execution.campaignId !== id) {
+      return reply.code(404).send({ error: "execution_not_found" });
+    }
+
+    return execution;
   });
 
   app.post("/webhooks/preview", async (request) => {
@@ -230,6 +276,13 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/executions": {
+        get: {
+          summary: "List persisted execution proof records for a campaign",
+          responses: {
+            "200": { description: "Execution proof records returned" },
+            "404": { description: "Campaign not found" }
+          }
+        },
         post: {
           summary: "Execute approved campaign targets through a mock or manual-safe adapter",
           requestBody: {
@@ -305,6 +358,15 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
             },
             "400": { description: "Invalid execution request" },
             "404": { description: "Campaign not found" }
+          }
+        }
+      },
+      "/campaigns/{id}/executions/{executionId}": {
+        get: {
+          summary: "Get one persisted execution proof record",
+          responses: {
+            "200": { description: "Execution proof record returned" },
+            "404": { description: "Campaign or execution not found" }
           }
         }
       }

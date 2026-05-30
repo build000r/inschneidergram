@@ -252,6 +252,8 @@ describe("API", () => {
     });
 
     expect(executionResponse.statusCode).toBe(200);
+    const executionId = executionResponse.json().executionId;
+    expect(executionId).toMatch(/^exec_/);
     expect(executionResponse.json()).toMatchObject({
       status: "running",
       summary: {
@@ -275,6 +277,15 @@ describe("API", () => {
         }
       }
     });
+    expect(executionResponse.json().execution).toMatchObject({
+      id: executionId,
+      campaignId,
+      proofPack: {
+        metrics: {
+          interestedReplies: 1
+        }
+      }
+    });
     expect(executionResponse.json().deliveryAttempts).toHaveLength(3);
     expect(executionResponse.json().webhookDeliveries).toHaveLength(4);
     expect(executionResponse.json().proofPack.markdown).toContain("Decision: renew");
@@ -286,6 +297,37 @@ describe("API", () => {
     expect(stored.json().summary).toMatchObject({
       replied: 1,
       failed: 1
+    });
+
+    const executions = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions`
+    });
+    expect(executions.json()).toMatchObject({
+      campaignId,
+      executions: [
+        {
+          id: executionId,
+          proofPack: {
+            renewalRecommendation: {
+              decision: "renew"
+            }
+          }
+        }
+      ]
+    });
+
+    const executionRecord = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions/${executionId}`
+    });
+    expect(executionRecord.json()).toMatchObject({
+      id: executionId,
+      campaignId,
+      adapterRiskPosture: {
+        kind: "mock",
+        officialColdDmCompliance: "not_claimed"
+      }
     });
 
     await app.close();
@@ -343,6 +385,9 @@ describe("API", () => {
     });
     const openapi = response.json();
 
+    expect(openapi.paths["/campaigns/{id}/executions"].get).toMatchObject({
+      summary: "List persisted execution proof records for a campaign"
+    });
     expect(openapi.paths["/campaigns/{id}/executions"].post).toMatchObject({
       summary: "Execute approved campaign targets through a mock or manual-safe adapter",
       requestBody: {
@@ -363,6 +408,9 @@ describe("API", () => {
           description: "Safe execution completed and proof pack returned"
         }
       }
+    });
+    expect(openapi.paths["/campaigns/{id}/executions/{executionId}"].get).toMatchObject({
+      summary: "Get one persisted execution proof record"
     });
 
     await app.close();

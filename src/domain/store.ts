@@ -1,6 +1,14 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { summarizeCampaign, type Campaign } from "./campaign.js";
+import type {
+  DeliveryAdapterRiskPosture,
+  DeliveryAttempt,
+  SendIntent
+} from "./delivery.js";
+import type { WebhookDeliveryRecord } from "./outgoingWebhook.js";
+import type { PilotProofPack } from "./proofPack.js";
 
 export interface SuppressionRecord {
   handle: string;
@@ -10,18 +18,36 @@ export interface SuppressionRecord {
   reason: "campaign_target";
 }
 
+export interface CampaignExecutionRecordInput {
+  campaignId: string;
+  adapterRiskPosture: DeliveryAdapterRiskPosture | null;
+  intents: SendIntent[];
+  deliveryAttempts: DeliveryAttempt[];
+  webhookDeliveries: WebhookDeliveryRecord[];
+  proofPack: PilotProofPack;
+}
+
+export interface CampaignExecutionRecord extends CampaignExecutionRecordInput {
+  id: string;
+  createdAt: string;
+}
+
 export interface CampaignStore {
   insert(campaign: Campaign): Promise<Campaign>;
   get(id: string): Promise<Campaign | null>;
   update(campaign: Campaign): Promise<Campaign>;
   list(): Promise<Campaign[]>;
   listSuppressions(): Promise<SuppressionRecord[]>;
+  insertExecution(record: CampaignExecutionRecord): Promise<CampaignExecutionRecord>;
+  getExecution(id: string): Promise<CampaignExecutionRecord | null>;
+  listExecutions(campaignId: string): Promise<CampaignExecutionRecord[]>;
 }
 
 export class InMemoryCampaignStore implements CampaignStore {
   private campaigns = new Map<string, Campaign>();
   private idempotencyIndex = new Map<string, string>();
   private suppressions = new Map<string, SuppressionRecord>();
+  private executions = new Map<string, CampaignExecutionRecord>();
 
   async insert(campaign: Campaign): Promise<Campaign> {
     const existing = this.findByIdempotencyKey(campaign.idempotencyKey);
@@ -60,6 +86,22 @@ export class InMemoryCampaignStore implements CampaignStore {
     return [...this.suppressions.values()].map((record) => structuredClone(record));
   }
 
+  async insertExecution(record: CampaignExecutionRecord): Promise<CampaignExecutionRecord> {
+    this.executions.set(record.id, structuredClone(record));
+    return structuredClone(record);
+  }
+
+  async getExecution(id: string): Promise<CampaignExecutionRecord | null> {
+    const record = this.executions.get(id);
+    return record ? structuredClone(record) : null;
+  }
+
+  async listExecutions(campaignId: string): Promise<CampaignExecutionRecord[]> {
+    return [...this.executions.values()]
+      .filter((record) => record.campaignId === campaignId)
+      .map((record) => structuredClone(record));
+  }
+
   private findByIdempotencyKey(idempotencyKey: string | undefined): Campaign | null {
     if (!idempotencyKey) {
       return null;
@@ -82,6 +124,7 @@ export class InMemoryCampaignStore implements CampaignStore {
 interface StoreSnapshot {
   campaigns: Campaign[];
   suppressions: SuppressionRecord[];
+  executions: CampaignExecutionRecord[];
 }
 
 export class JsonFileCampaignStore implements CampaignStore {
@@ -155,6 +198,39 @@ export class JsonFileCampaignStore implements CampaignStore {
     });
   }
 
+  async insertExecution(record: CampaignExecutionRecord): Promise<CampaignExecutionRecord> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      const index = snapshot.executions.findIndex((candidate) => candidate.id === record.id);
+
+      if (index === -1) {
+        snapshot.executions.push(structuredClone(record));
+      } else {
+        snapshot.executions[index] = structuredClone(record);
+      }
+
+      await this.writeSnapshot(snapshot);
+      return structuredClone(record);
+    });
+  }
+
+  async getExecution(id: string): Promise<CampaignExecutionRecord | null> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      const record = snapshot.executions.find((candidate) => candidate.id === id);
+      return record ? structuredClone(record) : null;
+    });
+  }
+
+  async listExecutions(campaignId: string): Promise<CampaignExecutionRecord[]> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      return snapshot.executions
+        .filter((record) => record.campaignId === campaignId)
+        .map((record) => structuredClone(record));
+    });
+  }
+
   private async locked<T>(operation: () => Promise<T>): Promise<T> {
     const next = this.queue.then(operation, operation);
     this.queue = next.then(
@@ -170,11 +246,12 @@ export class JsonFileCampaignStore implements CampaignStore {
       const parsed = JSON.parse(contents) as StoreSnapshot;
       return {
         campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
-        suppressions: Array.isArray(parsed.suppressions) ? parsed.suppressions : []
+        suppressions: Array.isArray(parsed.suppressions) ? parsed.suppressions : [],
+        executions: Array.isArray(parsed.executions) ? parsed.executions : []
       };
     } catch (error) {
       if (isNotFound(error)) {
-        return { campaigns: [], suppressions: [] };
+        return { campaigns: [], suppressions: [], executions: [] };
       }
       throw error;
     }
@@ -186,6 +263,22 @@ export class JsonFileCampaignStore implements CampaignStore {
     await writeFile(tempPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
     await rename(tempPath, this.path);
   }
+}
+
+export function createCampaignExecutionRecord(
+  input: CampaignExecutionRecordInput,
+  now = new Date()
+): CampaignExecutionRecord {
+  return {
+    id: `exec_${randomUUID()}`,
+    createdAt: now.toISOString(),
+    campaignId: input.campaignId,
+    adapterRiskPosture: structuredClone(input.adapterRiskPosture),
+    intents: structuredClone(input.intents),
+    deliveryAttempts: structuredClone(input.deliveryAttempts),
+    webhookDeliveries: structuredClone(input.webhookDeliveries),
+    proofPack: structuredClone(input.proofPack)
+  };
 }
 
 function applySuppressionRecords(

@@ -56,7 +56,8 @@ For the first pilot, maintain a private sender inventory outside git with:
    adapter requires human evidence.
 6. Operator records sent, failed, restricted, skipped, or replied evidence.
 7. Campaign events update status and outgoing webhooks notify Graphed.
-8. Proof-pack generator produces the renewal report.
+8. Execution proof record is persisted for audit replay.
+9. Proof-pack generator produces the renewal report.
 
 ## Evidence Rules
 

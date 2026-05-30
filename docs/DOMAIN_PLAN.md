@@ -57,6 +57,7 @@ The current implementation covers:
 - execution runner that connects approval, delivery adapter events, outgoing
   webhooks, and proof-pack generation
 - API pilot-demo execution route for safe mock/manual runs
+- persisted execution proof records for audit replay after the initial response
 
 ## Acceptance Criteria
 
@@ -77,7 +78,8 @@ The current implementation covers:
     records events, sends webhooks, and returns proof.
 12. `POST /campaigns/:id/executions` exposes the safe execution/proof workflow
     without claiming live Instagram delivery.
-13. Tests prove the API contract and domain rules.
+13. Execution proof records can be listed and fetched after the run.
+14. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -107,7 +109,8 @@ Connect the current runner to persistent stores and API routes. The domain
 runner already creates approved send intents, routes through an injected
 adapter, records delivery/reply/restricted/failed events, dispatches outgoing
 webhooks, and feeds the proof-pack generator. The API now exposes a safe
-`POST /campaigns/:id/executions` workflow for mock/manual pilot dry runs.
+`POST /campaigns/:id/executions` workflow for mock/manual pilot dry runs and
+persists execution proof records for later inspection.
 
 ### Sender Account Operations
 
