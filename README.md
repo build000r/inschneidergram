@@ -45,6 +45,7 @@ This repo currently contains the API/control-plane MVP:
 | Pre-campaign launch packet | Working MVP | `GET /pilot-launch-packet` exports private-input requirements before a campaign exists |
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
 | Pilot handoff packet | Working MVP | `GET /campaigns/:id/pilot-handoff` turns readiness into operator actions |
+| Live pilot intake kit | Working MVP | `docs/PILOT_INTAKE_KIT.md`, `npm run pilot:intake:validate` |
 | Operator dashboard | Working MVP | `GET /operator/dashboard` aggregates readiness, manual queue, sender health, follow-ups, proof, and runtime dead letters |
 | Bounty evaluator proof | Working MVP | `docs/BOUNTY_SUBMISSION.md`, `npm run proof:bounty-local` |
 | Launch authorization gate | Working MVP | manual/provider execution requires a structured approval reference |
@@ -67,6 +68,7 @@ This repo currently contains the API/control-plane MVP:
 ```bash
 npm install
 npm run proof:bounty-local
+npm run pilot:intake:validate
 npm test
 npm run build
 npm run smoke:service
@@ -77,8 +79,8 @@ npm run dev
 
 For bounty review, `npm run proof:bounty-local` is the one-command local proof
 gate. It runs the test, typecheck, build, service-smoke, manual-rehearsal,
-mock-demo, MMDX preflight, and MMDX publish dry-run checks without requiring
-Instagram credentials.
+pilot-intake validation, mock-demo, MMDX preflight, and MMDX publish dry-run
+checks without requiring Instagram credentials.
 
 By default, the built server persists campaigns to `.data/campaigns.json`.
 Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
@@ -132,6 +134,16 @@ submitted a private creator list. It names the required external inputs,
 profile-object creator schema, sender credential boundary, delivery-path
 options, `launchAuthorization` template, proof metrics, stop conditions,
 sample `POST /campaigns` payload, and validation commands.
+
+Validate the live pilot intake files before creating a private campaign:
+
+```bash
+npm run pilot:intake:validate
+```
+
+The intake kit in [docs/PILOT_INTAKE_KIT.md](docs/PILOT_INTAKE_KIT.md)
+validates campaign, sender, launch-authorization, and webhook JSON against the
+same schemas used by the API.
 
 When `INSCHNEIDERGRAM_API_KEY` is set, all routes except `GET /health`,
 `GET /openapi.json`, and CORS `OPTIONS` preflight require either:
@@ -627,8 +639,9 @@ trusted provider that already owns that operational risk.
 
 ## Roadmap to Bounty Pilot
 
-1. Use `GET /pilot-launch-packet` to collect the private creator, sender,
-   callback, and authorization inputs.
+1. Use `GET /pilot-launch-packet` and
+   [PILOT_INTAKE_KIT.md](docs/PILOT_INTAKE_KIT.md) to collect and validate the
+   private creator, sender, callback, and authorization inputs.
 2. Use `GET /operator/dashboard` during setup to keep sender health, manual
    evidence, follow-ups, and webhook dead letters visible from one surface.
 3. Connect verified provider/account operations to the managed-provider contract.
@@ -654,6 +667,7 @@ a pilot that completes meaningful creator outreach.
 - [Power map](docs/POWER_MAP.md)
 - [Domain plan](docs/DOMAIN_PLAN.md)
 - [Pilot spec](docs/PILOT_SPEC.md)
+- [Pilot intake kit](docs/PILOT_INTAKE_KIT.md)
 - [Pilot runbook](docs/PILOT_RUNBOOK.md)
 - [Bounty local proof dossier](docs/proof/delivery-path-dry-run.md)
 - [Marketing surface](docs/MARKETING-SURFACE.md)

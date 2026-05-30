@@ -41,6 +41,7 @@ flowchart LR
   serviceSmoke["GREEN Service smoke for provider + manual + dashboard paths"]
   apiAuth["GREEN Strong API/webhook secret deployment gate"]
   evaluatorPacket["GREEN Bounty submission packet + one-command local proof"]
+  intakeKit["GREEN Live pilot intake kit + schema-backed validation"]
   statusLink["YELLOW Public Buildooor short link blocked: refresh SPAPS auth then run status:mmdx:publish"]
   next["Next: real delivery ops + live pilot"]
   bounty --> api
@@ -74,7 +75,8 @@ flowchart LR
   webhookRuntime --> operatorDashboard
   pilotHandoff --> operatorDashboard
   operatorDashboard --> serviceSmoke
-  launchPacket --> readiness
+  launchPacket --> intakeKit
+  intakeKit --> readiness
   readiness --> executionGate
   readiness --> launchAuth
   readiness --> pilotHandoff
@@ -88,6 +90,7 @@ flowchart LR
   serviceSmoke --> apiAuth
   contract --> apiAuth
   apiAuth --> evaluatorPacket
+  intakeKit --> evaluatorPacket
   apiAuth --> webhookGuard
   riskReconcile --> readiness
   riskReconcile --> proof
@@ -114,6 +117,7 @@ flowchart LR
   providerContract --> beads
   statusLink --> beads
   evaluatorPacket --> beads
+  intakeKit --> beads
   beads --> next
   class api green
   class creatorIntake green
@@ -141,6 +145,7 @@ flowchart LR
   class serviceSmoke green
   class apiAuth green
   class evaluatorPacket green
+  class intakeKit green
   class statusLink yellow
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -177,6 +182,7 @@ gantt
   GREEN Strong API/webhook secret deployment gate :done, 2026-05-30, 1d
   GREEN Runtime webhook callbacks for provider/execution/manual evidence + replay :done, 2026-05-30, 1d
   GREEN Webhook destination guard :done, 2026-05-30, 1d
+  GREEN Live pilot intake kit + validation :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API execution + atomic manual queue :done, 2026-05-30, 1d
   YELLOW Public MMDX short link in inschneidergram-j8b.7 :active, 2026-05-30, 1d
@@ -215,6 +221,7 @@ flowchart TD
   serviceSmoke["DONE GREEN Service smoke for provider + manual + dashboard paths"]
   apiAuth["DONE GREEN Strong API/webhook secret deployment gate"]
   evaluatorPacket["DONE GREEN Bounty submission packet + proof:bounty-local"]
+  intakeKit["DONE GREEN Live pilot intake kit + schema-backed validation"]
   statusLink["BLOCKED YELLOW Public MMDX short link inschneidergram-j8b.7; publish script ready, auth refresh required"]
   pilot["FUTURE YELLOW Graphed pilot covered by inschneidergram-j8b"]
   api --> store
@@ -247,7 +254,8 @@ flowchart TD
   sender --> operatorDashboard
   webhooks --> operatorDashboard
   operatorDashboard --> serviceSmoke
-  launchPacket --> readiness
+  launchPacket --> intakeKit
+  intakeKit --> readiness
   readiness --> executionGate
   readiness --> launchAuth
   readiness --> pilotHandoff
@@ -261,9 +269,11 @@ flowchart TD
   serviceSmoke --> apiAuth
   contract --> apiAuth
   apiAuth --> evaluatorPacket
+  intakeKit --> evaluatorPacket
   apiAuth --> webhookGuard
   webhookGuard --> statusLink
   evaluatorPacket --> statusLink
+  intakeKit --> pilot
   proofExport --> pilot
   launchPacket --> pilot
   runner --> pilot
@@ -298,6 +308,7 @@ flowchart TD
   class serviceSmoke green
   class apiAuth green
   class evaluatorPacket green
+  class intakeKit green
   class statusLink yellow
   class pilot yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -315,6 +326,7 @@ sequenceDiagram
   G->>I: npm run smoke:service verifies built API + store health + API key gate + manual evidence path
   G->>I: send X-API-Key or bearer token when deployed
   G->>I: GET /pilot-launch-packet for private inputs + payload contracts
+  G->>I: npm run pilot:intake:validate for campaign + sender + authorization + webhook files
   G->>I: PUT /senders/:id for non-secret sender inventory
   G->>I: POST /campaigns
   I->>I: validate, guard webhook URL, preserve creator provenance, normalize, suppress, schedule from sender inventory
@@ -388,6 +400,7 @@ flowchart TD
   sourceDoc["GREEN source evidence doc separates public sources from operator-provided bounty interpretation"]
   proofDoc["GREEN current local proof dossier refreshed"]
   evaluatorProof["GREEN npm run proof:bounty-local wraps local evaluator gates"]
+  intakeValidation["GREEN npm run pilot:intake:validate checks live pilot campaign/sender/auth/webhook inputs"]
   mmdx["GREEN MMDX preflight passed"]
   statusLink["YELLOW Public Buildooor short link not live-verified; status:mmdx scripts ready, SPAPS auth refresh required"]
   live["YELLOW no live Instagram delivery proof yet; covered by inschneidergram-j8b"]
@@ -397,7 +410,8 @@ flowchart TD
   smoke --> sourceDoc
   sourceDoc --> proofDoc
   proofDoc --> evaluatorProof
-  evaluatorProof --> mmdx
+  evaluatorProof --> intakeValidation
+  intakeValidation --> mmdx
   mmdx --> statusLink
   statusLink --> live
   live --> pilot
@@ -407,6 +421,7 @@ flowchart TD
   class sourceDoc green
   class proofDoc green
   class evaluatorProof green
+  class intakeValidation green
   class mmdx green
   class statusLink yellow
   class live yellow
@@ -420,7 +435,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/senders/sender-risk-reconciliation/approval/operator-dashboard/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/launch-authorization-gating/pending-manual-evidence-gating/proof-export/proof-freshness/pilot-handoff/pre-campaign-launch-packet/follow-ups/auth/runtime-webhooks/manual-evidence-runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/provenance-sender-rehearsal claims"]
+  code["GREEN Code matches API/store/senders/sender-risk-reconciliation/approval/operator-dashboard/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/launch-authorization-gating/pending-manual-evidence-gating/proof-export/proof-freshness/pilot-handoff/pre-campaign-launch-packet/live-pilot-intake/follow-ups/auth/runtime-webhooks/manual-evidence-runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/provenance-sender-rehearsal claims"]
   beads["YELLOW Beads keep live ops and pilot gap open"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -436,7 +451,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, managed-provider outcome contract, execution readiness, launch authorization, pending-manual-evidence enforcement, latest proof export, late provider proof/follow-up refresh, pre-campaign launch packet, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics, bounty submission packet, one-command local proof"]
+  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, managed-provider outcome contract, execution readiness, launch authorization, pending-manual-evidence enforcement, latest proof export, late provider proof/follow-up refresh, pre-campaign launch packet, live pilot intake validation, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics, bounty submission packet, one-command local proof"]
   link["Blocked next: refresh Buildooor SPAPS auth and run npm run status:mmdx:publish (inschneidergram-j8b.7)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]

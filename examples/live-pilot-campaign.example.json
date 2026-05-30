@@ -1,0 +1,58 @@
+{
+  "idempotencyKey": "graphed-live-pilot-2026-05-30-batch-001",
+  "targets": [
+    {
+      "target": "@creator_one_live",
+      "profileUrl": "https://www.instagram.com/creator_one_live/",
+      "displayName": "Creator One Live",
+      "source": "graphed-approved-sheet:row-12",
+      "fitReason": "Audience overlaps the approved affiliate offer and recent posts match the campaign niche.",
+      "tags": ["affiliate", "creator", "pilot"],
+      "followerCount": 18500,
+      "engagementRate": 4.8
+    },
+    {
+      "target": "@creator_two_live",
+      "profileUrl": "https://www.instagram.com/creator_two_live/",
+      "displayName": "Creator Two Live",
+      "source": "graphed-approved-sheet:row-13",
+      "fitReason": "Prior sponsored content shows fit for the pilot offer and audience geography.",
+      "tags": ["creator", "ugc", "pilot"],
+      "followerCount": 24200,
+      "engagementRate": 3.9
+    },
+    {
+      "target": "@creator_three_live",
+      "profileUrl": "https://www.instagram.com/creator_three_live/",
+      "displayName": "Creator Three Live",
+      "source": "graphed-approved-sheet:row-14",
+      "fitReason": "Creator has active comments from the target buyer segment and no recent competing promo.",
+      "tags": ["creator", "affiliate", "pilot"],
+      "followerCount": 12100,
+      "engagementRate": 5.1
+    }
+  ],
+  "message": "Hey - loved your recent content. Would you be open to a small affiliate pilot with Graphed?",
+  "campaign": "graphed_creator_outreach_live_pilot_001",
+  "metadata": {
+    "client": "graphed",
+    "pilot": "live-001",
+    "offer": "replace-with-approved-offer",
+    "intakeOwner": "replace-with-operator-id"
+  },
+  "settings": {
+    "senderPool": ["sender-graphed-manual-1"],
+    "dailyLimitPerSender": 10,
+    "minDelaySeconds": 180,
+    "maxDelaySeconds": 600,
+    "requireTargetProvenance": true,
+    "dryRun": false,
+    "webhookUrl": "https://hooks.graphed.com/inschneidergram/events",
+    "followUps": [
+      {
+        "delayHours": 48,
+        "message": "Quick follow-up in case this is relevant - open to seeing the pilot details?"
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "senders": [
+    {
+      "id": "sender-graphed-manual-1",
+      "status": "healthy",
+      "dailyLimit": 10,
+      "warmupNote": "Operator-held account for low-volume Graphed pilot; credentials, recovery material, and session state are not stored in git.",
+      "riskEvents": [
+        {
+          "kind": "manual_note",
+          "at": "2026-05-30T09:00:00.000Z",
+          "note": "Operator confirmed private credential custody and manual evidence capture before launch."
+        }
+      ]
+    }
+  ],
+  "privateInputsNotInGit": [
+    "sender username, password, session, recovery, proxy, and device material",
+    "account owner or provider contact for restrictions and reconnects",
+    "private proof storage location for screenshots and launch approval"
+  ]
+}

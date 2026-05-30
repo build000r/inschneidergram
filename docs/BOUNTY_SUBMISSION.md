@@ -26,6 +26,7 @@ The proof command runs the local gates that matter for bounty review:
 - TypeScript typecheck
 - Vitest suite
 - production build
+- live pilot intake validation
 - API-key protected service smoke
 - strict-provenance managed-sender manual rehearsal
 - deterministic mock pilot demo
@@ -62,6 +63,15 @@ must provide:
 6. Optional public HTTPS callback URL for delivery/reply webhooks.
 7. Stop conditions for complaints, opt-outs, sender warnings, and low-quality
    replies.
+
+Use [PILOT_INTAKE_KIT.md](PILOT_INTAKE_KIT.md) and
+`npm run pilot:intake:validate` to validate those inputs before creating the
+private campaign. The executable intake files are:
+
+- `examples/live-pilot-campaign.example.json`
+- `examples/live-pilot-senders.example.json`
+- `examples/live-pilot-launch-authorization.example.json`
+- `examples/live-pilot-webhook.example.json`
 
 After those inputs exist, run the pilot through the flow in
 [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md), then publish the live

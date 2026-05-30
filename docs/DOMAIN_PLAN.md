@@ -110,6 +110,8 @@ The current implementation covers:
   route map, creator schema, sender credential boundary, delivery-path options,
   launch-authorization template, proof criteria, stop conditions, and validation
   commands before Graphed submits a campaign
+- live pilot intake kit with campaign, sender, launch-authorization, and webhook
+  JSON examples plus schema-backed validation before private pilot creation
 - pilot launch readiness report that turns campaign, approval, sender,
   creator vetting, launch authorization, execution, and proof state into
   pass/fail/warn gates plus next actions
@@ -217,6 +219,9 @@ The current implementation covers:
 38. Network-exposed deployments reject unsafe webhook destinations before
     storing campaigns and before dispatching legacy callback records.
 39. Tests prove the API contract and domain rules.
+40. Operators can validate live pilot intake files before campaign creation,
+    including creator provenance, sender ids, manual launch authorization,
+    target limit, callback host, and scheduling policy.
 
 ## Delivered Domain Slices
 
@@ -235,6 +240,7 @@ delivered at MVP proof level:
 - runtime webhooks, dead-letter listing/replay, callback destination guard, and
   DNS-pinned dispatch
 - pre-campaign launch packet and pilot handoff packet
+- live pilot intake kit and `npm run pilot:intake:validate`
 - cross-campaign operator dashboard
 - service smoke for managed-provider and manual paths
 - bounty submission packet and `npm run proof:bounty-local` evaluator gate
@@ -249,7 +255,8 @@ more local API shape:
    manual sender or a real managed provider behind the existing adapter
    contract.
 2. Obtain private sender/provider access, a vetted Graphed creator list, the
-   Graphed callback endpoint, and explicit launch authorization.
+   Graphed callback endpoint, and explicit launch authorization, then validate
+   those files with `npm run pilot:intake:validate`.
 3. Run one low-volume real pilot through the existing manual or
    managed-provider execution route.
 4. Record real sent, replied, failed, restricted, and incident evidence; replay

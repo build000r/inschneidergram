@@ -31,6 +31,9 @@ content collaborations, or qualified pipeline.
 - stop conditions for opt-outs, complaints, sender warnings, and low quality
 - webhook or export destination for outcomes; webhook URLs must be public HTTPS
   destinations and should match the deployment allowlist
+- validated intake files for campaign, sender inventory, launch authorization,
+  and webhook configuration; run `npm run pilot:intake:validate` before campaign
+  creation
 
 ## Launch Readiness
 
@@ -39,6 +42,10 @@ Before campaign creation, Graphed or the operator should call
 profile-object creator schema, sender credential boundary, delivery-path
 options, launch-authorization template, proof metrics, validation commands, and
 stop conditions needed for a real pilot.
+The companion [PILOT_INTAKE_KIT.md](PILOT_INTAKE_KIT.md) turns those inputs
+into executable JSON templates and validates them against the current campaign,
+sender, authorization, and webhook contracts before any private campaign is
+created.
 
 Before running a created campaign, Graphed or the operator should call
 `GET /campaigns/:id/readiness`. The report classifies the campaign as blocked,

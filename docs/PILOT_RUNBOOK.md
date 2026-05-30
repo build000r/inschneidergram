@@ -63,6 +63,24 @@ curl -s http://127.0.0.1:3107/senders/sender-a/risk-events \
   -d '{ "kind": "restriction", "note": "Temporary send warning from operator" }'
 ```
 
+## Intake Kit
+
+Before creating a live Graphed campaign, fill and validate the intake kit:
+
+```bash
+npm run pilot:intake:validate -- \
+  --campaign /path/to/live-pilot-campaign.json \
+  --senders /path/to/live-pilot-senders.json \
+  --authorization /path/to/live-pilot-launch-authorization.json \
+  --webhook /path/to/live-pilot-webhook.json
+```
+
+The default command validates the public examples in `examples/`. The private
+filled files should keep creator targets, sender credential ownership, approval
+references, and callback configuration in the operator handoff system, not in
+the public repo. See [PILOT_INTAKE_KIT.md](PILOT_INTAKE_KIT.md) for the file
+contracts and validation gates.
+
 ## Service Preflight
 
 Before any operator rehearsal or real pilot, verify the compiled service path:
@@ -100,8 +118,9 @@ private or special-use addresses before the outbound request is made.
 ## Pilot Flow
 
 0. Graphed or the operator fetches `GET /pilot-launch-packet` before campaign
-   creation to collect the private creator list, sender operation, callback,
-   delivery-path, launch-authorization, proof, and stop-condition inputs.
+   creation, fills the intake kit, and runs `npm run pilot:intake:validate` to
+   confirm the private creator list, sender operation, callback, delivery-path,
+   launch-authorization, proof, and stop-condition inputs fit the API contract.
 1. Operator registers non-secret sender inventory with `PUT /senders/:id`.
 2. Graphed or the operator authenticates with the deployment API key when the
    service is network exposed.

@@ -1,11 +1,11 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T09:43:02Z
+Generated: 2026-05-30T10:08:31Z
 
-Validation run base: `0ba83f5`
+Validation run base: `8f6bdee`
 
-Validation target: the working tree after the bounty evaluator submission
-packet slice. The next commit records this proof refresh with the implementation.
+Validation target: the working tree after the live pilot intake kit slice. The
+next commit records this proof refresh with the implementation.
 
 Runtime:
 
@@ -32,15 +32,35 @@ intact. It does not claim live Instagram delivery or completed Graphed outreach.
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, MMDX preflight, and MMDX publish dry-run |
+| `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, pilot intake validation, MMDX preflight, and MMDX publish dry-run |
 | `npm test` | Passed | 13 files, 112 tests |
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exited 0 |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
+| `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender |
 | `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths and verified the operator dashboard |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `20bae4eb73a0b3d6fd32ab69b4c693dde5113990ec167ea3c6a5b422ca55162c` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `167a5f3012a8822d3357cde0a273d2dcbbc52983bf23604bcc79d960b1b74663` |
+
+## Live Pilot Intake Validation
+
+`npm run pilot:intake:validate` validates the example intake kit against the
+current API schemas and live-pilot gates:
+
+```text
+Pilot intake validation passed.
+- campaign: graphed_creator_outreach_live_pilot_001
+- targets scheduled: 3
+- selected senders: sender-graphed-manual-1
+- delivery path: manual
+- webhook: https://hooks.graphed.com/inschneidergram/events
+```
+
+This proves the handoff files for campaign creation, sender inventory, launch
+authorization, and callback configuration are executable. It still does not
+prove that the private Graphed creator list, sender account, or authorization
+has been supplied.
 
 ## Service Smoke Evidence
 
@@ -94,6 +114,8 @@ What this proves:
 - API-key protection is active for non-public routes in the smoke path.
 - `/openapi.json` exposes 28 documented paths.
 - `GET /pilot-launch-packet` exposes the pre-campaign private-input checklist.
+- `npm run pilot:intake:validate` exercises the private-input file contract
+  before campaign creation.
 - `GET /operator/dashboard` aggregates readiness, manual queue, sender health,
   runtime dead-letter, proof, and urgent-action status under API key auth.
 - Provider-reported execution can produce a proof export and readiness state.
@@ -262,6 +284,8 @@ authorization.
   `evidence_ready`.
 - The evaluator-facing local proof path can be run with
   `npm run proof:bounty-local`.
+- The live pilot intake files can be validated before private campaign creation
+  with `npm run pilot:intake:validate`.
 - Production or non-loopback startup requires strong API and webhook secrets.
 - Public webhook destinations are DNS-checked and the sender uses the
   prevalidated DNS addresses for the outbound request.

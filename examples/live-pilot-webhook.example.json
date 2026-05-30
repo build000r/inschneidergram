@@ -1,0 +1,12 @@
+{
+  "callbackUrl": "https://hooks.graphed.com/inschneidergram/events",
+  "allowedHosts": ["hooks.graphed.com"],
+  "signingSecretOwner": "Graphed or operator secret manager",
+  "expectedHeaders": [
+    "x-inschneidergram-signature",
+    "x-inschneidergram-timestamp",
+    "content-type"
+  ],
+  "deadLetterPolicy": "Replay dead letters before publishing the final proof pack.",
+  "notes": "Use INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS=hooks.graphed.com for this example callback host."
+}

@@ -1,0 +1,9 @@
+{
+  "actor": "Graphed pilot approver",
+  "deliveryPath": "manual",
+  "approvedTargetLimit": 3,
+  "approvedAt": "2026-05-30T09:00:00.000Z",
+  "reference": "graphed-live-pilot-approval-001",
+  "evidenceUrl": "https://docs.graphed.com/approvals/inschneidergram-live-pilot-001",
+  "notes": "Approves the sender, creator list, first-touch copy, follow-up copy, callback destination, daily limit, and stop conditions for this low-volume manual pilot."
+}

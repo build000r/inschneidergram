@@ -10,6 +10,7 @@ run() {
 run npm run typecheck
 run npm test
 run npm run build
+run npm run pilot:intake:validate
 run npm run smoke:service
 run npm run demo:manual-pilot
 run npm run demo:pilot
