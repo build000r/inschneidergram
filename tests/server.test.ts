@@ -113,6 +113,101 @@ describe("API", () => {
     }
   });
 
+  it("protects API routes when an API key is configured", async () => {
+    const app = await buildServer({
+      apiKey: "deploy-secret",
+      webhookSecret: "preview-secret"
+    });
+
+    try {
+      const health = await app.inject({
+        method: "GET",
+        url: "/health"
+      });
+      expect(health.statusCode).toBe(200);
+
+      const openapi = await app.inject({
+        method: "GET",
+        url: "/openapi.json"
+      });
+      expect(openapi.statusCode).toBe(200);
+
+      const preflight = await app.inject({
+        method: "OPTIONS",
+        url: "/campaigns",
+        headers: {
+          origin: "https://example.com",
+          "access-control-request-method": "POST",
+          "access-control-request-headers": "authorization,x-api-key,content-type"
+        }
+      });
+      expect(preflight.statusCode).not.toBe(401);
+      expect(String(preflight.headers["access-control-allow-headers"] ?? "").toLowerCase()).toContain(
+        "x-api-key"
+      );
+
+      const missing = await app.inject({
+        method: "GET",
+        url: "/campaigns"
+      });
+      expect(missing.statusCode).toBe(401);
+      expect(missing.json()).toEqual({
+        error: "unauthorized",
+        message: "Valid API key required"
+      });
+
+      const wrong = await app.inject({
+        method: "GET",
+        url: "/campaigns",
+        headers: {
+          "x-api-key": "wrong-secret"
+        }
+      });
+      expect(wrong.statusCode).toBe(401);
+
+      const xApiKey = await app.inject({
+        method: "GET",
+        url: "/campaigns",
+        headers: {
+          "x-api-key": "deploy-secret"
+        }
+      });
+      expect(xApiKey.statusCode).toBe(200);
+
+      const bearer = await app.inject({
+        method: "GET",
+        url: "/campaigns",
+        headers: {
+          authorization: "Bearer deploy-secret"
+        }
+      });
+      expect(bearer.statusCode).toBe(200);
+
+      const previewWithoutAuth = await app.inject({
+        method: "POST",
+        url: "/webhooks/preview",
+        payload: { ok: true }
+      });
+      expect(previewWithoutAuth.statusCode).toBe(401);
+
+      const previewWithAuth = await app.inject({
+        method: "POST",
+        url: "/webhooks/preview",
+        headers: {
+          "x-api-key": "deploy-secret"
+        },
+        payload: { ok: true }
+      });
+      expect(previewWithAuth.statusCode).toBe(200);
+      expect(previewWithAuth.json()).toMatchObject({
+        payload: { ok: true },
+        signature: expect.any(String)
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
   it("honors idempotency-key headers for campaign creation", async () => {
     const app = await buildServer();
     const payload = {
@@ -2270,8 +2365,25 @@ describe("API", () => {
     });
     const openapi = response.json();
 
+    expect(openapi.security).toEqual([{ ApiKeyAuth: [] }, { BearerAuth: [] }]);
+    expect(openapi.components.securitySchemes).toMatchObject({
+      ApiKeyAuth: {
+        type: "apiKey",
+        in: "header",
+        name: "X-API-Key"
+      },
+      BearerAuth: {
+        type: "http",
+        scheme: "bearer"
+      }
+    });
     expect(openapi.paths["/health"].get).toMatchObject({
-      summary: "Check API health"
+      summary: "Check API health",
+      security: []
+    });
+    expect(openapi.paths["/openapi.json"].get).toMatchObject({
+      summary: "Fetch the OpenAPI contract",
+      security: []
     });
     expect(openapi.paths["/webhooks/preview"].post).toMatchObject({
       summary: "Preview a signed webhook payload"

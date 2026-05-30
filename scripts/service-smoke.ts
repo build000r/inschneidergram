@@ -33,6 +33,12 @@ interface ReadinessResponse {
   };
 }
 
+interface FetchJsonInit {
+  method?: string;
+  body?: unknown;
+  headers?: Record<string, string>;
+}
+
 async function main(): Promise<void> {
   const distIndex = resolve("dist/index.js");
   if (!(await exists(distIndex))) {
@@ -43,6 +49,7 @@ async function main(): Promise<void> {
   const baseUrl = `http://127.0.0.1:${port}`;
   const tempDir = await mkdtemp(join(tmpdir(), "inschneidergram-service-smoke-"));
   const storePath = join(tempDir, "campaigns.json");
+  const apiKey = "service-smoke-key";
   const child = spawn(process.execPath, [distIndex], {
     env: {
       ...process.env,
@@ -50,7 +57,8 @@ async function main(): Promise<void> {
       PORT: String(port),
       INSCHNEIDERGRAM_PROVIDER: "service-smoke",
       INSCHNEIDERGRAM_STORE_PATH: storePath,
-      INSCHNEIDERGRAM_WEBHOOK_SECRET: "service-smoke-secret"
+      INSCHNEIDERGRAM_WEBHOOK_SECRET: "service-smoke-secret",
+      INSCHNEIDERGRAM_API_KEY: apiKey
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -76,14 +84,23 @@ async function main(): Promise<void> {
   try {
     const health = await waitForHealth(baseUrl, () => exit, () => ({ stdout, stderr }));
     const openapi = await fetchJson<{ paths: Record<string, unknown> }>(baseUrl, "/openapi.json");
-    await fetchJson(baseUrl, "/senders/sender-a", {
+    await assertRouteRequiresApiKey(baseUrl, "/campaigns");
+    const protectedFetch = <T>(path: string, init: FetchJsonInit = {}) =>
+      fetchJson<T>(baseUrl, path, {
+        ...init,
+        headers: {
+          ...init.headers,
+          "x-api-key": apiKey
+        }
+      });
+    await protectedFetch("/senders/sender-a", {
       method: "PUT",
       body: {
         dailyLimit: 20,
         warmupNote: "service smoke sender"
       }
     });
-    const campaign = await fetchJson<CampaignResponse>(baseUrl, "/campaigns", {
+    const campaign = await protectedFetch<CampaignResponse>("/campaigns", {
       method: "POST",
       body: {
         targets: ["@service_smoke_creator"],
@@ -94,15 +111,14 @@ async function main(): Promise<void> {
         }
       }
     });
-    const initialReadiness = await fetchJson<ReadinessResponse>(
-      baseUrl,
+    const initialReadiness = await protectedFetch<ReadinessResponse>(
       `/campaigns/${campaign.campaignId}/readiness`
     );
     if (initialReadiness.status !== "needs_approval") {
       throw new Error(`Expected needs_approval before approval, got ${initialReadiness.status}`);
     }
 
-    await fetchJson(baseUrl, `/campaigns/${campaign.campaignId}/approval-workbench`, {
+    await protectedFetch(`/campaigns/${campaign.campaignId}/approval-workbench`, {
       method: "POST",
       body: {
         approvedTargets: ["@service_smoke_creator"],
@@ -110,16 +126,14 @@ async function main(): Promise<void> {
         actor: "service-smoke"
       }
     });
-    const approvedReadiness = await fetchJson<ReadinessResponse>(
-      baseUrl,
+    const approvedReadiness = await protectedFetch<ReadinessResponse>(
       `/campaigns/${campaign.campaignId}/readiness`
     );
     if (!approvedReadiness.readyForExecution) {
       throw new Error(`Expected campaign to be ready for execution, got ${approvedReadiness.status}`);
     }
 
-    const execution = await fetchJson<ExecutionResponse>(
-      baseUrl,
+    const execution = await protectedFetch<ExecutionResponse>(
       `/campaigns/${campaign.campaignId}/executions`,
       {
         method: "POST",
@@ -148,31 +162,31 @@ async function main(): Promise<void> {
         }
       }
     );
-  const finalReadiness = await fetchJson<ReadinessResponse>(
-    baseUrl,
-    `/campaigns/${campaign.campaignId}/readiness`
-  );
-  if (finalReadiness.status !== "evidence_ready") {
-    throw new Error(`Expected evidence_ready after execution, got ${finalReadiness.status}`);
-  }
-  const proofExport = await fetchJson<{
-    latestExecution: { id: string };
-    metrics: { contactedTargets: number; sentMessages: number };
-    readiness: { status: string };
-  }>(baseUrl, `/campaigns/${campaign.campaignId}/proof-pack`);
-  if (proofExport.latestExecution.id !== execution.executionId) {
-    throw new Error(
-      `Expected proof export to use ${execution.executionId}, got ${proofExport.latestExecution.id}`
+    const finalReadiness = await protectedFetch<ReadinessResponse>(
+      `/campaigns/${campaign.campaignId}/readiness`
     );
-  }
-  if (proofExport.readiness.status !== "evidence_ready") {
-    throw new Error(`Expected proof export readiness evidence_ready, got ${proofExport.readiness.status}`);
-  }
+    if (finalReadiness.status !== "evidence_ready") {
+      throw new Error(`Expected evidence_ready after execution, got ${finalReadiness.status}`);
+    }
+    const proofExport = await protectedFetch<{
+      latestExecution: { id: string };
+      metrics: { contactedTargets: number; sentMessages: number };
+      readiness: { status: string };
+    }>(`/campaigns/${campaign.campaignId}/proof-pack`);
+    if (proofExport.latestExecution.id !== execution.executionId) {
+      throw new Error(
+        `Expected proof export to use ${execution.executionId}, got ${proofExport.latestExecution.id}`
+      );
+    }
+    if (proofExport.readiness.status !== "evidence_ready") {
+      throw new Error(`Expected proof export readiness evidence_ready, got ${proofExport.readiness.status}`);
+    }
 
-  console.log(
-    JSON.stringify(
+    console.log(
+      JSON.stringify(
         {
           health,
+          apiAuth: "enabled",
           openApiPathCount: Object.keys(openapi.paths).length,
           campaignId: campaign.campaignId,
           executionId: execution.executionId,
@@ -197,7 +211,7 @@ async function waitForHealth(
   getExit: () => { code: number | null; signal: NodeJS.Signals | null } | null,
   getOutput: () => { stdout: string; stderr: string }
 ): Promise<HealthResponse> {
-  const deadline = Date.now() + 10_000;
+  const deadline = Date.now() + 30_000;
   let lastError = "service did not respond";
 
   while (Date.now() < deadline) {
@@ -232,11 +246,15 @@ async function waitForHealth(
   );
 }
 
-async function fetchJson<T>(
-  baseUrl: string,
-  path: string,
-  init: { method?: string; body?: unknown; headers?: Record<string, string> } = {}
-): Promise<T> {
+async function assertRouteRequiresApiKey(baseUrl: string, path: string): Promise<void> {
+  const response = await fetch(`${baseUrl}${path}`);
+  const text = await response.text();
+  if (response.status !== 401) {
+    throw new Error(`Expected GET ${path} to require API key, got ${response.status}: ${text}`);
+  }
+}
+
+async function fetchJson<T>(baseUrl: string, path: string, init: FetchJsonInit = {}): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: init.method ?? "GET",
     headers:

@@ -7,7 +7,8 @@ describe("runtime config", () => {
       port: 3107,
       provider: "mock",
       storePath: ".data/campaigns.json",
-      webhookSecret: undefined
+      webhookSecret: undefined,
+      apiKey: undefined
     });
   });
 
@@ -18,14 +19,16 @@ describe("runtime config", () => {
         PORT: "4107",
         INSCHNEIDERGRAM_PROVIDER: "managed",
         INSCHNEIDERGRAM_STORE_PATH: "/data/campaigns.json",
-        INSCHNEIDERGRAM_WEBHOOK_SECRET: "secret"
+        INSCHNEIDERGRAM_WEBHOOK_SECRET: "secret",
+        INSCHNEIDERGRAM_API_KEY: "service-api-key"
       })
     ).toEqual({
       host: "0.0.0.0",
       port: 4107,
       provider: "managed",
       storePath: "/data/campaigns.json",
-      webhookSecret: "secret"
+      webhookSecret: "secret",
+      apiKey: "service-api-key"
     });
   });
 

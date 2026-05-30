@@ -99,6 +99,9 @@ The current implementation covers:
   store and proves the approval-to-provider-execution path
 - Docker packaging for the API with `/data/campaigns.json` as the default
   durable store path
+- optional API key protection for network-exposed deployments, leaving
+  `/health`, `/openapi.json`, and CORS preflight public while protecting
+  campaign, sender, execution, proof, manual queue, and webhook preview routes
 
 ## Acceptance Criteria
 
@@ -147,7 +150,9 @@ The current implementation covers:
     without knowing which execution id to inspect.
 26. The built service can be smoke-tested through real HTTP with an isolated
     JSON store.
-27. Tests prove the API contract and domain rules.
+27. Public service deployments can require `X-API-Key` or bearer credentials
+    without breaking local default-open demos.
+28. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -159,11 +164,12 @@ and suppression records locally.
 
 ### Deployment and Operations Hardening
 
-The API now has predictable startup configuration, container/runtime health
-checks, durable store path setup, Docker packaging, and an operator-facing
-service smoke command. This slice is repo-local and does not require real
-Instagram credentials; it makes the current control plane easier to evaluate
-and operate while live provider/account inputs remain blocked.
+The API now has predictable startup configuration, optional API key protection,
+container/runtime health checks, durable store path setup, Docker packaging, and
+an operator-facing service smoke command that runs with auth enabled. This slice
+is repo-local and does not require real Instagram credentials; it makes the
+current control plane easier to evaluate and operate while live provider/account
+inputs remain blocked.
 
 ### Approval Store and API
 

@@ -45,6 +45,7 @@ This repo currently contains the first API/control-plane slice:
 | Execution readiness enforcement | Working MVP | executions return 409 until approval/sender gates pass |
 | Managed service smoke path | Working MVP | `npm run smoke:service`, `/health` store check, Dockerfile |
 | Latest proof export | Working MVP | `GET /campaigns/:id/proof-pack` |
+| Optional API key protection | Working MVP | `INSCHNEIDERGRAM_API_KEY`, `X-API-Key`, bearer auth |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs verified delivery operations and live pilot evidence |
 
@@ -63,14 +64,17 @@ npm run dev
 By default, the built server persists campaigns to `.data/campaigns.json`.
 Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
 Startup config is read from `HOST`, `PORT`, `INSCHNEIDERGRAM_PROVIDER`,
-`INSCHNEIDERGRAM_STORE_PATH`, and `INSCHNEIDERGRAM_WEBHOOK_SECRET`. Invalid
-ports fail at startup instead of binding to an unintended port.
+`INSCHNEIDERGRAM_STORE_PATH`, `INSCHNEIDERGRAM_WEBHOOK_SECRET`, and
+`INSCHNEIDERGRAM_API_KEY`. Invalid ports fail at startup instead of binding to
+an unintended port. Leave `INSCHNEIDERGRAM_API_KEY` unset for local demos; set
+it for any network-exposed service.
 
 `npm run smoke:service` starts the compiled `dist/index.js` process with an
-isolated JSON store, verifies `/health` and `/openapi.json`, registers a sender,
-creates and approves a campaign, runs a managed-provider contract execution,
-checks the latest proof export, and confirms the campaign reaches
-`evidence_ready`.
+isolated JSON store and API key protection enabled, verifies `/health` and
+`/openapi.json` remain public, confirms campaign routes reject unauthenticated
+requests, registers a sender, creates and approves a campaign, runs a
+managed-provider contract execution, checks the latest proof export, and
+confirms the campaign reaches `evidence_ready`.
 
 `npm run demo:pilot` runs a deterministic local proof-pack demo with mock
 delivery, simulated signed webhook delivery records, and no live Instagram
@@ -87,6 +91,14 @@ Inspect the local API contract:
 curl -s http://127.0.0.1:3107/openapi.json
 ```
 
+When `INSCHNEIDERGRAM_API_KEY` is set, all routes except `GET /health`,
+`GET /openapi.json`, and CORS `OPTIONS` preflight require either:
+
+```bash
+-H "X-API-Key: $INSCHNEIDERGRAM_API_KEY"
+-H "Authorization: Bearer $INSCHNEIDERGRAM_API_KEY"
+```
+
 Run the API as a service:
 
 ```bash
@@ -94,6 +106,7 @@ npm run build
 HOST=0.0.0.0 PORT=3107 \
   INSCHNEIDERGRAM_PROVIDER=mock \
   INSCHNEIDERGRAM_STORE_PATH=/tmp/inschneidergram/campaigns.json \
+  INSCHNEIDERGRAM_API_KEY=replace-with-a-long-random-api-key \
   npm start
 ```
 
@@ -104,15 +117,17 @@ docker build -t inschneidergram .
 docker run --rm -p 3107:3107 \
   -v "$PWD/.data:/data" \
   -e INSCHNEIDERGRAM_PROVIDER=mock \
+  -e INSCHNEIDERGRAM_API_KEY=replace-with-a-long-random-api-key \
   inschneidergram
 ```
 
 The OpenAPI document includes the no-credential pilot flow: managed sender
 inventory, campaign creation, approval workbench, readiness, manual-safe
 execution, provider-reported managed execution, operator manual queue, manual
-evidence, proof records, health, and webhook signature preview. Templated
-routes document path parameters, and manual evidence schemas are split by event
-type so operators can see the required proof fields before a run.
+evidence, proof records, health, webhook signature preview, and optional API
+key security schemes. Templated routes document path parameters, and manual
+evidence schemas are split by event type so operators can see the required
+proof fields before a run.
 
 Register a non-secret sender account before scheduling a managed campaign:
 

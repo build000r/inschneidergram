@@ -7,7 +7,8 @@ const config = readRuntimeConfig();
 const app = await buildServer({
   store: new JsonFileCampaignStore(config.storePath),
   webhookSecret: config.webhookSecret,
-  provider: config.provider
+  provider: config.provider,
+  apiKey: config.apiKey
 });
 
 await app.listen({ host: config.host, port: config.port });

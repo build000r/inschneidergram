@@ -29,6 +29,7 @@ flowchart LR
   contract["GREEN Hardened OpenAPI pilot contract"]
   rehearsal["GREEN Manual pilot rehearsal"]
   serviceSmoke["GREEN Service smoke + Docker runtime"]
+  apiAuth["GREEN Optional API key deployment gate"]
   statusLink["YELLOW Public Buildooor short link blocked by inschneidergram-j8b.7"]
   next["Next: real delivery ops + live pilot"]
   bounty --> api
@@ -48,7 +49,9 @@ flowchart LR
   readiness --> contract
   contract --> rehearsal
   rehearsal --> serviceSmoke
-  serviceSmoke --> statusLink
+  serviceSmoke --> apiAuth
+  contract --> apiAuth
+  apiAuth --> statusLink
   delivery --> beads
   ops --> beads
   runner --> beads
@@ -57,6 +60,7 @@ flowchart LR
   readiness --> beads
   contract --> beads
   rehearsal --> beads
+  apiAuth --> beads
   providerContract --> beads
   statusLink --> beads
   beads --> next
@@ -74,6 +78,7 @@ flowchart LR
   class contract green
   class rehearsal green
   class serviceSmoke green
+  class apiAuth green
   class statusLink yellow
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -99,6 +104,7 @@ gantt
   GREEN Execution readiness enforcement :done, 2026-05-30, 1d
   GREEN Service smoke + Docker runtime :done, 2026-05-30, 1d
   GREEN Latest proof export API :done, 2026-05-30, 1d
+  GREEN Optional API key deployment gate :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API execution + atomic manual queue :done, 2026-05-30, 1d
   YELLOW Public MMDX short link in inschneidergram-j8b.7 :active, 2026-05-30, 1d
@@ -126,6 +132,7 @@ flowchart TD
   contract["DONE GREEN OpenAPI pilot contract"]
   rehearsal["DONE GREEN Manual pilot rehearsal"]
   serviceSmoke["DONE GREEN Service smoke + Docker runtime"]
+  apiAuth["DONE GREEN Optional API key deployment gate"]
   statusLink["BLOCKED YELLOW Public MMDX short link inschneidergram-j8b.7"]
   pilot["FUTURE YELLOW Graphed pilot covered by inschneidergram-j8b"]
   api --> store
@@ -145,7 +152,9 @@ flowchart TD
   contract --> rehearsal
   rehearsal --> serviceSmoke
   executionGate --> serviceSmoke
-  serviceSmoke --> statusLink
+  serviceSmoke --> apiAuth
+  contract --> apiAuth
+  apiAuth --> statusLink
   proofExport --> pilot
   runner --> pilot
   readiness --> pilot
@@ -167,6 +176,7 @@ flowchart TD
   class contract green
   class rehearsal green
   class serviceSmoke green
+  class apiAuth green
   class statusLink yellow
   class pilot yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -181,7 +191,8 @@ sequenceDiagram
   participant I as Inschneidergram API
   participant P as Delivery provider
   participant C as Creator
-  G->>I: npm run smoke:service verifies built API + store health
+  G->>I: npm run smoke:service verifies built API + store health + API key gate
+  G->>I: send X-API-Key or bearer token when deployed
   G->>I: PUT /senders/:id for non-secret sender inventory
   G->>I: POST /campaigns
   I->>I: validate, normalize, suppress, schedule from sender inventory
@@ -218,7 +229,7 @@ stateDiagram-v2
 ```mermaid
 flowchart LR
   repo["GREEN This repo: API, store, approvals, sender inventory, status/proof export model"]
-  runtime["GREEN Runtime config, health, smoke, Docker"]
+  runtime["GREEN Runtime config, API key gate, health, smoke, Docker"]
   provider["GREEN Managed-provider outcome contract"]
   ops["YELLOW Real sender credentials, provider ops, and recovery"]
   graphed["GRAY Graphed systems"]
@@ -240,9 +251,9 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/operator-proof/readiness/openapi/manual-rehearsal/runtime/domain"]
+  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/auth/operator-proof/readiness/openapi/manual-rehearsal/runtime/domain"]
   typecheck["GREEN typecheck green"]
-  smoke["GREEN npm run smoke:service passed"]
+  smoke["GREEN npm run smoke:service passed with API key enabled"]
   mmdx["GREEN MMDX preflight passed"]
   statusLink["YELLOW Public Buildooor short link not minted; tracked by inschneidergram-j8b.7"]
   live["YELLOW no live Instagram delivery proof yet; covered by inschneidergram-j8b"]
@@ -269,7 +280,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/service-smoke/proof/openapi/rehearsal claims"]
+  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/auth/service-smoke/proof/openapi/rehearsal claims"]
   beads["YELLOW Beads keep live ops and pilot gap open"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -285,7 +296,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, sender inventory, approval/operator API, operator manual queue, managed-provider outcome contract, execution readiness enforcement, latest proof export, service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
+  now["Current: API, durable store, sender inventory, approval/operator API, operator manual queue, managed-provider outcome contract, execution readiness enforcement, latest proof export, optional API key gate, service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
   link["Blocked next: mint public Buildooor MMDX short link (inschneidergram-j8b.7)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]

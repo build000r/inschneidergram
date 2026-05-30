@@ -73,45 +73,54 @@ npm run smoke:service
 ```
 
 The smoke command starts `dist/index.js` on a temporary port with an isolated
-JSON store, checks `/health` and `/openapi.json`, creates a stored sender,
-approves a campaign, runs a provider-reported managed execution, checks
-`GET /campaigns/:id/proof-pack`, and confirms the final readiness status is
-`evidence_ready`. It uses no real credentials and does not claim live Instagram
-delivery.
+JSON store and `INSCHNEIDERGRAM_API_KEY` enabled, checks `/health` and
+`/openapi.json`, confirms protected routes reject unauthenticated requests,
+creates a stored sender, approves a campaign, runs a provider-reported managed
+execution, checks `GET /campaigns/:id/proof-pack`, and confirms the final
+readiness status is `evidence_ready`. It uses no real credentials and does not
+claim live Instagram delivery.
+
+For any service bound outside localhost, set `INSCHNEIDERGRAM_API_KEY` and send
+either `X-API-Key` or `Authorization: Bearer` on every operator or Graphed API
+call. Only `GET /health`, `GET /openapi.json`, and CORS `OPTIONS` preflight
+remain public. `POST /webhooks/preview` is protected because it signs arbitrary
+payloads with the configured webhook secret.
 
 ## Pilot Flow
 
 1. Operator registers non-secret sender inventory with `PUT /senders/:id`.
-2. Graphed submits `POST /campaigns` with vetted creator targets, offer,
+2. Graphed or the operator authenticates with the deployment API key when the
+   service is network exposed.
+3. Graphed submits `POST /campaigns` with vetted creator targets, offer,
    message copy, sender constraints, and webhook URL. If inline
    `settings.senderAccounts` is omitted, the API uses stored sender inventory
    and rejects unknown sender ids.
-3. Operator or approver creates `POST /campaigns/:id/approval-workbench` and
+4. Operator or approver creates `POST /campaigns/:id/approval-workbench` and
    persists creator plus first-touch copy decisions.
-4. Operator claims approved creators and marks any non-actionable creators
+5. Operator claims approved creators and marks any non-actionable creators
    skipped or blocked before execution.
-5. Graphed or the operator checks `GET /campaigns/:id/readiness` to confirm the
+6. Graphed or the operator checks `GET /campaigns/:id/readiness` to confirm the
    campaign is ready to execute or to see the remaining external inputs.
-6. Execution runner rejects campaigns that are not ready, rechecks current
+7. Execution runner rejects campaigns that are not ready, rechecks current
    sender health, then creates `SendIntent` records only for approved creators
    that remain queued or claimed.
-7. Delivery adapter returns sent, failed, restricted, replied, or, for the
+8. Delivery adapter returns sent, failed, restricted, replied, or, for the
    manual-safe adapter, `needs_manual_evidence`.
-8. Operator checks `GET /operator/manual-queue` or
+9. Operator checks `GET /operator/manual-queue` or
    `GET /campaigns/:id/executions/:executionId/manual-queue` to see stable
    intent ids, target handles, sender accounts, messages, allowed manual
    events, and required evidence fields.
-9. Operator performs or verifies manual sends outside the codebase when the
+10. Operator performs or verifies manual sends outside the codebase when the
    adapter requires human evidence.
-10. Operator records sent, failed, restricted, or replied evidence through
+11. Operator records sent, failed, restricted, or replied evidence through
    `POST /campaigns/:id/executions/:executionId/manual-events` with an
    `Idempotency-Key` for retry safety.
-11. Campaign events update status and outgoing webhooks notify Graphed.
-12. Execution proof record is persisted for audit replay.
-13. Operator or buyer fetches `GET /campaigns/:id/proof-pack` for the latest
+12. Campaign events update status and outgoing webhooks notify Graphed.
+13. Execution proof record is persisted for audit replay.
+14. Operator or buyer fetches `GET /campaigns/:id/proof-pack` for the latest
     proof export, readiness state, source URLs, metrics, renewal decision, and
     Markdown report.
-14. Proof-pack generator produces the renewal report with operator skipped and
+15. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
 
 ## Readiness Gates
@@ -195,8 +204,9 @@ operator contract for the credential-free pilot path: campaign creation,
 approval, readiness, sender inventory, manual-safe execution,
 provider-reported managed execution, operator manual queue, manual evidence,
 execution proof records, latest proof export, `/health`, and
-`/webhooks/preview`. Manual evidence schemas are event-specific, so sent,
-failed, restricted, and replied events list the required evidence fields
+`/webhooks/preview`. It also documents the optional API key schemes used by
+network-exposed deployments. Manual evidence schemas are event-specific, so
+sent, failed, restricted, and replied events list the required evidence fields
 separately.
 
 For a repeatable local proof-pack demo, run:

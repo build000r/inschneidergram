@@ -4,6 +4,7 @@ export interface RuntimeConfig {
   provider: string;
   storePath: string;
   webhookSecret?: string;
+  apiKey?: string;
 }
 
 export function readRuntimeConfig(
@@ -14,7 +15,8 @@ export function readRuntimeConfig(
     port: parsePort(env.PORT ?? "3107"),
     provider: nonEmpty(env.INSCHNEIDERGRAM_PROVIDER) ?? "mock",
     storePath: nonEmpty(env.INSCHNEIDERGRAM_STORE_PATH) ?? ".data/campaigns.json",
-    webhookSecret: nonEmpty(env.INSCHNEIDERGRAM_WEBHOOK_SECRET)
+    webhookSecret: nonEmpty(env.INSCHNEIDERGRAM_WEBHOOK_SECRET),
+    apiKey: nonEmpty(env.INSCHNEIDERGRAM_API_KEY)
   };
 }
 

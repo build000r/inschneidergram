@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import { z, ZodError } from "zod";
@@ -48,15 +49,36 @@ export interface ServerOptions {
   store?: CampaignStore;
   webhookSecret?: string;
   provider?: string;
+  apiKey?: string;
 }
 
 export async function buildServer(options: ServerOptions = {}): Promise<FastifyInstance> {
   const store = options.store ?? new InMemoryCampaignStore();
   const webhookSecret = options.webhookSecret ?? "dev-secret";
   const provider = options.provider ?? process.env.INSCHNEIDERGRAM_PROVIDER ?? "mock";
+  const apiKey = normalizeOptionalApiKey(options.apiKey);
   const app = Fastify({ logger: false });
 
-  await app.register(cors, { origin: true });
+  await app.register(cors, {
+    origin: true,
+    allowedHeaders: ["authorization", "x-api-key", "content-type", "idempotency-key"]
+  });
+
+  if (apiKey) {
+    app.addHook("onRequest", async (request, reply) => {
+      if (isPublicRequest(request.method, request.url)) {
+        return;
+      }
+
+      const providedKeys = extractApiKeyCandidates(request.headers);
+      if (!providedKeys.some((providedKey) => apiKeysEqual(providedKey, apiKey))) {
+        return reply.code(401).send({
+          error: "unauthorized",
+          message: "Valid API key required"
+        });
+      }
+    });
+  }
 
   app.get("/health", async (_request, reply) => {
     const storeHealth = await store.healthCheck();
@@ -639,15 +661,41 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     openapi: "3.1.0",
     info: {
       title: "Inschneidergram API",
-      version: "0.1.0"
+      version: "0.1.0",
+      description:
+        "Deployments can require X-API-Key or Authorization: Bearer credentials through INSCHNEIDERGRAM_API_KEY. /health, /openapi.json, and CORS preflight remain public."
+    },
+    security: [{ ApiKeyAuth: [] }, { BearerAuth: [] }],
+    components: {
+      securitySchemes: {
+        ApiKeyAuth: {
+          type: "apiKey",
+          in: "header",
+          name: "X-API-Key"
+        },
+        BearerAuth: {
+          type: "http",
+          scheme: "bearer"
+        }
+      }
     },
     paths: {
       "/health": {
         get: {
           summary: "Check API health",
+          security: [],
           responses: {
             "200": { description: "Service and store health returned" },
             "503": { description: "Service is running but the store is unhealthy" }
+          }
+        }
+      },
+      "/openapi.json": {
+        get: {
+          summary: "Fetch the OpenAPI contract",
+          security: [],
+          responses: {
+            "200": { description: "OpenAPI contract returned" }
           }
         }
       },
@@ -1224,6 +1272,53 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
   }));
 
   return app;
+}
+
+function normalizeOptionalApiKey(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function isPublicRequest(method: string, url: string): boolean {
+  if (method.toUpperCase() === "OPTIONS") {
+    return true;
+  }
+
+  const path = url.split("?", 1)[0];
+  return method.toUpperCase() === "GET" && (path === "/health" || path === "/openapi.json");
+}
+
+function extractApiKeyCandidates(
+  headers: Record<string, string | string[] | undefined>
+): string[] {
+  const candidates: string[] = [];
+  const apiKeyHeader = firstHeaderValue(headers["x-api-key"]);
+  if (apiKeyHeader) {
+    candidates.push(apiKeyHeader);
+  }
+
+  const authorization = firstHeaderValue(headers.authorization);
+  const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  if (bearer) {
+    candidates.push(bearer);
+  }
+
+  return candidates;
+}
+
+function firstHeaderValue(value: string | string[] | undefined): string | undefined {
+  const first = Array.isArray(value) ? value[0] : value;
+  const trimmed = first?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function apiKeysEqual(provided: string, expected: string): boolean {
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  return (
+    providedBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(providedBuffer, expectedBuffer)
+  );
 }
 
 function openApiPathParameters(...names: string[]) {
