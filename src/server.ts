@@ -153,6 +153,37 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       "/campaigns": {
         post: {
           summary: "Create an Instagram creator outreach campaign",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["targets", "campaign"],
+                  properties: {
+                    targets: {
+                      type: "array",
+                      items: { type: "string" },
+                      minItems: 1
+                    },
+                    message: { type: "string" },
+                    campaign: { type: "string" },
+                    settings: {
+                      type: "object",
+                      properties: {
+                        senderPool: {
+                          type: "array",
+                          items: { type: "string" }
+                        },
+                        webhookUrl: { type: "string", format: "uri" },
+                        dryRun: { type: "boolean" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           responses: {
             "202": { description: "Campaign accepted and scheduled" },
             "400": { description: "Invalid campaign request" }
@@ -169,12 +200,112 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       },
       "/campaigns/{id}/events": {
         post: {
-          summary: "Record provider delivery or reply event"
+          summary: "Record provider delivery or reply event",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["target", "event"],
+                  properties: {
+                    target: { type: "string" },
+                    event: {
+                      type: "string",
+                      enum: ["sent", "delivered", "reply", "failed"]
+                    },
+                    eventId: { type: "string" },
+                    messageId: { type: "string" },
+                    error: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            "200": { description: "Campaign event recorded" },
+            "400": { description: "Invalid event request" },
+            "404": { description: "Campaign not found" }
+          }
         }
       },
       "/campaigns/{id}/executions": {
         post: {
-          summary: "Execute approved campaign targets through a mock or manual-safe adapter"
+          summary: "Execute approved campaign targets through a mock or manual-safe adapter",
+          requestBody: {
+            required: false,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    approvals: {
+                      type: "object",
+                      properties: {
+                        approvedTargets: {
+                          type: "array",
+                          items: { type: "string" }
+                        },
+                        rejectedTargets: {
+                          type: "array",
+                          items: { type: "string" }
+                        },
+                        message: { type: "string" },
+                        actor: { type: "string" }
+                      }
+                    },
+                    adapter: {
+                      oneOf: [
+                        {
+                          type: "object",
+                          required: ["kind"],
+                          properties: {
+                            kind: { const: "mock" },
+                            restrictedTargets: {
+                              type: "array",
+                              items: { type: "string" }
+                            },
+                            failingTargets: {
+                              type: "array",
+                              items: { type: "string" }
+                            },
+                            replyTargets: {
+                              type: "array",
+                              items: { type: "string" }
+                            }
+                          }
+                        },
+                        {
+                          type: "object",
+                          required: ["kind"],
+                          properties: {
+                            kind: { const: "manual" }
+                          }
+                        }
+                      ]
+                    },
+                    simulateWebhooks: { type: "boolean" },
+                    simulatedWebhookStatusCode: { type: "integer" },
+                    replyAssessments: {
+                      type: "array",
+                      items: { type: "object" }
+                    },
+                    incidents: {
+                      type: "array",
+                      items: { type: "object" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            "200": {
+              description: "Safe execution completed and proof pack returned"
+            },
+            "400": { description: "Invalid execution request" },
+            "404": { description: "Campaign not found" }
+          }
         }
       }
     }

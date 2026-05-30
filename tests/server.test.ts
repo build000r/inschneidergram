@@ -333,4 +333,38 @@ describe("API", () => {
 
     await app.close();
   });
+
+  it("documents the execution workflow in OpenAPI", async () => {
+    const app = await buildServer();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/openapi.json"
+    });
+    const openapi = response.json();
+
+    expect(openapi.paths["/campaigns/{id}/executions"].post).toMatchObject({
+      summary: "Execute approved campaign targets through a mock or manual-safe adapter",
+      requestBody: {
+        content: {
+          "application/json": {
+            schema: {
+              properties: {
+                adapter: expect.any(Object),
+                approvals: expect.any(Object),
+                replyAssessments: expect.any(Object)
+              }
+            }
+          }
+        }
+      },
+      responses: {
+        "200": {
+          description: "Safe execution completed and proof pack returned"
+        }
+      }
+    });
+
+    await app.close();
+  });
 });
