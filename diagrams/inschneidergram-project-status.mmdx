@@ -24,6 +24,7 @@ flowchart LR
   runner["GREEN API-callable execution + manual evidence records"]
   readiness["GREEN Pilot readiness report"]
   contract["GREEN Hardened OpenAPI pilot contract"]
+  rehearsal["GREEN Manual pilot rehearsal"]
   next["Next: real sender ops + live pilot"]
   bounty --> api
   api --> store
@@ -35,12 +36,14 @@ flowchart LR
   proof --> runner
   runner --> readiness
   readiness --> contract
+  contract --> rehearsal
   delivery --> beads
   ops --> beads
   runner --> beads
   proof --> beads
   readiness --> beads
   contract --> beads
+  rehearsal --> beads
   beads --> next
   class api green
   class store green
@@ -51,6 +54,7 @@ flowchart LR
   class runner green
   class readiness green
   class contract green
+  class rehearsal green
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -69,6 +73,7 @@ gantt
   GREEN Proof pack generator :done, 2026-05-30, 1d
   GREEN Pilot readiness report :done, 2026-05-30, 1d
   GREEN Hardened OpenAPI contract :done, 2026-05-30, 1d
+  GREEN Manual pilot rehearsal :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API-callable execution + manual evidence records :done, 2026-05-30, 1d
   YELLOW Live pilot preparation :active, 2026-05-31, 2d
@@ -90,6 +95,7 @@ flowchart TD
   runner["DONE GREEN API execution + manual evidence records"]
   readiness["DONE GREEN Pilot readiness report"]
   contract["DONE GREEN OpenAPI pilot contract"]
+  rehearsal["DONE GREEN Manual pilot rehearsal"]
   pilot["FUTURE RED Graphed pilot"]
   api --> store
   api --> approval
@@ -102,9 +108,11 @@ flowchart TD
   proof --> runner
   runner --> readiness
   readiness --> contract
+  contract --> rehearsal
   runner --> pilot
   readiness --> pilot
   contract --> pilot
+  rehearsal --> pilot
   class api green
   class store green
   class approval green
@@ -115,6 +123,7 @@ flowchart TD
   class runner green
   class readiness green
   class contract green
+  class rehearsal green
   class pilot red
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -136,6 +145,7 @@ sequenceDiagram
   G->>I: POST /campaigns/:id/executions
   I->>I: stored approval + operator state gates, safe adapter, proof pack
   G->>I: POST /manual-events for operator evidence when manual
+  G->>I: npm run demo:manual-pilot rehearses the full manual path
   I->>P: hand off approved send intent when adapter is real
   P->>C: Instagram DM
   C-->>P: reply
@@ -178,7 +188,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/approval/operator/execution/manual-evidence/operator-proof/readiness/openapi/domain"]
+  tests["GREEN npm test covers API/store/approval/operator/execution/manual-evidence/operator-proof/readiness/openapi/manual-rehearsal/domain"]
   typecheck["GREEN typecheck green"]
   mmdx["YELLOW MMDX preflight required"]
   live["RED no live Instagram delivery proof"]
@@ -201,7 +211,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/approval/operator/manual-evidence/proof/openapi claims"]
+  code["GREEN Code matches API/store/approval/operator/manual-evidence/proof/openapi/rehearsal claims"]
   beads["GREEN Beads closed for current scaffold"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -217,7 +227,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, approval/operator API, webhooks, readiness, OpenAPI contract, operator-proof metrics, manual evidence records"]
+  now["Current: API, durable store, approval/operator API, webhooks, readiness, OpenAPI contract, manual rehearsal, operator-proof metrics, manual evidence records"]
   first["Next: real sender operations"]
   second["Then: live Graphed pilot"]
   third["Then: deployment hardening"]

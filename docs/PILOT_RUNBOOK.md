@@ -139,3 +139,15 @@ npm run demo:pilot
 
 This exercises approval, mock delivery, simulated signed webhook records, and
 proof-pack generation without requiring credentials or sending Instagram DMs.
+
+For a credential-free rehearsal of the managed manual pilot path, run:
+
+```bash
+npm run demo:manual-pilot
+```
+
+That command drives the API through campaign creation, approval workbench,
+readiness, manual-safe execution, sent/replied/restricted evidence, simulated
+webhook records, and final proof-pack renewal output. Use it as the local proof
+that the operator workflow is intact before substituting real sender accounts,
+real creator targets, and explicit permission to run outreach.

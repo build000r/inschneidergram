@@ -69,6 +69,9 @@ The current implementation covers:
 - hardened OpenAPI contract for the no-credential pilot path, including path
   params, idempotency headers, campaign settings, manual evidence cases, health,
   and webhook signature preview
+- one-command manual pilot rehearsal that drives the public API through
+  readiness, manual execution, sent/replied/restricted evidence, and proof-pack
+  renewal output without credentials
 
 ## Acceptance Criteria
 
@@ -100,7 +103,9 @@ The current implementation covers:
     during manual evidence collection, and after proof is ready.
 18. OpenAPI documents the runtime pilot contract closely enough for a local
     operator to run the no-credential manual flow without guessing schemas.
-19. Tests prove the API contract and domain rules.
+19. A one-command manual rehearsal proves the operator-run pilot path still
+    works before real sender/list inputs are available.
+20. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 

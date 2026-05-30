@@ -48,6 +48,7 @@ This repo currently contains the first API/control-plane slice:
 npm install
 npm test
 npm run demo:pilot
+npm run demo:manual-pilot
 npm run dev
 ```
 
@@ -57,6 +58,11 @@ Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
 `npm run demo:pilot` runs a deterministic local proof-pack demo with mock
 delivery, simulated signed webhook delivery records, and no live Instagram
 sending.
+
+`npm run demo:manual-pilot` runs the credential-free operator rehearsal path
+through the public API surface: campaign creation, approval, readiness,
+manual-safe execution, sent/replied/restricted evidence, simulated webhook
+records, and final proof-pack renewal output.
 
 Inspect the local API contract:
 
