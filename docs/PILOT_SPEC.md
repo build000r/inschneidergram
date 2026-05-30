@@ -25,7 +25,8 @@ content collaborations, or qualified pipeline.
 - managed sender account ids registered through the sender API or selected
   delivery adapter
 - stop conditions for opt-outs, complaints, sender warnings, and low quality
-- webhook or export destination for outcomes
+- webhook or export destination for outcomes; webhook URLs must be public HTTPS
+  destinations and should match the deployment allowlist
 
 ## Launch Readiness
 

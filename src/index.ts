@@ -8,7 +8,8 @@ const app = await buildServer({
   store: new JsonFileCampaignStore(config.storePath),
   webhookSecret: config.webhookSecret,
   provider: config.provider,
-  apiKey: config.apiKey
+  apiKey: config.apiKey,
+  webhookAllowedHosts: config.webhookAllowedHosts
 });
 
 await app.listen({ host: config.host, port: config.port });

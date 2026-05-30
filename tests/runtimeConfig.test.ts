@@ -8,7 +8,8 @@ describe("runtime config", () => {
       provider: "mock",
       storePath: ".data/campaigns.json",
       webhookSecret: undefined,
-      apiKey: undefined
+      apiKey: undefined,
+      webhookAllowedHosts: []
     });
   });
 
@@ -20,7 +21,9 @@ describe("runtime config", () => {
         INSCHNEIDERGRAM_PROVIDER: "managed",
         INSCHNEIDERGRAM_STORE_PATH: "/data/campaigns.json",
         INSCHNEIDERGRAM_WEBHOOK_SECRET: "secret",
-        INSCHNEIDERGRAM_API_KEY: "service-api-key"
+        INSCHNEIDERGRAM_API_KEY: "service-api-key",
+        INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS:
+          "hooks.graphed.test, *.tenant-hooks.graphed.test"
       })
     ).toEqual({
       host: "0.0.0.0",
@@ -28,7 +31,8 @@ describe("runtime config", () => {
       provider: "managed",
       storePath: "/data/campaigns.json",
       webhookSecret: "secret",
-      apiKey: "service-api-key"
+      apiKey: "service-api-key",
+      webhookAllowedHosts: ["hooks.graphed.test", "*.tenant-hooks.graphed.test"]
     });
   });
 

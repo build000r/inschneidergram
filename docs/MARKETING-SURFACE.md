@@ -9,6 +9,7 @@
 | "Duplicate-safe campaigns" | True for MVP scope | Domain tests cover duplicate prevention inside a campaign. |
 | "Delivery and reply reporting" | Partly true | Provider events and non-simulated executions can dispatch signed callbacks; live provider integration still pending. |
 | "API-key protected service" | True for MVP scope | Optional `INSCHNEIDERGRAM_API_KEY` protects non-public routes; smoke runs with auth enabled. |
+| "Guarded callback delivery" | True for MVP scope | Webhook URLs must be public HTTPS destinations; local/private/special-use hosts are blocked and production allowlists are supported. |
 | "Production-ready" | Not yet | Requires stronger persistence, monitoring, real adapter operations, and pilot evidence. |
 
 ## Approved Current Copy

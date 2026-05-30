@@ -29,6 +29,7 @@ This repo currently contains the first API/control-plane slice:
 | Webhook signing helper | Working MVP | `src/domain/webhook.ts` |
 | Runtime webhook callbacks | Working MVP | provider events and non-simulated executions dispatch signed callbacks |
 | Outgoing webhook retries | Working MVP | signed jobs, backoff, dead-letter list and replay routes |
+| Webhook destination guard | Working MVP | public HTTPS callbacks, private-network block, optional host allowlist |
 | Persistent local campaign store | Working MVP | `JsonFileCampaignStore`, idempotency/suppression tests |
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
@@ -66,9 +67,14 @@ By default, the built server persists campaigns to `.data/campaigns.json`.
 Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
 Startup config is read from `HOST`, `PORT`, `INSCHNEIDERGRAM_PROVIDER`,
 `INSCHNEIDERGRAM_STORE_PATH`, `INSCHNEIDERGRAM_WEBHOOK_SECRET`, and
-`INSCHNEIDERGRAM_API_KEY`. Invalid ports fail at startup instead of binding to
-an unintended port. Leave `INSCHNEIDERGRAM_API_KEY` unset for local demos; set
-it for any network-exposed service.
+`INSCHNEIDERGRAM_API_KEY`, and `INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS`.
+Invalid ports fail at startup instead of binding to an unintended port. Leave
+`INSCHNEIDERGRAM_API_KEY` unset for local demos; set it for any
+network-exposed service. Outgoing callbacks must use public HTTPS URLs;
+localhost, private-network, link-local, and special-use IP destinations are
+blocked. Set `INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS` to a comma-separated
+allowlist such as `hooks.graphed.com,*.tenant-hooks.graphed.com` to restrict
+callback hosts in production.
 
 `npm run smoke:service` starts the compiled `dist/index.js` process with an
 isolated JSON store and API key protection enabled, verifies `/health` and
@@ -108,6 +114,7 @@ HOST=0.0.0.0 PORT=3107 \
   INSCHNEIDERGRAM_PROVIDER=mock \
   INSCHNEIDERGRAM_STORE_PATH=/tmp/inschneidergram/campaigns.json \
   INSCHNEIDERGRAM_API_KEY=replace-with-a-long-random-api-key \
+  INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS=hooks.graphed.com \
   npm start
 ```
 
@@ -119,6 +126,7 @@ docker run --rm -p 3107:3107 \
   -v "$PWD/.data:/data" \
   -e INSCHNEIDERGRAM_PROVIDER=mock \
   -e INSCHNEIDERGRAM_API_KEY=replace-with-a-long-random-api-key \
+  -e INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS=hooks.graphed.com \
   inschneidergram
 ```
 
@@ -182,6 +190,13 @@ When the campaign has `settings.webhookUrl`, provider events also dispatch a
 signed callback to that URL. The response includes the webhook delivery record
 so callers can see whether the callback was delivered, is pending retry, or
 dead-lettered.
+
+Webhook destinations are validated before campaign creation and again before
+runtime dispatch, so persisted legacy records cannot cause server-side calls to
+localhost or private networks. Runtime dispatch also blocks hostnames whose DNS
+answers resolve to private or special-use addresses before `fetch` runs. Use an
+HTTPS tunnel for local callback testing; do not point deployed campaigns at
+`localhost` or raw private IPs.
 
 Create an approval workbench before execution:
 
@@ -348,7 +363,10 @@ Responses include `senderHealth`; locked, cooling-down, or reconnect-required
 senders are blocked from scheduling and surfaced as account-health blockers.
 When a campaign omits inline `settings.senderAccounts`, the API uses the stored
 managed sender inventory. Unknown stored sender IDs are rejected instead of
-being treated as healthy synthetic senders.
+being treated as healthy synthetic senders. `settings.webhookUrl` must be a
+public HTTPS URL; deployed services should set
+`INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS` to the Graphed callback host or tenant
+wildcard before accepting campaigns.
 
 `GET /senders`, `GET /senders/:id`, `PUT /senders/:id`, and
 `POST /senders/:id/risk-events` manage the non-secret sender inventory. Risk

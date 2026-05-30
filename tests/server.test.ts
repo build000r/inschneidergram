@@ -2,7 +2,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildServer } from "../src/server.js";
-import { JsonFileCampaignStore } from "../src/domain/store.js";
+import { createCampaign } from "../src/domain/campaign.js";
+import { InMemoryCampaignStore, JsonFileCampaignStore } from "../src/domain/store.js";
 import type { OutgoingWebhookRequest } from "../src/domain/outgoingWebhook.js";
 import { verifyWebhookSignature } from "../src/domain/webhook.js";
 
@@ -244,6 +245,225 @@ describe("API", () => {
     expect(eventResponse.json()).toMatchObject({
       status: "running",
       webhookDelivery: null
+    });
+    expect(webhookRequests).toEqual([]);
+
+    await app.close();
+  });
+
+  it.each([
+    ["non-https", "http://example.com/webhooks/inschneidergram", "Webhook URL must use https"],
+    ["localhost", "https://localhost/webhooks/inschneidergram", "Webhook URL host localhost is not allowed"],
+    ["loopback", "https://127.0.0.1/webhooks/inschneidergram", "Webhook URL host 127.0.0.1 is not allowed"],
+    ["private network", "https://10.0.0.1/webhooks/inschneidergram", "Webhook URL host 10.0.0.1 is not allowed"],
+    [
+      "link-local metadata",
+      "https://169.254.169.254/latest/meta-data",
+      "Webhook URL host 169.254.169.254 is not allowed"
+    ],
+    ["ipv6 loopback", "https://[::1]/webhooks/inschneidergram", "Webhook URL host ::1 is not allowed"]
+  ])(
+    "rejects unsafe campaign webhook destinations: %s",
+    async (_label, webhookUrl, message) => {
+      const app = await buildServer();
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/campaigns",
+        payload: {
+          targets: ["@unsafe_webhook_creator"],
+          message: "Hey - loved your content.",
+          campaign: "unsafe-webhook",
+          settings: { webhookUrl }
+        }
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({
+        error: "invalid_request",
+        message
+      });
+
+      await app.close();
+    }
+  );
+
+  it("enforces configured webhook host allowlists", async () => {
+    const app = await buildServer({
+      webhookAllowedHosts: ["hooks.graphed.test", "*.tenant-hooks.graphed.test"]
+    });
+
+    const exactHost = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@exact_hook_creator"],
+        message: "Hey - loved your content.",
+        campaign: "exact-webhook-allowlist",
+        settings: {
+          webhookUrl: "https://hooks.graphed.test/events"
+        }
+      }
+    });
+    expect(exactHost.statusCode).toBe(202);
+
+    const wildcardSubdomain = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@wildcard_hook_creator"],
+        message: "Hey - loved your content.",
+        campaign: "wildcard-webhook-allowlist",
+        settings: {
+          webhookUrl: "https://client-a.tenant-hooks.graphed.test/events"
+        }
+      }
+    });
+    expect(wildcardSubdomain.statusCode).toBe(202);
+
+    const wildcardApex = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@apex_hook_creator"],
+        message: "Hey - loved your content.",
+        campaign: "apex-webhook-allowlist",
+        settings: {
+          webhookUrl: "https://tenant-hooks.graphed.test/events"
+        }
+      }
+    });
+    expect(wildcardApex.statusCode).toBe(400);
+    expect(wildcardApex.json().message).toBe(
+      "Webhook URL host tenant-hooks.graphed.test is not in INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS"
+    );
+
+    const unrelatedHost = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@unrelated_hook_creator"],
+        message: "Hey - loved your content.",
+        campaign: "unrelated-webhook-allowlist",
+        settings: {
+          webhookUrl: "https://evil.test/events"
+        }
+      }
+    });
+    expect(unrelatedHost.statusCode).toBe(400);
+    expect(unrelatedHost.json().message).toBe(
+      "Webhook URL host evil.test is not in INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS"
+    );
+
+    await app.close();
+  });
+
+  it("dead-letters blocked legacy webhook destinations without invoking the sender", async () => {
+    const store = new InMemoryCampaignStore();
+    const campaign = await store.insert(
+      createCampaign({
+        targets: ["@legacy_webhook_creator"],
+        message: "Hey - loved your content.",
+        campaign: "legacy-blocked-webhook",
+        settings: {
+          webhookUrl: "https://127.0.0.1/webhooks/legacy"
+        }
+      })
+    );
+    const webhookRequests: OutgoingWebhookRequest[] = [];
+    const app = await buildServer({
+      store,
+      async webhookSender(request) {
+        webhookRequests.push(request);
+        return { statusCode: 204 };
+      }
+    });
+
+    const eventResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaign.id}/events`,
+      payload: {
+        target: "@legacy_webhook_creator",
+        event: "reply",
+        eventId: "evt_legacy_blocked",
+        messageId: "msg_legacy_blocked"
+      }
+    });
+
+    expect(eventResponse.statusCode).toBe(200);
+    expect(eventResponse.json().webhookDelivery).toMatchObject({
+      id: "evt_legacy_blocked",
+      status: "dead_letter",
+      attempts: [
+        expect.objectContaining({
+          statusCode: 400,
+          success: false,
+          retryable: false
+        })
+      ]
+    });
+    expect(webhookRequests).toEqual([]);
+
+    const replay = await app.inject({
+      method: "POST",
+      url: "/webhooks/dead-letters/evt_legacy_blocked/replay"
+    });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().delivery).toMatchObject({
+      id: "evt_legacy_blocked",
+      status: "dead_letter",
+      attempts: [
+        expect.objectContaining({ statusCode: 400, retryable: false }),
+        expect.objectContaining({ statusCode: 400, retryable: false })
+      ]
+    });
+    expect(webhookRequests).toEqual([]);
+
+    await app.close();
+  });
+
+  it("dead-letters webhook hostnames that resolve to private addresses", async () => {
+    const store = new InMemoryCampaignStore();
+    const campaign = await store.insert(
+      createCampaign({
+        targets: ["@dns_blocked_creator"],
+        message: "Hey - loved your content.",
+        campaign: "dns-blocked-webhook",
+        settings: {
+          webhookUrl: "https://callback.example.com/webhooks/dns-blocked"
+        }
+      })
+    );
+    const webhookRequests: OutgoingWebhookRequest[] = [];
+    const app = await buildServer({
+      store,
+      webhookDnsLookup: async () => [{ address: "10.0.0.8", family: 4 }],
+      async webhookSender(request) {
+        webhookRequests.push(request);
+        return { statusCode: 204 };
+      }
+    });
+
+    const eventResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaign.id}/events`,
+      payload: {
+        target: "@dns_blocked_creator",
+        event: "reply",
+        eventId: "evt_dns_blocked"
+      }
+    });
+
+    expect(eventResponse.statusCode).toBe(200);
+    expect(eventResponse.json().webhookDelivery).toMatchObject({
+      id: "evt_dns_blocked",
+      status: "dead_letter",
+      attempts: [
+        expect.objectContaining({
+          statusCode: 400,
+          retryable: false
+        })
+      ]
     });
     expect(webhookRequests).toEqual([]);
 
@@ -797,6 +1017,7 @@ describe("API", () => {
     const webhookRequests: OutgoingWebhookRequest[] = [];
     const app = await buildServer({
       webhookSecret: "runtime-execution-secret",
+      webhookAllowedHosts: ["example.com"],
       async webhookSender(request) {
         webhookRequests.push(request);
         return { statusCode: 204 };

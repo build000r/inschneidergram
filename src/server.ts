@@ -1,4 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import { z, ZodError } from "zod";
@@ -61,16 +63,42 @@ export interface ServerOptions {
   provider?: string;
   apiKey?: string;
   webhookSender?: OutgoingWebhookSender;
+  webhookAllowedHosts?: string[];
+  webhookDnsLookup?: WebhookDnsLookup;
 }
+
+interface WebhookDestinationPolicy {
+  allowedHosts: string[];
+  dnsLookup?: WebhookDnsLookup;
+}
+
+export interface WebhookDnsAddress {
+  address: string;
+  family: 4 | 6;
+}
+
+export type WebhookDnsLookup = (hostname: string) => Promise<WebhookDnsAddress[]>;
 
 export async function buildServer(options: ServerOptions = {}): Promise<FastifyInstance> {
   const store = options.store ?? new InMemoryCampaignStore();
   const webhookSecret = options.webhookSecret ?? "dev-secret";
   const provider = options.provider ?? process.env.INSCHNEIDERGRAM_PROVIDER ?? "mock";
   const apiKey = normalizeOptionalApiKey(options.apiKey);
+  const runtimeSender = options.webhookSender ?? sendOutgoingWebhook;
+  const webhookDestinationPolicy = createWebhookDestinationPolicy(
+    options.webhookAllowedHosts ?? [],
+    {
+      dnsLookup:
+        options.webhookDnsLookup ??
+        (options.webhookSender ? undefined : lookupWebhookHostname)
+    }
+  );
   const runtimeWebhookDispatcher = new OutgoingWebhookDispatcher({
     secret: webhookSecret,
-    sender: options.webhookSender ?? sendOutgoingWebhook
+    sender: guardedWebhookSender(
+      webhookDestinationPolicy,
+      runtimeSender
+    )
   });
   const app = Fastify({ logger: false });
 
@@ -196,6 +224,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         store,
         withIdempotencyKey(request.body, request.headers["idempotency-key"])
       );
+      assertWebhookDestinationFromCampaignInput(campaignInput, webhookDestinationPolicy);
       const campaign = await store.insert(
         createCampaign(campaignInput)
       );
@@ -863,7 +892,12 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                           type: "array",
                           items: openApiSenderAccountSchema()
                         },
-                        webhookUrl: { type: "string", format: "uri" },
+                        webhookUrl: {
+                          type: "string",
+                          format: "uri",
+                          description:
+                            "Public HTTPS callback URL. Localhost, private-network, and non-allowlisted hosts are rejected."
+                        },
                         dryRun: { type: "boolean" },
                         followUps: {
                           type: "array",
@@ -1337,6 +1371,56 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
   return app;
 }
 
+function createWebhookDestinationPolicy(
+  allowedHosts: string[],
+  options: { dnsLookup?: WebhookDnsLookup } = {}
+): WebhookDestinationPolicy {
+  return {
+    allowedHosts: allowedHosts
+      .map(normalizeAllowedWebhookHost)
+      .filter((host): host is string => !!host),
+    dnsLookup: options.dnsLookup
+  };
+}
+
+function guardedWebhookSender(
+  policy: WebhookDestinationPolicy,
+  sender: OutgoingWebhookSender
+): OutgoingWebhookSender {
+  return async (request) => {
+    try {
+      const url = assertWebhookUrlAllowed(request.url, policy);
+      await assertWebhookDnsAllowed(url, policy);
+    } catch (error) {
+      if (error instanceof WebhookDestinationPolicyError) {
+        return {
+          statusCode: 400,
+          body: {
+            error: "webhook_destination_blocked",
+            message: error.message
+          }
+        };
+      }
+
+      throw error;
+    }
+
+    return sender(request);
+  };
+}
+
+async function lookupWebhookHostname(hostname: string): Promise<WebhookDnsAddress[]> {
+  const addresses = await lookup(hostname, {
+    all: true,
+    verbatim: true
+  });
+
+  return addresses.map((address) => ({
+    address: address.address,
+    family: address.family === 6 ? 6 : 4
+  }));
+}
+
 async function sendOutgoingWebhook(
   request: OutgoingWebhookRequest
 ): Promise<OutgoingWebhookSenderResult> {
@@ -1351,6 +1435,185 @@ async function sendOutgoingWebhook(
     statusCode: response.status,
     body
   };
+}
+
+function assertWebhookDestinationFromCampaignInput(
+  input: unknown,
+  policy: WebhookDestinationPolicy
+): void {
+  const webhookUrl = webhookUrlFromCampaignInput(input);
+  if (webhookUrl) {
+    assertWebhookUrlAllowed(webhookUrl, policy);
+  }
+}
+
+function webhookUrlFromCampaignInput(input: unknown): string | undefined {
+  if (!isRecord(input) || !isRecord(input.settings)) {
+    return undefined;
+  }
+
+  return typeof input.settings.webhookUrl === "string" ? input.settings.webhookUrl : undefined;
+}
+
+class WebhookDestinationPolicyError extends Error {}
+
+function assertWebhookUrlAllowed(rawUrl: string, policy: WebhookDestinationPolicy): URL {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new WebhookDestinationPolicyError("Webhook URL must be a valid absolute URL");
+  }
+
+  if (url.protocol !== "https:") {
+    throw new WebhookDestinationPolicyError("Webhook URL must use https");
+  }
+
+  const hostname = normalizeWebhookHostname(url.hostname);
+  if (isBlockedWebhookHostname(hostname)) {
+    throw new WebhookDestinationPolicyError(`Webhook URL host ${hostname} is not allowed`);
+  }
+
+  if (
+    policy.allowedHosts.length > 0 &&
+    !isAllowedWebhookHostname(hostname, policy.allowedHosts)
+  ) {
+    throw new WebhookDestinationPolicyError(
+      `Webhook URL host ${hostname} is not in INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS`
+    );
+  }
+
+  return url;
+}
+
+async function assertWebhookDnsAllowed(
+  url: URL,
+  policy: WebhookDestinationPolicy
+): Promise<void> {
+  if (!policy.dnsLookup) {
+    return;
+  }
+
+  const hostname = normalizeWebhookHostname(url.hostname);
+  if (isIP(hostname) !== 0) {
+    return;
+  }
+
+  const addresses = await policy.dnsLookup(hostname);
+  const blocked = addresses.find((address) =>
+    isBlockedWebhookIpAddress(normalizeWebhookHostname(address.address))
+  );
+  if (blocked) {
+    throw new WebhookDestinationPolicyError(
+      `Webhook URL host ${hostname} resolved to blocked address ${blocked.address}`
+    );
+  }
+}
+
+function normalizeAllowedWebhookHost(value: string): string | null {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith("*.")) {
+    const suffix = normalizeWebhookHostname(trimmed.slice(2));
+    return suffix ? `*.${suffix}` : null;
+  }
+
+  try {
+    return normalizeWebhookHostname(new URL(trimmed).hostname);
+  } catch {
+    try {
+      return normalizeWebhookHostname(new URL(`https://${trimmed}`).hostname);
+    } catch {
+      return normalizeWebhookHostname(trimmed.split("/", 1)[0] ?? trimmed);
+    }
+  }
+}
+
+function normalizeWebhookHostname(hostname: string): string {
+  return hostname.trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/\.+$/g, "");
+}
+
+function isAllowedWebhookHostname(hostname: string, allowedHosts: string[]): boolean {
+  return allowedHosts.some((allowedHost) => {
+    if (allowedHost.startsWith("*.")) {
+      const suffix = allowedHost.slice(1);
+      return hostname.endsWith(suffix) && hostname !== allowedHost.slice(2);
+    }
+
+    return hostname === allowedHost;
+  });
+}
+
+function isBlockedWebhookHostname(hostname: string): boolean {
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
+    return true;
+  }
+
+  return isBlockedWebhookIpAddress(hostname);
+}
+
+function isBlockedWebhookIpAddress(address: string): boolean {
+  const ipVersion = isIP(address);
+  if (ipVersion === 4) {
+    return isBlockedIpv4Hostname(address);
+  }
+  if (ipVersion === 6) {
+    return isBlockedIpv6Hostname(address);
+  }
+
+  return false;
+}
+
+function isBlockedIpv4Hostname(hostname: string): boolean {
+  const octets = parseIpv4Octets(hostname);
+  if (!octets) {
+    return false;
+  }
+
+  const [first, second, third] = octets;
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 0) ||
+    (first === 192 && second === 168) ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    (first === 198 && second === 51 && third === 100) ||
+    (first === 203 && second === 0 && third === 113) ||
+    first >= 224
+  );
+}
+
+function parseIpv4Octets(hostname: string): [number, number, number, number] | null {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) {
+    return null;
+  }
+
+  const octets = parts.map((part) => (/^\d+$/.test(part) ? Number(part) : NaN));
+  if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return null;
+  }
+
+  return octets as [number, number, number, number];
+}
+
+function isBlockedIpv6Hostname(hostname: string): boolean {
+  return (
+    hostname === "::" ||
+    hostname === "::1" ||
+    hostname.startsWith("::ffff:") ||
+    hostname.startsWith("fc") ||
+    hostname.startsWith("fd") ||
+    hostname.startsWith("fe80:") ||
+    hostname.startsWith("ff")
+  );
 }
 
 function targetWithNewEvent(

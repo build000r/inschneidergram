@@ -86,6 +86,13 @@ call. Only `GET /health`, `GET /openapi.json`, and CORS `OPTIONS` preflight
 remain public. `POST /webhooks/preview` is protected because it signs arbitrary
 payloads with the configured webhook secret.
 
+For live callback delivery, set `INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS` to the
+Graphed callback host or tenant wildcard before accepting campaigns. The API
+rejects non-HTTPS, localhost, private-network, link-local, and special-use IP
+webhook destinations at campaign creation and again before runtime dispatch.
+Runtime dispatch also rejects callback hostnames that resolve to blocked
+private or special-use addresses before the outbound request is made.
+
 ## Pilot Flow
 
 1. Operator registers non-secret sender inventory with `PUT /senders/:id`.
@@ -216,6 +223,12 @@ When a campaign includes `settings.webhookUrl`, provider events recorded through
 runs also use the runtime webhook sender when `simulateWebhooks` is false. Keep
 `simulateWebhooks` enabled for local proof rehearsals and disable it only when
 Graphed has a reachable callback endpoint.
+
+Production callbacks should be restricted with
+`INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS=hooks.graphed.com` or a tenant wildcard
+such as `*.tenant-hooks.graphed.com`. For local receiver tests, use an HTTPS
+tunnel and allowlist that tunnel hostname; do not configure `localhost`,
+`127.0.0.1`, or private IPs as campaign webhook URLs.
 
 Use `GET /webhooks/dead-letters` before final proof generation. If a callback
 dead-lettered, fix the receiving endpoint or network issue, then run

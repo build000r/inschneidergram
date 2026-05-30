@@ -5,6 +5,7 @@ export interface RuntimeConfig {
   storePath: string;
   webhookSecret?: string;
   apiKey?: string;
+  webhookAllowedHosts: string[];
 }
 
 export function readRuntimeConfig(
@@ -16,7 +17,8 @@ export function readRuntimeConfig(
     provider: nonEmpty(env.INSCHNEIDERGRAM_PROVIDER) ?? "mock",
     storePath: nonEmpty(env.INSCHNEIDERGRAM_STORE_PATH) ?? ".data/campaigns.json",
     webhookSecret: nonEmpty(env.INSCHNEIDERGRAM_WEBHOOK_SECRET),
-    apiKey: nonEmpty(env.INSCHNEIDERGRAM_API_KEY)
+    apiKey: nonEmpty(env.INSCHNEIDERGRAM_API_KEY),
+    webhookAllowedHosts: parseList(env.INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS)
   };
 }
 
@@ -36,4 +38,13 @@ function parsePort(value: string): number {
 function nonEmpty(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function parseList(value: string | undefined): string[] {
+  return (
+    nonEmpty(value)
+      ?.split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean) ?? []
+  );
 }

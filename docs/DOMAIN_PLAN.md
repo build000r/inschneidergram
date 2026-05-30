@@ -66,6 +66,10 @@ The current implementation covers:
 - non-simulated executions route proof webhook deliveries through the runtime
   webhook sender instead of the local simulator
 - operator routes list dead-lettered webhooks and replay one failed delivery
+- webhook destination policy that requires public HTTPS callback URLs, rejects
+  localhost/private/special-use destinations, supports an explicit host
+  allowlist, blocks private DNS answers before real sends, and guards both
+  campaign creation and runtime dispatch
 - pilot proof-pack metrics, operator skip/block evidence, incidents, sender
   health, reply assessment, and renewal recommendation
 - execution runner that connects approval, delivery adapter events, outgoing
@@ -160,7 +164,9 @@ The current implementation covers:
 28. Provider event ingestion and non-simulated executions dispatch signed
     webhook callbacks through the runtime sender.
 29. Operators can inspect and replay dead-lettered callback deliveries.
-30. Tests prove the API contract and domain rules.
+30. Network-exposed deployments reject unsafe webhook destinations before
+    storing campaigns and before dispatching legacy callback records.
+31. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -173,11 +179,12 @@ and suppression records locally.
 ### Deployment and Operations Hardening
 
 The API now has predictable startup configuration, optional API key protection,
-container/runtime health checks, durable store path setup, Docker packaging, and
-an operator-facing service smoke command that runs with auth enabled. This slice
-is repo-local and does not require real Instagram credentials; it makes the
-current control plane easier to evaluate and operate while live provider/account
-inputs remain blocked.
+webhook destination allowlisting/private-network blocking, container/runtime
+health checks, durable store path setup, Docker packaging, and an
+operator-facing service smoke command that runs with auth enabled. This slice is
+repo-local and does not require real Instagram credentials; it makes the current
+control plane easier to evaluate and operate while live provider/account inputs
+remain blocked.
 
 ### Approval Store and API
 
@@ -253,7 +260,10 @@ non-simulated executions. Signed payloads, retries, backoff, dead-letter state,
 dead-letter listing, and replay tooling now exist with injected sender tests.
 Campaign creation still does not emit a `campaign.created` callback; the
 highest-value callback path for the Graphed pilot is delivery/reply event
-status.
+status. Callback URLs are now a deployment policy surface: public HTTPS is
+required, local/private/special-use destinations are blocked, production
+allowlists narrow callback hosts, and legacy stored URLs are rechecked before
+dispatch or dead-letter replay.
 
 ### Pilot Evidence
 
