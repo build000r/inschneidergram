@@ -7,10 +7,11 @@ body text in this shell, so this document should be treated as
 operator-provided bounty interpretation until a reviewer with page access
 cross-checks it.
 
-## What Graphed Wants
+## Working Acceptance Assumption
 
-Graphed builds and operates AI agents for growth teams. They need reliable
-creator and influencer outreach on Instagram:
+Based on the operator-provided bounty interpretation, Graphed builds and
+operates AI agents for growth teams and needs reliable creator and influencer
+outreach on Instagram:
 
 - provide a vetted list of Instagram profiles
 - provide a message or template

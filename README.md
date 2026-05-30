@@ -2,18 +2,21 @@
 
 API-first Instagram creator outreach control plane for managed campaign pilots.
 
-Inschneidergram is being built for a specific bounty: Graphed wants a
+Inschneidergram is being built for a specific bounty. Based on the
+operator-provided bounty interpretation in
+[`docs/BOUNTY_REQUIREMENTS.md`](docs/BOUNTY_REQUIREMENTS.md), Graphed wants a
 production-ready Instagram creator outreach product that can accept a list of
 creator profiles, campaign settings, message copy, optional follow-up logic,
 and then return delivery/reply status through an API or webhook. The sharper
-wedge is policy-aware orchestration: decide which creators are worth
-contacting, queue the safest approved action, and make every delivery outcome
-auditable.
+wedge is auditable orchestration: preserve creator provenance, enforce approval
+and sender-limit gates, queue only approved actions, and make every delivery
+outcome inspectable.
 
 The important product bet is the managed layer. The buyer does not want a local
-browser script to host, babysit, or repair. They want a service interface that
-absorbs sender-account operations, throttling, duplicate prevention, reporting,
-and platform-change maintenance.
+browser script to host, babysit, or repair. This repo exposes the service
+interface for sender-account operations, throttling, duplicate prevention,
+reporting, and platform-change maintenance; actual managed delivery operations
+still need to be provisioned and verified.
 
 ## Current Status
 
@@ -25,7 +28,7 @@ This repo currently contains the API/control-plane MVP:
 | Target normalization | Working MVP | `src/domain/handles.ts`, `tests/campaign.test.ts` |
 | Creator provenance intake | Working MVP | target profile objects, opt-in provenance gate, readiness/proof metrics |
 | Duplicate prevention | Working MVP | in-campaign dedupe plus persisted suppression records |
-| Safe sending limits and scheduling | Working MVP | per-sender limits, delay windows, domain tests |
+| Sender limits and scheduling | Working MVP | per-sender limits, delay windows, domain tests |
 | Delivery/reply status tracking | Working MVP | `POST /campaigns/:id/events`, including late provider proof refresh |
 | Webhook signing helper | Working MVP | `src/domain/webhook.ts` |
 | Runtime webhook callbacks | Working MVP | provider events and non-simulated executions dispatch signed callbacks |
@@ -611,7 +614,7 @@ trusted provider that already owns that operational risk.
 | --- | --- |
 | Managed product, not script | The buyer should never debug browser automation. |
 | API first | Graphed agents need a clean programmable surface. |
-| Sender safety is core logic | Limits, delays, duplicate prevention, and warm-up are product behavior. |
+| Sender risk gates are core logic | Limits, delays, duplicate prevention, and warm-up are product behavior. |
 | Status is contractual | Every target needs inspectable delivery/reply state. |
 | Compliance is explicit | The product must label what is official-API-safe versus managed-risk delivery. |
 

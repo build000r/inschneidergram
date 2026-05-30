@@ -5,7 +5,7 @@
 | Claim | Status | Evidence required before public use |
 | --- | --- | --- |
 | "Start Instagram creator outreach with one API call" | Partly true | API exists; verified delivery operations still required. |
-| "Managed, not a script" | Aspirational | Need sender operations, incident handling, and real pilot. |
+| "Managed-service interface, not a script" | Partly true | Service interface exists; verified sender operations, incident handling, and real pilot still required. |
 | "Duplicate-safe campaigns" | True for MVP scope | Domain tests cover duplicate prevention inside a campaign. |
 | "Provenance-backed creator intake" | True for MVP scope | Campaign targets can carry source and fit rationale; strict campaigns block unvetted targets and proof packs count vetted targets. |
 | "Follow-up planning" | True for MVP scope | Campaign follow-up rules now produce due/pending operator work after execution and suppress targets after late provider replies/failures; automatic follow-up sending is not claimed. |
@@ -14,7 +14,7 @@
 | "Operator dashboard" | True for MVP scope | `GET /operator/dashboard` aggregates readiness, manual queue counts, sender health, follow-ups, latest proof metrics, runtime dead letters, urgent actions, and source URLs without claiming live delivery. |
 | "Launch authorization gate" | True for MVP scope | Manual and managed-provider executions require a structured authorization object and preserve it in proof exports; mock demos remain exempt. |
 | "Current local proof dossier" | True for MVP scope | `docs/proof/delivery-path-dry-run.md` records test, typecheck, build, service-smoke, manual-rehearsal, mock-demo, and MMDX preflight evidence while excluding live delivery claims. |
-| "Citation-grade source dossier" | True for MVP scope | `docs/SOURCE_EVIDENCE.md` separates reachable external sources, blocked/inaccessible sources, local proof, and operator-provided bounty interpretation. |
+| "Source-quality and caveat dossier" | True for MVP scope | `docs/SOURCE_EVIDENCE.md` separates reachable external sources, blocked/inaccessible sources, local proof, and operator-provided bounty interpretation; citation-grade claims are limited to reachable sources. |
 | "Delivery and reply reporting" | Partly true | Provider events refresh campaign status, latest proof metrics, follow-up state, and signed runtime callbacks by default; live provider integration still pending. |
 | "API-key protected service" | True for MVP scope | Production or non-loopback startup requires strong `INSCHNEIDERGRAM_API_KEY` and `INSCHNEIDERGRAM_WEBHOOK_SECRET`; smoke runs with auth enabled. |
 | "Guarded callback delivery" | True for MVP scope | Webhook URLs must be public HTTPS destinations; local/private/special-use hosts are blocked, production allowlists are supported, and dispatch uses prevalidated DNS answers. |

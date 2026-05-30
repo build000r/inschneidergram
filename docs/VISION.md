@@ -19,7 +19,7 @@ Ship a clean campaign API:
 - `POST /campaigns`
 - target normalization
 - duplicate prevention
-- safe scheduling
+- sender-limit scheduling
 - delivery/reply events
 - status inspection
 - signed webhook payloads
@@ -83,9 +83,10 @@ Proof: Graphed can adopt the product for ongoing client deployments.
 
 ## Product Promise
 
-Programmatic, policy-aware Instagram outreach for growth agents: rank who to
-contact, generate the safest next action, queue approved sends, and write
-outcomes back without scraping, burner accounts, or unsafe cold-DM claims.
+Programmatic, policy-aware Instagram outreach for growth agents: preserve
+creator provenance, enforce approval and sender-limit gates, queue approved
+actions, and write outcomes back without scraping, burner accounts, or unsafe
+cold-DM claims.
 
 ## Current Reality
 

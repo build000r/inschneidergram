@@ -2,9 +2,9 @@
 
 ## Verdict
 
-**BUILD the API/control-plane product here; BORROW compliance and operational
-patterns from established Instagram DM automation products; do not ADOPT a
-private-API GitHub library as the core product.**
+**BUILD the API/control-plane product here; BORROW API, policy-boundary, and
+operational patterns from established Instagram DM automation products; do not
+ADOPT a private-API GitHub library as the core product.**
 
 ## Why
 
@@ -13,15 +13,15 @@ for a managed operational layer that Graphed can call programmatically without
 owning sender accounts, browser automation, infrastructure maintenance, or
 Instagram breakage.
 
-Public platform and provider sources prove there is a real Instagram messaging
-automation/inbox market, but they do not prove official permission for arbitrary
-cold outbound creator-list DMs. Sampled public products should be treated as
-evidence of product shape only: ManyChat-style official automation patterns,
+Public platform and provider sources show that Instagram messaging automation
+and inbox products exist, but they do not prove official permission for
+arbitrary cold outbound creator-list DMs. Sampled public products should be
+treated as evidence of product shape only: Meta's inbox/private-reply docs,
 Unipile-style provider APIs, and the Waveloop/Lyncly/DMFlow-style no-password,
 inbox, webhook, analytics, and safety positioning named in the audit are
-inspiration, not drop-in proof. Open-source private API clients can be useful
-for prototyping, but adopting one would fail the managed-product and reliability
-bar by pushing platform risk into the repo.
+inspiration, not market sizing or compliance proof. Open-source private API
+clients can be useful for prototyping, but adopting one would fail the
+managed-product and reliability bar by pushing platform risk into the repo.
 
 ## Placement
 
@@ -35,7 +35,7 @@ creator outreach.
 
 | Candidate | Decision | Reason |
 | --- | --- | --- |
-| ManyChat-style Instagram automation | Borrow | Validates demand and official-API patterns, but not a Graphed-owned API product. |
+| Meta official messaging and private-reply patterns | Borrow | Validates inbox, reply, webhook, human-agent, and time-window patterns, but not arbitrary cold creator-list outreach. |
 | Waveloop / Lyncly / DMFlow-style tools | Borrow | Strong inspiration for safety, OAuth, webhooks, analytics, and no-password positioning. |
 | Unofficial Instagram private API libraries | Do not adopt | They increase account and maintenance risk; useful only behind a managed adapter if risk is owned. |
 | Browser automation scripts | Do not adopt | Directly violates the bounty's "do not make us maintain automation" constraint. |
@@ -48,7 +48,7 @@ The first slice is the campaign control plane:
 - request validation
 - target normalization
 - duplicate prevention
-- safe scheduling defaults
+- sender-limit scheduling defaults
 - sender assignment
 - status/event model
 - webhook signing
@@ -108,8 +108,9 @@ commands before submitting a live creator list.
 
 ## Next Build Work
 
-The next build work should stay in this repo but move closer to pilot
-operations: operator-facing status views and the adapter implementation for
+The next build work should stay in this repo only when it moves the real pilot
+closer. The operator dashboard now covers the local status-view gap, so the
+decisive remaining work is the adapter implementation and operating runbook for
 whichever real provider/account operation the pilot uses. A real Instagram
 delivery provider remains an external operations integration behind this repo's
 adapter contract, not a reason to adopt an unofficial private-API library
@@ -121,14 +122,24 @@ See [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md) for retrieval dates, URLs, and
 access caveats.
 
 - Meta's Instagram Messaging docs describe messaging solutions for Instagram
-  Professional accounts, including receiving/responding to inbox messages and
-  private replies. That supports the "borrow official messaging patterns"
-  decision, not an official cold-DM compliance claim.
-- The Postman public Meta Instagram collection is a useful API-shape reference,
-  but it is not permission evidence for outbound creator-list outreach.
+  professional accounts, but the reachable docs say app-initiated sending starts
+  after the Instagram user has messaged the professional account and must fit
+  the documented response window or human-agent rules. That supports the
+  "borrow official messaging patterns" decision, not an official cold-DM
+  compliance claim.
+- Meta's private-reply docs document comment-triggered private replies with
+  one-message, seven-day, live-broadcast, and follow-up response-window limits.
+  That is an official automation pattern, not proof of general cold outreach.
+- The Postman public Meta Instagram Send API folder is reachable, but useful
+  content is client-side; treat it as an API-shape pointer rather than a
+  citation-grade source.
 - Unipile's public Instagram API page shows third-party provider capabilities
   such as account linking, realtime webhooks, quota/proxy protection, and
   unified provider APIs. That makes provider adapters plausible, but not a
   compliance shield.
+- Waveloop, Lyncly, and DMFlow public pages show sampled product-shape patterns
+  around official-login language, comment-to-DM automation, webhooks, analytics,
+  dedupe/rate-limit claims, and no-password positioning. These are product-shape
+  references, not market sizing or compliance proof.
 - ManyChat messaging-window evidence is intentionally omitted from strong
   claims until it is available from a citation-grade source.

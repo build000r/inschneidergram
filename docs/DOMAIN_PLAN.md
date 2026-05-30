@@ -149,7 +149,7 @@ The current implementation covers:
 3. Invalid profile inputs are blocked before scheduling.
 4. Creator profile evidence is preserved on targets and strict campaigns can
    require source plus fit rationale before scheduling.
-5. Safe sending defaults assign targets across senders and schedule delays.
+5. Sender-limit defaults assign targets across senders and schedule delays.
 6. Provider events update delivery/reply status idempotently.
 7. Creator/copy approval gates operator work before send evidence can be logged.
 8. Approval workbenches can be persisted, fetched, and reused by execution.
