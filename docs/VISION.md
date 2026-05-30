@@ -95,7 +95,8 @@ sender-risk reconciliation for manual restrictions, readiness gates, creator
 profile provenance intake, follow-up planning, proof-pack generation, and a
 managed-provider execution contract for provider-reported outcomes. Execution
 now enforces readiness approval and creator-vetting gates before proof records
-are created. The service path is also
+are created, and late provider replies/failures refresh the latest proof export
+plus follow-up plan after the original execution. The service path is also
 operator-testable: startup config is validated, `/health` checks the JSON
 store, optional API key protection gates non-public routes for exposed
 deployments, provider events and non-simulated executions can dispatch signed

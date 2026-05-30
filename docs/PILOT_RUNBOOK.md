@@ -124,7 +124,8 @@ private or special-use addresses before the outbound request is made.
 11. Operator records sent, failed, restricted, or replied evidence through
    `POST /campaigns/:id/executions/:executionId/manual-events` with an
    `Idempotency-Key` for retry safety.
-12. Campaign events update status and outgoing webhooks notify Graphed.
+12. Campaign events update status, refresh latest proof/follow-up state, and
+    outgoing webhooks notify Graphed.
 13. Execution proof record is persisted for audit replay.
 14. Operator or buyer fetches `GET /campaigns/:id/proof-pack` for the latest
     proof export, readiness state, source URLs, metrics, renewal decision, and
@@ -195,7 +196,9 @@ execution evidence, then returns due and pending follow-up items for contacted
 creators who have not replied, failed, or been restricted. `GET
 /campaigns/:id/proof-pack` includes the same `followUpPlan` plus
 `source.followUpsUrl` so renewal review can see whether there is remaining
-operator work before another campaign is created.
+operator work before another campaign is created. Provider replies and
+failures recorded after execution refresh that latest execution evidence, so
+follow-up work disappears once the provider reports a terminal result.
 
 ## Evidence Rules
 
@@ -255,7 +258,9 @@ When a campaign includes `settings.webhookUrl`, provider events recorded through
 `POST /campaigns/:id/events` dispatch a signed callback to that URL. Execution
 runs also use the runtime webhook sender when `simulateWebhooks` is false. Keep
 `simulateWebhooks` enabled for local proof rehearsals and disable it only when
-Graphed has a reachable callback endpoint.
+Graphed has a reachable callback endpoint. Late provider replies and failures
+also refresh the latest proof export and follow-up plan before the operator
+publishes renewal evidence.
 
 Production callbacks should be restricted with
 `INSCHNEIDERGRAM_ALLOWED_WEBHOOK_HOSTS=hooks.graphed.com` or a tenant wildcard

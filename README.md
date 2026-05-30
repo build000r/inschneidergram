@@ -26,7 +26,7 @@ This repo currently contains the first API/control-plane slice:
 | Creator provenance intake | Working MVP | target profile objects, opt-in provenance gate, readiness/proof metrics |
 | Duplicate prevention | Working MVP | in-campaign dedupe plus persisted suppression records |
 | Safe sending limits and scheduling | Working MVP | per-sender limits, delay windows, domain tests |
-| Delivery/reply status tracking | Working MVP | `POST /campaigns/:id/events` |
+| Delivery/reply status tracking | Working MVP | `POST /campaigns/:id/events`, including late provider proof refresh |
 | Webhook signing helper | Working MVP | `src/domain/webhook.ts` |
 | Runtime webhook callbacks | Working MVP | provider events and non-simulated executions dispatch signed callbacks |
 | Outgoing webhook retries | Working MVP | signed jobs, backoff, dead-letter list and replay routes |
@@ -40,7 +40,7 @@ This repo currently contains the first API/control-plane slice:
 | Operator workbench state | Working MVP | claim, skip, block routes before execution |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
-| Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from execution evidence |
+| Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from refreshed execution evidence |
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
@@ -49,7 +49,7 @@ This repo currently contains the first API/control-plane slice:
 | Managed provider execution contract | Working MVP | `adapter.kind=managed_provider` accepts provider-reported outcomes |
 | Execution readiness enforcement | Working MVP | executions return 409 until approval/sender gates pass |
 | Managed service smoke path | Working MVP | `npm run smoke:service`, `/health` store check, Dockerfile |
-| Latest proof export | Working MVP | `GET /campaigns/:id/proof-pack` |
+| Latest proof export | Working MVP | `GET /campaigns/:id/proof-pack`, refreshed by late provider replies/failures |
 | Optional API key protection | Working MVP | `INSCHNEIDERGRAM_API_KEY`, `X-API-Key`, bearer auth |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs verified delivery operations and live pilot evidence |
@@ -210,7 +210,10 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/events \
 When the campaign has `settings.webhookUrl`, provider events also dispatch a
 signed callback to that URL. The response includes the webhook delivery record
 so callers can see whether the callback was delivered, is pending retry, or
-dead-lettered.
+dead-lettered. If a provider reply or failure arrives after an execution, the
+API also refreshes the latest execution proof pack so
+`GET /campaigns/:id/proof-pack` and `GET /campaigns/:id/follow-ups` no longer
+serve stale reply or follow-up state.
 
 Webhook destinations are validated before campaign creation and again before
 runtime dispatch, so persisted legacy records cannot cause server-side calls to
@@ -269,6 +272,8 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/proof-pack
 The export returns the latest execution id, adapter risk posture, readiness,
 metrics, renewal recommendation, and the proof-pack Markdown so a buyer or
 operator can review the pilot result without walking raw execution records.
+Late provider replies and failures recorded through `POST /campaigns/:id/events`
+are folded into the latest execution proof before this export is returned.
 
 Inspect follow-up work derived from the latest execution evidence:
 
@@ -280,7 +285,9 @@ The follow-up plan turns `settings.followUps` into operator-visible work only
 for creators who were contacted and have not replied, failed, or been
 restricted. Each item includes the target, sender, sequence, message, last
 sent timestamp, due timestamp, due/pending status, and preserved creator
-profile evidence when available.
+profile evidence when available. Late provider replies and failures suppress
+the affected target from the plan after they refresh the latest execution
+evidence.
 
 Run a safe execution dry-run:
 
@@ -442,11 +449,15 @@ context, source URLs, metrics, renewal recommendation, and Markdown. It returns
 yet, including the current readiness report so the next action is still clear.
 The export also includes `followUpPlan` and `source.followUpsUrl` so a buyer or
 operator can see the next planned touches without discovering execution ids.
+Provider events recorded after the execution refresh the latest proof record
+before this response is generated.
 
 `GET /campaigns/:id/follow-ups` derives the current follow-up plan from
 `settings.followUps` and the latest execution evidence. It suppresses follow-up
 items for creators who replied, failed, were restricted, or were never accepted
-for scheduling, then reports due and pending counts for operator review.
+for scheduling, then reports due and pending counts for operator review. Late
+provider replies and failures update that execution evidence, so follow-up work
+cannot remain due for a creator who already replied or failed.
 
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It refuses to
 create proof records until readiness approval gates pass through a stored

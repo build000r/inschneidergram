@@ -24,7 +24,8 @@ content collaborations, or qualified pipeline.
 - creator approval criteria and approving actor
 - copy approval criteria and approving actor
 - optional follow-up copy with delay windows; `GET /campaigns/:id/follow-ups`
-  exposes due and pending follow-up work after execution
+  exposes due and pending follow-up work after execution and drops targets
+  after late provider replies or failures
 - managed sender account ids registered through the sender API or selected
   delivery adapter
 - stop conditions for opt-outs, complaints, sender warnings, and low quality
@@ -128,4 +129,6 @@ metrics plus a Markdown renewal report. Campaign policy blocks stay separate
 from operator skipped/blocked targets so the renewal report shows manual triage
 decisions without counting approval rejections as operator blocks. It is still
 sample-fixture or provider-reported contract proof until a live Graphed pilot
-runs through a verified managed delivery path.
+runs through a verified managed delivery path. Provider events recorded after
+execution refresh the latest proof pack, so late replies and failures are
+visible in the buyer-facing export.

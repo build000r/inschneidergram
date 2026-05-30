@@ -20,7 +20,8 @@ import {
   recordTargetEvent,
   targetEventSchema,
   type Campaign,
-  type CampaignTarget
+  type CampaignTarget,
+  type TargetEventInput
 } from "./domain/campaign.js";
 import {
   createManagedProviderDeliveryAdapter,
@@ -28,6 +29,7 @@ import {
   createMockDeliveryAdapter,
   recordManualDeliveryEvent,
   type DeliveryAttempt,
+  type DeliveryEvent,
   type DeliveryEventType,
   type DeliveryOutcome,
   type ManualEvidenceRequirement
@@ -47,6 +49,7 @@ import { generatePilotProofPack, type ReplyAssessment } from "./domain/proofPack
 import {
   createCampaignExecutionRecord,
   InMemoryCampaignStore,
+  newestExecutionsFirst,
   type CampaignExecutionRecord,
   type CampaignStore
 } from "./domain/store.js";
@@ -323,9 +326,9 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
     try {
       const event = targetEventSchema.parse(request.body ?? {});
-      const campaignBeforeEvent = structuredClone(campaign);
-      const updated = await store.update(recordTargetEvent(campaign, event));
-      const webhookTarget = targetWithNewEvent(campaignBeforeEvent, updated, event.target);
+      const result = await recordProviderEventAndRefreshProof(store, campaign, event);
+      const updated = result.campaign;
+      const webhookTarget = result.webhookTarget;
       const webhookDelivery = webhookTarget
         ? await dispatchTargetWebhook(runtimeWebhookDispatcher, updated, webhookTarget)
         : null;
@@ -1680,6 +1683,164 @@ function targetWithNewEvent(
     : null;
 }
 
+async function recordProviderEventAndRefreshProof(
+  store: CampaignStore,
+  campaign: Campaign,
+  event: TargetEventInput
+): Promise<{
+  campaign: Campaign;
+  execution: CampaignExecutionRecord | null;
+  webhookTarget: CampaignTarget | null;
+}> {
+  const latestExecution = latestExecutionForCampaign(await store.listExecutions(campaign.id));
+  if (!latestExecution) {
+    const campaignBeforeEvent = structuredClone(campaign);
+    const updated = await store.update(recordTargetEvent(campaign, event));
+    return {
+      campaign: updated,
+      execution: null,
+      webhookTarget: targetWithNewEvent(campaignBeforeEvent, updated, event.target)
+    };
+  }
+
+  const updated = await store.updateCampaignExecution(
+    campaign.id,
+    latestExecution.id,
+    async (currentCampaign, currentExecution) => {
+      const campaignBeforeEvent = structuredClone(currentCampaign);
+      const campaignAfterEvent = recordTargetEvent(currentCampaign, event);
+      const webhookTarget = targetWithNewEvent(
+        campaignBeforeEvent,
+        campaignAfterEvent,
+        event.target
+      );
+      const execution = webhookTarget
+        ? refreshExecutionProofForProviderEvent(
+            currentExecution,
+            campaignAfterEvent,
+            webhookTarget
+          )
+        : currentExecution;
+
+      return {
+        campaign: campaignAfterEvent,
+        execution,
+        result: {
+          campaign: campaignAfterEvent,
+          execution,
+          webhookTarget
+        }
+      };
+    }
+  );
+
+  if (updated) {
+    return updated;
+  }
+
+  const campaignBeforeEvent = structuredClone(campaign);
+  const fallback = await store.update(recordTargetEvent(campaign, event));
+  return {
+    campaign: fallback,
+    execution: null,
+    webhookTarget: targetWithNewEvent(campaignBeforeEvent, fallback, event.target)
+  };
+}
+
+function latestExecutionForCampaign(
+  executions: CampaignExecutionRecord[]
+): CampaignExecutionRecord | null {
+  return newestExecutionsFirst(executions)[0] ?? null;
+}
+
+function refreshExecutionProofForProviderEvent(
+  execution: CampaignExecutionRecord,
+  campaign: Campaign,
+  webhookTarget: CampaignTarget | null
+): CampaignExecutionRecord {
+  const deliveryAttempts = webhookTarget
+    ? deliveryAttemptsWithProviderEvent(execution.deliveryAttempts, webhookTarget)
+    : execution.deliveryAttempts;
+
+  return {
+    ...execution,
+    deliveryAttempts,
+    proofPack: generatePilotProofPack({
+      campaign,
+      approvalWorkbench: execution.approvalWorkbench,
+      deliveryAttempts,
+      webhookDeliveries: execution.webhookDeliveries,
+      replyAssessments: execution.replyAssessments,
+      incidents: execution.incidents
+    })
+  };
+}
+
+function deliveryAttemptsWithProviderEvent(
+  attempts: DeliveryAttempt[],
+  webhookTarget: CampaignTarget
+): DeliveryAttempt[] {
+  const latestEvent = webhookTarget.events.at(-1);
+  const type = latestEvent ? deliveryEventTypeForTargetEvent(latestEvent.event) : null;
+  if (!webhookTarget.handle || !latestEvent || !type) {
+    return attempts;
+  }
+
+  return attempts.map((attempt) => {
+    if (attempt.intent.targetHandle !== webhookTarget.handle) {
+      return attempt;
+    }
+    if (attempt.events.some((event) => event.id === latestEvent.eventId)) {
+      return attempt;
+    }
+
+    const events = [
+      ...attempt.events,
+      providerDeliveryEventForTargetEvent(attempt, latestEvent, type, webhookTarget)
+    ];
+    return {
+      ...attempt,
+      events,
+      outcome: outcomeForManualEvents(events.map((event) => event.type))
+    };
+  });
+}
+
+function deliveryEventTypeForTargetEvent(
+  event: TargetEventInput["event"]
+): DeliveryEventType | null {
+  switch (event) {
+    case "sent":
+      return "sent";
+    case "reply":
+      return "replied";
+    case "failed":
+      return "failed";
+    case "delivered":
+      return null;
+  }
+}
+
+function providerDeliveryEventForTargetEvent(
+  attempt: DeliveryAttempt,
+  targetEvent: CampaignTarget["events"][number],
+  type: DeliveryEventType,
+  target: CampaignTarget
+): DeliveryEvent {
+  return {
+    id: targetEvent.eventId,
+    intentId: attempt.intent.id,
+    adapterId: attempt.adapterId,
+    type,
+    occurredAt: targetEvent.receivedAt,
+    messageId: target.messageId,
+    reason: target.error,
+    evidence: {
+      source: "provider_event"
+    }
+  };
+}
+
 async function dispatchTargetWebhook(
   dispatcher: OutgoingWebhookDispatcher,
   campaign: Campaign,
@@ -2211,9 +2372,7 @@ async function buildLatestProofPackReport(
   campaign: Campaign
 ) {
   const executions = await store.listExecutions(campaign.id);
-  const latestExecution = [...executions].sort((left, right) =>
-    right.createdAt.localeCompare(left.createdAt)
-  )[0];
+  const latestExecution = latestExecutionForCampaign(executions);
   if (!latestExecution) {
     return null;
   }
@@ -2331,10 +2490,13 @@ function selectManualExecutionsForQueue(
   executions: CampaignExecutionRecord[],
   query: ManualQueueQuery
 ): CampaignExecutionRecord[] {
-  const manualExecutions = executions
-    .filter((execution) => execution.deliveryAttempts.some((attempt) => attempt.riskPosture.kind === "manual"))
-    .filter((execution) => !query.executionId || execution.id === query.executionId)
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const manualExecutions = newestExecutionsFirst(
+    executions
+      .filter((execution) =>
+        execution.deliveryAttempts.some((attempt) => attempt.riskPosture.kind === "manual")
+      )
+      .filter((execution) => !query.executionId || execution.id === query.executionId)
+  );
 
   if (query.executionId || query.includeHistorical) {
     return manualExecutions;

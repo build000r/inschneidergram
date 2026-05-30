@@ -84,6 +84,18 @@ export interface CampaignStore {
   ): Promise<T | null>;
 }
 
+export function newestExecutionsFirst(
+  executions: CampaignExecutionRecord[]
+): CampaignExecutionRecord[] {
+  return executions
+    .map((execution, index) => ({ execution, index }))
+    .sort((left, right) => {
+      const byCreatedAt = right.execution.createdAt.localeCompare(left.execution.createdAt);
+      return byCreatedAt === 0 ? right.index - left.index : byCreatedAt;
+    })
+    .map(({ execution }) => execution);
+}
+
 export class InMemoryCampaignStore implements CampaignStore {
   private campaigns = new Map<string, Campaign>();
   private idempotencyIndex = new Map<string, string>();

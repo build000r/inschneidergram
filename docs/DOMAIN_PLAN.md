@@ -45,6 +45,8 @@ The current implementation covers:
 - JSON-backed local campaign storage
 - safe per-sender scheduling defaults
 - provider event ingestion
+- late provider reply/failure ingestion refreshes the latest execution proof
+  pack and follow-up evidence after the original execution has completed
 - campaign status summaries
 - webhook payload signing helpers
 - creator approval/rejection state
@@ -106,7 +108,8 @@ The current implementation covers:
   next actions
 - latest proof export route that returns the most recent proof pack, readiness,
   metrics, renewal recommendation, source URLs, and Markdown from one
-  campaign-level API call
+  campaign-level API call, with late provider replies/failures folded into the
+  latest execution proof before export
 - readiness and execution recheck current stored sender health for campaigns
   created from managed inventory
 - hardened OpenAPI contract for the no-credential pilot path, including path
@@ -187,10 +190,12 @@ The current implementation covers:
     without breaking local default-open demos.
 32. Provider event ingestion, non-simulated executions, and manual evidence
     dispatch signed webhook callbacks through the runtime sender by default.
-33. Operators can inspect and replay dead-lettered callback deliveries.
-34. Network-exposed deployments reject unsafe webhook destinations before
+33. Late provider replies and failures refresh the latest execution proof pack
+    and suppress stale follow-up work.
+34. Operators can inspect and replay dead-lettered callback deliveries.
+35. Network-exposed deployments reject unsafe webhook destinations before
     storing campaigns and before dispatching legacy callback records.
-35. Tests prove the API contract and domain rules.
+36. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -259,12 +264,16 @@ metrics.
 `GET /campaigns/:id/proof-pack` is the buyer-facing proof export. It selects the
 latest execution, attaches readiness and source URLs, and returns metrics,
 renewal recommendation, and the Markdown report without requiring the caller to
-discover an execution id first.
+discover an execution id first. Provider replies or failures recorded after the
+execution refresh the latest stored proof pack before export, so the campaign
+level report does not lag behind provider callbacks.
 
 `GET /campaigns/:id/follow-ups` is the operator follow-up plan. It uses the
 campaign's configured follow-up rules and latest execution evidence to expose
 only follow-ups that still make sense: sent creators with no reply, failure, or
-restriction. The latest proof export includes the same plan and a
+restriction. Late provider replies and failures update that latest execution
+evidence and remove the affected target from follow-up work. The latest proof
+export includes the same plan and a
 `source.followUpsUrl` pointer.
 
 The refreshed proof pack keeps campaign ingest/policy blocks separate from

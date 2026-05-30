@@ -2197,6 +2197,191 @@ describe("API", () => {
     await app.close();
   });
 
+  it("refreshes proof export and follow-ups after late provider events", async () => {
+    const app = await buildServer({ webhookSecret: "late-provider-proof-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@late_reply_creator", "@late_failed_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "late-provider-proof-pilot",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ],
+          followUps: [
+            {
+              delayHours: 1,
+              message: "Checking back once before I close the loop."
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@late_reply_creator", "@late_failed_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    const execution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "managed_provider",
+          id: "late_provider_contract",
+          outcomes: [
+            {
+              target: "@late_reply_creator",
+              outcome: "accepted",
+              events: [
+                {
+                  type: "sent",
+                  occurredAt: "2026-05-30T06:00:00.000Z",
+                  messageId: "late_provider_msg_1"
+                }
+              ]
+            },
+            {
+              target: "@late_failed_creator",
+              outcome: "accepted",
+              events: [
+                {
+                  type: "sent",
+                  occurredAt: "2026-05-30T06:05:00.000Z",
+                  messageId: "late_provider_msg_2"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    });
+    expect(execution.statusCode).toBe(200);
+
+    const initialFollowUps = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/follow-ups`
+    });
+    expect(initialFollowUps.json()).toMatchObject({
+      counts: {
+        total: 2
+      }
+    });
+    expect(initialFollowUps.json().items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ targetHandle: "late_reply_creator" }),
+        expect.objectContaining({ targetHandle: "late_failed_creator" })
+      ])
+    );
+
+    const lateReply = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/events`,
+      payload: {
+        target: "@late_reply_creator",
+        event: "reply",
+        eventId: "late-provider-reply-1",
+        messageId: "late_provider_msg_1",
+        receivedAt: "2026-05-30T06:30:00.000Z"
+      }
+    });
+    expect(lateReply.statusCode).toBe(200);
+
+    const lateFailure = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/events`,
+      payload: {
+        target: "@late_failed_creator",
+        event: "failed",
+        eventId: "late-provider-failure-1",
+        messageId: "late_provider_msg_2",
+        error: "Provider reported send failure after initial acceptance",
+        receivedAt: "2026-05-30T06:35:00.000Z"
+      }
+    });
+    expect(lateFailure.statusCode).toBe(200);
+
+    const proofExport = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/proof-pack`
+    });
+    expect(proofExport.json()).toMatchObject({
+      campaignStatus: "completed",
+      latestExecution: {
+        id: execution.json().executionId,
+        deliveryAttemptCount: 2
+      },
+      metrics: {
+        contactedTargets: 2,
+        replies: 1,
+        deliveryFailures: 1
+      },
+      followUpPlan: {
+        counts: {
+          total: 0,
+          due: 0,
+          pending: 0
+        },
+        items: []
+      }
+    });
+    expect(proofExport.json().markdown).toContain("| Replies | 1 |");
+
+    const refreshedExecution = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions/${execution.json().executionId}`
+    });
+    const refreshedAttempts = Object.fromEntries(
+      refreshedExecution.json().deliveryAttempts.map(
+        (attempt: {
+          intent: { targetHandle: string };
+          events: Array<{ type: string; id: string }>;
+        }) => [
+          attempt.intent.targetHandle,
+          attempt.events.map((event) => [event.type, event.id])
+        ]
+      )
+    );
+    expect(refreshedAttempts.late_reply_creator).toEqual([
+      ["sent", expect.any(String)],
+      ["replied", "late-provider-reply-1"]
+    ]);
+    expect(refreshedAttempts.late_failed_creator).toEqual([
+      ["sent", expect.any(String)],
+      ["failed", "late-provider-failure-1"]
+    ]);
+
+    const followUps = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/follow-ups`
+    });
+    expect(followUps.json()).toMatchObject({
+      latestExecutionId: execution.json().executionId,
+      counts: {
+        total: 0,
+        due: 0,
+        pending: 0
+      },
+      items: []
+    });
+
+    await app.close();
+  });
+
   it("exports the newest proof pack when a campaign has multiple executions", async () => {
     const app = await buildServer({ webhookSecret: "latest-proof-secret" });
     const createResponse = await app.inject({

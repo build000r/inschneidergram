@@ -1,6 +1,6 @@
 import type { Campaign, CampaignTarget, CreateCampaignInput } from "./campaign.js";
 import type { DeliveryAttempt } from "./delivery.js";
-import type { CampaignExecutionRecord } from "./store.js";
+import { newestExecutionsFirst, type CampaignExecutionRecord } from "./store.js";
 
 export type FollowUpStatus = "due" | "pending";
 
@@ -120,9 +120,9 @@ function followUpItemsForAttempt(
 function latestExecutionWithAttempts(
   executions: CampaignExecutionRecord[]
 ): CampaignExecutionRecord | undefined {
-  return [...executions]
-    .filter((execution) => execution.deliveryAttempts.length > 0)
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  return newestExecutionsFirst(
+    executions.filter((execution) => execution.deliveryAttempts.length > 0)
+  )[0];
 }
 
 function latestSentAt(attempt: DeliveryAttempt): string | null {

@@ -1,6 +1,6 @@
 import type { ApprovalWorkbench } from "./approval.js";
 import { hasCreatorProfileProvenance, type Campaign } from "./campaign.js";
-import type { CampaignExecutionRecord } from "./store.js";
+import { newestExecutionsFirst, type CampaignExecutionRecord } from "./store.js";
 
 export type PilotReadinessStatus =
   | "blocked"
@@ -48,9 +48,7 @@ export function buildPilotReadinessReport(input: {
   approvalWorkbench?: ApprovalWorkbench | null;
   executions?: CampaignExecutionRecord[];
 }): PilotReadinessReport {
-  const executions = [...(input.executions ?? [])].sort((left, right) =>
-    right.createdAt.localeCompare(left.createdAt)
-  );
+  const executions = newestExecutionsFirst(input.executions ?? []);
   const latestExecution = executions[0];
   const acceptedTargets =
     input.campaign.summary.total -
