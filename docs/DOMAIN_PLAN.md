@@ -45,6 +45,8 @@ The current implementation covers:
 - webhook payload signing helpers
 - creator approval/rejection state
 - first-touch message approval/rejection state
+- persisted approval workbench API for creator and copy decisions before
+  execution
 - operator claim, send, skip, and block evidence
 - audit entries for approval and operator state changes
 - sender account limits, cooldowns, lockouts, reconnect-required state, warm-up
@@ -70,20 +72,21 @@ The current implementation covers:
 4. Safe sending defaults assign targets across senders and schedule delays.
 5. Provider events update delivery/reply status idempotently.
 6. Creator/copy approval gates operator work before send evidence can be logged.
-7. Operator workbench items can be claimed, sent, skipped, or blocked with
+7. Approval workbenches can be persisted, fetched, and reused by execution.
+8. Operator workbench items can be claimed, sent, skipped, or blocked with
    evidence.
-8. Unhealthy senders are refused before scheduling and reported in campaign
+9. Unhealthy senders are refused before scheduling and reported in campaign
    status.
-9. Outgoing webhooks can be signed, retried, dead-lettered, and replayed.
-10. A sample pilot fixture generates proof metrics and a Markdown report.
-11. Approved campaign execution routes send intents through an injected adapter,
+10. Outgoing webhooks can be signed, retried, dead-lettered, and replayed.
+11. A sample pilot fixture generates proof metrics and a Markdown report.
+12. Approved campaign execution routes send intents through an injected adapter,
     records events, sends webhooks, and returns proof.
-12. `POST /campaigns/:id/executions` exposes the safe execution/proof workflow
+13. `POST /campaigns/:id/executions` exposes the safe execution/proof workflow
     without claiming live Instagram delivery.
-13. Execution proof records can be listed and fetched after the run.
-14. Manual execution evidence can be recorded idempotently and refreshes the
+14. Execution proof records can be listed and fetched after the run.
+15. Manual execution evidence can be recorded idempotently and refreshes the
     stored proof pack.
-15. Tests prove the API contract and domain rules.
+16. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -96,8 +99,11 @@ and suppression records locally.
 ### Approval Store and API
 
 Persist approval workbenches and expose routes for candidate decisions, copy
-decisions, operator claims, and evidence capture. The domain module is currently
-pure TypeScript and ready to be wired to storage/API surfaces.
+decisions, operator claims, and evidence capture. The current API now persists
+approval workbenches, exposes candidate/copy decision routes, and lets execution
+reuse stored approvals. Operator claims and workbench-native evidence capture
+remain domain-only; manual execution evidence is currently handled through the
+execution `manual-events` API.
 
 ### Managed Delivery Adapter
 

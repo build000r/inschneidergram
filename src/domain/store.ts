@@ -42,6 +42,8 @@ export interface CampaignStore {
   update(campaign: Campaign): Promise<Campaign>;
   list(): Promise<Campaign[]>;
   listSuppressions(): Promise<SuppressionRecord[]>;
+  upsertApprovalWorkbench(workbench: ApprovalWorkbench): Promise<ApprovalWorkbench>;
+  getApprovalWorkbench(campaignId: string): Promise<ApprovalWorkbench | null>;
   insertExecution(record: CampaignExecutionRecord): Promise<CampaignExecutionRecord>;
   getExecution(id: string): Promise<CampaignExecutionRecord | null>;
   listExecutions(campaignId: string): Promise<CampaignExecutionRecord[]>;
@@ -51,6 +53,7 @@ export class InMemoryCampaignStore implements CampaignStore {
   private campaigns = new Map<string, Campaign>();
   private idempotencyIndex = new Map<string, string>();
   private suppressions = new Map<string, SuppressionRecord>();
+  private approvalWorkbenches = new Map<string, ApprovalWorkbench>();
   private executions = new Map<string, CampaignExecutionRecord>();
 
   async insert(campaign: Campaign): Promise<Campaign> {
@@ -88,6 +91,16 @@ export class InMemoryCampaignStore implements CampaignStore {
 
   async listSuppressions(): Promise<SuppressionRecord[]> {
     return [...this.suppressions.values()].map((record) => structuredClone(record));
+  }
+
+  async upsertApprovalWorkbench(workbench: ApprovalWorkbench): Promise<ApprovalWorkbench> {
+    this.approvalWorkbenches.set(workbench.campaignId, structuredClone(workbench));
+    return structuredClone(workbench);
+  }
+
+  async getApprovalWorkbench(campaignId: string): Promise<ApprovalWorkbench | null> {
+    const workbench = this.approvalWorkbenches.get(campaignId);
+    return workbench ? structuredClone(workbench) : null;
   }
 
   async insertExecution(record: CampaignExecutionRecord): Promise<CampaignExecutionRecord> {
@@ -128,6 +141,7 @@ export class InMemoryCampaignStore implements CampaignStore {
 interface StoreSnapshot {
   campaigns: Campaign[];
   suppressions: SuppressionRecord[];
+  approvalWorkbenches: ApprovalWorkbench[];
   executions: CampaignExecutionRecord[];
 }
 
@@ -202,6 +216,34 @@ export class JsonFileCampaignStore implements CampaignStore {
     });
   }
 
+  async upsertApprovalWorkbench(workbench: ApprovalWorkbench): Promise<ApprovalWorkbench> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      const index = snapshot.approvalWorkbenches.findIndex(
+        (candidate) => candidate.campaignId === workbench.campaignId
+      );
+
+      if (index === -1) {
+        snapshot.approvalWorkbenches.push(structuredClone(workbench));
+      } else {
+        snapshot.approvalWorkbenches[index] = structuredClone(workbench);
+      }
+
+      await this.writeSnapshot(snapshot);
+      return structuredClone(workbench);
+    });
+  }
+
+  async getApprovalWorkbench(campaignId: string): Promise<ApprovalWorkbench | null> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      const workbench = snapshot.approvalWorkbenches.find(
+        (candidate) => candidate.campaignId === campaignId
+      );
+      return workbench ? structuredClone(workbench) : null;
+    });
+  }
+
   async insertExecution(record: CampaignExecutionRecord): Promise<CampaignExecutionRecord> {
     return this.locked(async () => {
       const snapshot = await this.readSnapshot();
@@ -251,11 +293,14 @@ export class JsonFileCampaignStore implements CampaignStore {
       return {
         campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
         suppressions: Array.isArray(parsed.suppressions) ? parsed.suppressions : [],
+        approvalWorkbenches: Array.isArray(parsed.approvalWorkbenches)
+          ? parsed.approvalWorkbenches
+          : [],
         executions: Array.isArray(parsed.executions) ? parsed.executions : []
       };
     } catch (error) {
       if (isNotFound(error)) {
-        return { campaigns: [], suppressions: [], executions: [] };
+        return { campaigns: [], suppressions: [], approvalWorkbenches: [], executions: [] };
       }
       throw error;
     }

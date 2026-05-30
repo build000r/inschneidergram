@@ -16,6 +16,7 @@ flowchart LR
   bounty["Bounty: managed Instagram creator outreach"]
   api["GREEN API control plane MVP"]
   store["GREEN Durable local store + idempotency"]
+  approvalApi["GREEN Persisted approval API"]
   delivery["YELLOW Adapter contract only"]
   ops["YELLOW Sender health model only"]
   beads["YELLOW Beads planning active"]
@@ -24,9 +25,11 @@ flowchart LR
   next["Next: real sender ops + live pilot"]
   bounty --> api
   api --> store
+  api --> approvalApi
   bounty --> delivery
   bounty --> ops
   api --> proof
+  approvalApi --> runner
   proof --> runner
   delivery --> beads
   ops --> beads
@@ -35,6 +38,7 @@ flowchart LR
   beads --> next
   class api green
   class store green
+  class approvalApi green
   class delivery yellow
   class ops yellow
   class proof green
@@ -53,6 +57,7 @@ gantt
   section GREEN Working
   GREEN Campaign API MVP :done, 2026-05-30, 1d
   GREEN Durable store and approvals :done, 2026-05-30, 1d
+  GREEN Persisted approval workbench API :done, 2026-05-30, 1d
   GREEN Proof pack generator :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API-callable execution + manual evidence records :done, 2026-05-30, 1d
@@ -67,7 +72,7 @@ gantt
 flowchart TD
   api["DONE GREEN API contract"]
   store["DONE GREEN Persistent store + suppression"]
-  approval["DONE GREEN Approval workbench domain"]
+  approval["DONE GREEN Approval workbench API/domain"]
   adapter["PARTIAL YELLOW Delivery adapter contract"]
   sender["PARTIAL YELLOW Sender health model"]
   webhooks["DONE GREEN Outgoing webhook retry domain"]
@@ -107,8 +112,10 @@ sequenceDiagram
   participant C as Creator
   G->>I: POST /campaigns
   I->>I: validate, normalize, suppress, schedule
+  G->>I: POST /campaigns/:id/approval-workbench
+  I->>I: persist creator and copy approvals
   G->>I: POST /campaigns/:id/executions
-  I->>I: approval gates, safe adapter, proof pack
+  I->>I: stored approval gates, safe adapter, proof pack
   G->>I: POST /manual-events for operator evidence when manual
   I->>P: hand off approved send intent when adapter is real
   P->>C: Instagram DM
@@ -152,7 +159,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/execution/manual-evidence/proof/domain"]
+  tests["GREEN npm test covers API/store/approval/execution/manual-evidence/proof/domain"]
   typecheck["GREEN typecheck green"]
   mmdx["YELLOW MMDX preflight required"]
   live["RED no live Instagram delivery proof"]
@@ -175,7 +182,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/manual-evidence/proof claims"]
+  code["GREEN Code matches API/store/approval/manual-evidence/proof claims"]
   beads["GREEN Beads closed for current scaffold"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -191,7 +198,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, approvals, webhooks, proof, manual evidence records"]
+  now["Current: API, durable store, approval API, webhooks, proof, manual evidence records"]
   first["Next: real sender operations"]
   second["Then: live Graphed pilot"]
   third["Then: deployment hardening"]
@@ -243,6 +250,7 @@ erDiagram
     string id
     string campaignId
     string updatedAt
+    string summary
   }
   OPERATOR_EVIDENCE {
     string kind

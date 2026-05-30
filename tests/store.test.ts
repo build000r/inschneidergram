@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { approveCandidate, approveMessage, createApprovalWorkbench } from "../src/domain/approval.js";
 import { createCampaign } from "../src/domain/campaign.js";
 import { generatePilotProofPack } from "../src/domain/proofPack.js";
 import {
@@ -107,6 +108,34 @@ describe("campaign stores", () => {
         expect.objectContaining({ handle: "creator_one", campaignId: campaign.id }),
         expect.objectContaining({ handle: "creator_three", campaignId: crossCampaign.id })
       ]);
+
+      let workbench = createApprovalWorkbench({
+        campaignId: campaign.id,
+        candidates: [{ id: "candidate_1", target: "creator_one" }],
+        messages: [{ id: "copy_1", body: "Hey" }]
+      });
+      workbench = approveCandidate(workbench, {
+        candidateId: "candidate_1",
+        actor: "approver"
+      });
+      workbench = approveMessage(workbench, {
+        messageId: "copy_1",
+        actor: "approver"
+      });
+      await thirdStore.upsertApprovalWorkbench(workbench);
+      const approvalStore = new JsonFileCampaignStore(storePath);
+
+      expect(await approvalStore.getApprovalWorkbench(campaign.id)).toMatchObject({
+        campaignId: campaign.id,
+        summary: {
+          candidates: {
+            approved: 1
+          },
+          messages: {
+            approved: 1
+          }
+        }
+      });
 
       const execution = createCampaignExecutionRecord(
         {

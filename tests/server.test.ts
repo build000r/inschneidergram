@@ -198,6 +198,156 @@ describe("API", () => {
     await app.close();
   });
 
+  it("persists approval workbench decisions and executes stored approvals", async () => {
+    const app = await buildServer({ webhookSecret: "approval-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@approved_creator", "@rejected_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "approval-api-pilot",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/inschneidergram",
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const createdWorkbench = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approveMessage: false
+      }
+    });
+    expect(createdWorkbench.statusCode).toBe(200);
+    expect(createdWorkbench.json().approvalWorkbench).toMatchObject({
+      campaignId,
+      summary: {
+        candidates: {
+          total: 2,
+          pending: 2
+        },
+        messages: {
+          pending: 1
+        }
+      }
+    });
+
+    const candidateIds = Object.fromEntries(
+      createdWorkbench
+        .json()
+        .approvalWorkbench.candidates.map((candidate: { id: string; handle: string }) => [
+          candidate.handle,
+          candidate.id
+        ])
+    );
+    const copyId = createdWorkbench.json().approvalWorkbench.messages[0].id;
+
+    const approvedCandidate = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench/candidates/${candidateIds.approved_creator}/decision`,
+      payload: {
+        decision: "approved",
+        actor: "approver",
+        reason: "strong fit"
+      }
+    });
+    expect(approvedCandidate.statusCode).toBe(200);
+
+    const rejectedCandidate = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench/candidates/${candidateIds.rejected_creator}/decision`,
+      payload: {
+        decision: "rejected",
+        actor: "approver",
+        reason: "weak fit"
+      }
+    });
+    expect(rejectedCandidate.statusCode).toBe(200);
+
+    const approvedMessage = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench/messages/${copyId}/decision`,
+      payload: {
+        decision: "approved",
+        actor: "approver",
+        reason: "brand safe"
+      }
+    });
+    expect(approvedMessage.statusCode).toBe(200);
+    expect(approvedMessage.json().approvalWorkbench.summary).toMatchObject({
+      candidates: {
+        approved: 1,
+        rejected: 1,
+        blocked: 1
+      },
+      messages: {
+        approved: 1
+      }
+    });
+
+    const storedWorkbench = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/approval-workbench`
+    });
+    expect(storedWorkbench.json().approvalWorkbench.audit.map(
+      (entry: { action: string }) => entry.action
+    )).toEqual([
+      "workbench_created",
+      "candidate_approved",
+      "candidate_rejected",
+      "message_approved"
+    ]);
+
+    const executionResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "mock",
+          replyTargets: ["@approved_creator"]
+        }
+      }
+    });
+    expect(executionResponse.statusCode).toBe(200);
+    expect(executionResponse.json()).toMatchObject({
+      summary: {
+        scheduled: 1,
+        replied: 1
+      },
+      proofPack: {
+        metrics: {
+          approvedTargets: 1,
+          approvedCopy: 1,
+          contactedTargets: 1,
+          replies: 1
+        }
+      }
+    });
+    expect(
+      executionResponse.json().intents.map((intent: { targetHandle: string }) => intent.targetHandle)
+    ).toEqual(["approved_creator"]);
+    expect(executionResponse.json().execution.approvalWorkbench.summary).toMatchObject({
+      candidates: {
+        approved: 1,
+        rejected: 1
+      }
+    });
+
+    await app.close();
+  });
+
   it("executes an approved mock pilot and returns proof pack evidence", async () => {
     const app = await buildServer({ webhookSecret: "execution-secret" });
     const createResponse = await app.inject({
@@ -609,6 +759,19 @@ describe("API", () => {
 
     expect(openapi.paths["/campaigns/{id}/executions"].get).toMatchObject({
       summary: "List persisted execution proof records for a campaign"
+    });
+    expect(openapi.paths["/campaigns/{id}/approval-workbench"].post).toMatchObject({
+      summary: "Create or replace a persisted approval workbench"
+    });
+    expect(
+      openapi.paths["/campaigns/{id}/approval-workbench/candidates/{candidateId}/decision"].post
+    ).toMatchObject({
+      summary: "Approve or reject one creator candidate"
+    });
+    expect(
+      openapi.paths["/campaigns/{id}/approval-workbench/messages/{messageId}/decision"].post
+    ).toMatchObject({
+      summary: "Approve or reject one message candidate"
     });
     expect(openapi.paths["/campaigns/{id}/executions"].post).toMatchObject({
       summary: "Execute approved campaign targets through a mock or manual-safe adapter",

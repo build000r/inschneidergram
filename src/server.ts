@@ -5,7 +5,9 @@ import {
   approveCandidate,
   approveMessage,
   createApprovalWorkbench,
-  rejectCandidate
+  rejectCandidate,
+  rejectMessage,
+  type ApprovalWorkbench
 } from "./domain/approval.js";
 import { createCampaign, recordTargetEvent, type Campaign } from "./domain/campaign.js";
 import {
@@ -103,6 +105,130 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     }
   });
 
+  app.post("/campaigns/:id/approval-workbench", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    try {
+      const approvalRequest = approvalWorkbenchRequestSchema.parse(request.body ?? {});
+      const workbench = await store.upsertApprovalWorkbench(
+        buildStoredApprovalWorkbench(campaign, approvalRequest)
+      );
+
+      return {
+        campaignId: campaign.id,
+        approvalWorkbench: workbench
+      };
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  app.get("/campaigns/:id/approval-workbench", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    const workbench = await store.getApprovalWorkbench(id);
+    if (!workbench) {
+      return reply.code(404).send({ error: "approval_workbench_not_found" });
+    }
+
+    return {
+      campaignId: id,
+      approvalWorkbench: workbench
+    };
+  });
+
+  app.post(
+    "/campaigns/:id/approval-workbench/candidates/:candidateId/decision",
+    async (request, reply) => {
+      const { id, candidateId } = request.params as { id: string; candidateId: string };
+      const campaign = await store.get(id);
+
+      if (!campaign) {
+        return reply.code(404).send({ error: "campaign_not_found" });
+      }
+
+      const workbench = await store.getApprovalWorkbench(id);
+      if (!workbench) {
+        return reply.code(404).send({ error: "approval_workbench_not_found" });
+      }
+
+      try {
+        const decision = approvalDecisionRequestSchema.parse(request.body ?? {});
+        const updated =
+          decision.decision === "approved"
+            ? approveCandidate(workbench, {
+                candidateId,
+                actor: decision.actor,
+                reason: decision.reason
+              })
+            : rejectCandidate(workbench, {
+                candidateId,
+                actor: decision.actor,
+                reason: decision.reason
+              });
+        const saved = await store.upsertApprovalWorkbench(updated);
+
+        return {
+          campaignId: id,
+          approvalWorkbench: saved
+        };
+      } catch (error) {
+        return sendDomainError(reply, error);
+      }
+    }
+  );
+
+  app.post(
+    "/campaigns/:id/approval-workbench/messages/:messageId/decision",
+    async (request, reply) => {
+      const { id, messageId } = request.params as { id: string; messageId: string };
+      const campaign = await store.get(id);
+
+      if (!campaign) {
+        return reply.code(404).send({ error: "campaign_not_found" });
+      }
+
+      const workbench = await store.getApprovalWorkbench(id);
+      if (!workbench) {
+        return reply.code(404).send({ error: "approval_workbench_not_found" });
+      }
+
+      try {
+        const decision = approvalDecisionRequestSchema.parse(request.body ?? {});
+        const updated =
+          decision.decision === "approved"
+            ? approveMessage(workbench, {
+                messageId,
+                actor: decision.actor,
+                reason: decision.reason
+              })
+            : rejectMessage(workbench, {
+                messageId,
+                actor: decision.actor,
+                reason: decision.reason
+              });
+        const saved = await store.upsertApprovalWorkbench(updated);
+
+        return {
+          campaignId: id,
+          approvalWorkbench: saved
+        };
+      } catch (error) {
+        return sendDomainError(reply, error);
+      }
+    }
+  );
+
   app.post("/campaigns/:id/executions", async (request, reply) => {
     const { id } = request.params as { id: string };
     const campaign = await store.get(id);
@@ -113,7 +239,11 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
     try {
       const executionRequest = executionRequestSchema.parse(request.body ?? {});
-      const workbench = buildApprovalWorkbench(campaign, executionRequest);
+      const workbench = buildExecutionApprovalWorkbench(
+        campaign,
+        executionRequest,
+        await store.getApprovalWorkbench(id)
+      );
       const dispatcher = executionRequest.simulateWebhooks
         ? new OutgoingWebhookDispatcher({
             secret: webhookSecret,
@@ -326,6 +456,98 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
             "200": { description: "Campaign event recorded" },
             "400": { description: "Invalid event request" },
             "404": { description: "Campaign not found" }
+          }
+        }
+      },
+      "/campaigns/{id}/approval-workbench": {
+        post: {
+          summary: "Create or replace a persisted approval workbench",
+          requestBody: {
+            required: false,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    approvedTargets: {
+                      type: "array",
+                      items: { type: "string" }
+                    },
+                    rejectedTargets: {
+                      type: "array",
+                      items: { type: "string" }
+                    },
+                    message: { type: "string" },
+                    approveMessage: { type: "boolean" },
+                    actor: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            "200": { description: "Approval workbench persisted" },
+            "400": { description: "Invalid approval workbench request" },
+            "404": { description: "Campaign not found" }
+          }
+        },
+        get: {
+          summary: "Get the persisted approval workbench for a campaign",
+          responses: {
+            "200": { description: "Approval workbench returned" },
+            "404": { description: "Campaign or approval workbench not found" }
+          }
+        }
+      },
+      "/campaigns/{id}/approval-workbench/candidates/{candidateId}/decision": {
+        post: {
+          summary: "Approve or reject one creator candidate",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["decision"],
+                  properties: {
+                    decision: { type: "string", enum: ["approved", "rejected"] },
+                    actor: { type: "string" },
+                    reason: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            "200": { description: "Candidate decision persisted" },
+            "400": { description: "Invalid candidate decision" },
+            "404": { description: "Campaign or approval workbench not found" }
+          }
+        }
+      },
+      "/campaigns/{id}/approval-workbench/messages/{messageId}/decision": {
+        post: {
+          summary: "Approve or reject one message candidate",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["decision"],
+                  properties: {
+                    decision: { type: "string", enum: ["approved", "rejected"] },
+                    actor: { type: "string" },
+                    reason: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            "200": { description: "Message decision persisted" },
+            "400": { description: "Invalid message decision" },
+            "404": { description: "Campaign or approval workbench not found" }
           }
         }
       },
@@ -555,6 +777,22 @@ const executionRequestSchema = z.object({
 });
 
 type ExecutionRequest = z.infer<typeof executionRequestSchema>;
+
+const approvalWorkbenchRequestSchema = z.object({
+  approvedTargets: z.array(z.string().min(1)).default([]),
+  rejectedTargets: z.array(z.string().min(1)).default([]),
+  message: z.string().min(1).max(1000).optional(),
+  approveMessage: z.boolean().default(true),
+  actor: z.string().min(1).max(120).default("api")
+});
+
+type ApprovalWorkbenchRequest = z.infer<typeof approvalWorkbenchRequestSchema>;
+
+const approvalDecisionRequestSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  actor: z.string().min(1).max(120).default("api"),
+  reason: z.string().min(1).max(1000).optional()
+});
 
 const manualEvidenceRequestSchema = z
   .object({
@@ -795,10 +1033,70 @@ function appendReplyAssessment(
   ];
 }
 
-function buildApprovalWorkbench(
+function buildStoredApprovalWorkbench(
   campaign: Campaign,
-  request: ExecutionRequest
-) {
+  request: ApprovalWorkbenchRequest
+): ApprovalWorkbench {
+  const candidateTargets = scheduledTargetHandles(campaign);
+  if (candidateTargets.length === 0) {
+    throw new Error("Campaign has no scheduled targets to approve");
+  }
+
+  let workbench = createApprovalWorkbench({
+    campaignId: campaign.id,
+    candidates: candidateTargets.map((target, index) => ({
+      id: `candidate_${index + 1}`,
+      target
+    })),
+    messages: [
+      {
+        id: "copy_1",
+        body: request.message ?? campaign.message
+      }
+    ]
+  });
+  const approved = new Set(request.approvedTargets.map(normalizeHandle));
+  const rejected = new Set(request.rejectedTargets.map(normalizeHandle));
+
+  for (const candidate of workbench.candidates) {
+    if (rejected.has(candidate.handle)) {
+      workbench = rejectCandidate(workbench, {
+        candidateId: candidate.id,
+        actor: request.actor,
+        reason: "Rejected through approval API"
+      });
+      continue;
+    }
+
+    if (approved.has(candidate.handle)) {
+      workbench = approveCandidate(workbench, {
+        candidateId: candidate.id,
+        actor: request.actor,
+        reason: "Approved through approval API"
+      });
+    }
+  }
+
+  if (request.approveMessage) {
+    workbench = approveMessage(workbench, {
+      messageId: "copy_1",
+      actor: request.actor,
+      reason: "Approved through approval API"
+    });
+  }
+
+  return workbench;
+}
+
+function buildExecutionApprovalWorkbench(
+  campaign: Campaign,
+  request: ExecutionRequest,
+  storedWorkbench: ApprovalWorkbench | null
+): ApprovalWorkbench {
+  if (storedWorkbench && !hasInlineApprovalOverrides(request)) {
+    return storedWorkbench;
+  }
+
   const candidateTargets = uniqueTargets(
     campaign.targets
       .filter((target) => target.handle)
@@ -846,6 +1144,14 @@ function buildApprovalWorkbench(
     actor: request.approvals.actor,
     reason: "Approved through execution request"
   });
+}
+
+function hasInlineApprovalOverrides(request: ExecutionRequest): boolean {
+  return (
+    request.approvals.approvedTargets !== undefined ||
+    request.approvals.rejectedTargets.length > 0 ||
+    request.approvals.message !== undefined
+  );
 }
 
 function buildDeliveryAdapter(request: ExecutionRequest) {

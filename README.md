@@ -31,6 +31,7 @@ This repo currently contains the first API/control-plane slice:
 | Persistent local campaign store | Working MVP | `JsonFileCampaignStore`, idempotency/suppression tests |
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
+| Approval workbench API | Working MVP | `POST /campaigns/:id/approval-workbench` |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Managed sender infrastructure | Partial | health model exists; real account operations next |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, renewal decision |
@@ -94,6 +95,19 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/events \
     "event": "reply",
     "eventId": "provider-event-1",
     "messageId": "msg_123"
+  }'
+```
+
+Create an approval workbench before execution:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/approval-workbench \
+  -H 'content-type: application/json' \
+  -d '{
+    "approvedTargets": ["instagram_profile_1"],
+    "rejectedTargets": ["instagram_profile_2"],
+    "approveMessage": true,
+    "actor": "approver"
   }'
 ```
 
@@ -174,6 +188,13 @@ campaigns also consult the persisted suppression records created by earlier
 campaigns, so previously scheduled handles are returned as `skipped_duplicate`.
 Responses include `senderHealth`; locked, cooling-down, or reconnect-required
 senders are blocked from scheduling and surfaced as account-health blockers.
+
+`POST /campaigns/:id/approval-workbench` persists the creator and copy approval
+state for a campaign. Callers can create a workbench with approved or rejected
+target handles, fetch it with `GET /campaigns/:id/approval-workbench`, and apply
+individual candidate or message decisions through the decision subroutes.
+Executions without inline approval overrides use the stored workbench when one
+exists.
 
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It builds an
 approval workbench from the stored campaign, routes approved targets through a

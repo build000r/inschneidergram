@@ -47,8 +47,8 @@ For the first pilot, maintain a private sender inventory outside git with:
 
 1. Graphed submits `POST /campaigns` with vetted creator targets, offer,
    message copy, sender constraints, and webhook URL.
-2. Operator or approver creates an approval workbench and approves creators plus
-   first-touch copy.
+2. Operator or approver creates `POST /campaigns/:id/approval-workbench` and
+   persists creator plus first-touch copy decisions.
 3. Execution runner creates approved `SendIntent` records.
 4. Delivery adapter returns sent, failed, restricted, replied, or
    `needs_manual_evidence`.
