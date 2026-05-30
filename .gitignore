@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+
+# Local Skillbox activation links.
+.claude/skills/
+.codex/skills/
+
+# Editor and OS noise.
+.DS_Store
+.idea/
+.vscode/

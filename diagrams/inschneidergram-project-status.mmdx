@@ -1,0 +1,203 @@
+<!-- mmdx
+{
+  "entry": "main",
+  "shortLink": { "username": "buildooor", "slug": "" },
+  "links": [
+    { "from": "main", "label": "Open epic map", "to": "epic-map", "title": "Epic Map" },
+    { "from": "main", "label": "Open proof status", "to": "proof-status", "title": "Proof Status" },
+    { "from": "main", "label": "Open next move", "to": "next-move", "title": "Next Move" }
+  ]
+}
+-->
+
+## chart main Project Status Crux
+```mermaid
+flowchart LR
+  bounty["Bounty: managed Instagram creator outreach"]
+  api["GREEN API control plane MVP"]
+  delivery["RED Real delivery adapter missing"]
+  ops["RED Sender operations missing"]
+  beads["YELLOW Beads planning active"]
+  next["Next: persistent store + delivery adapter"]
+  bounty --> api
+  bounty --> delivery
+  bounty --> ops
+  delivery --> beads
+  ops --> beads
+  beads --> next
+  class api green
+  class delivery red
+  class ops red
+  class beads yellow
+  classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
+  classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
+  classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
+```
+
+## chart epic-gantt Epic Status
+```mermaid
+gantt
+  title Inschneidergram Epic Status
+  dateFormat YYYY-MM-DD
+  section GREEN Working
+  GREEN Campaign API MVP :done, 2026-05-30, 1d
+  section YELLOW Bead-covered gaps
+  YELLOW Product docs and task graph :active, 2026-05-30, 2d
+  section RED Unproven
+  RED Real delivery adapter :crit, 2026-06-01, 5d
+  RED Pilot evidence :crit, 2026-06-06, 4d
+```
+
+## chart epic-map Epic Dependency Map
+```mermaid
+flowchart TD
+  api["DONE GREEN API contract"]
+  store["PLANNED YELLOW Persistent store"]
+  adapter["PLANNED RED Delivery adapter"]
+  sender["PLANNED RED Sender operations"]
+  webhooks["PLANNED YELLOW Outgoing webhooks"]
+  pilot["FUTURE RED Graphed pilot"]
+  api --> store
+  api --> adapter
+  store --> webhooks
+  adapter --> sender
+  sender --> pilot
+  webhooks --> pilot
+  class api green
+  class store yellow
+  class adapter red
+  class sender red
+  class webhooks yellow
+  class pilot red
+  classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
+  classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
+  classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
+```
+
+## chart primary-flows Primary User Flows
+```mermaid
+sequenceDiagram
+  participant G as Graphed agent
+  participant I as Inschneidergram API
+  participant P as Delivery provider
+  participant C as Creator
+  G->>I: POST /campaigns
+  I->>I: validate, normalize, dedupe, schedule
+  I->>P: enqueue managed send
+  P->>C: Instagram DM
+  C-->>P: reply
+  P-->>I: provider event
+  I-->>G: status or webhook
+```
+
+## chart lifecycle Campaign Lifecycle
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> running: provider sends first target
+  running --> completed: all targets terminal
+  running --> failed: no actionable targets remain
+  queued --> failed: all targets blocked or duplicate
+  completed --> [*]
+  failed --> [*]
+```
+
+## chart architecture-boundary Architecture Boundary
+```mermaid
+flowchart LR
+  repo["GREEN This repo: API, scheduling, status model"]
+  provider["RED Provider adapter: real Instagram delivery"]
+  ops["RED Ops: sender accounts, warm-up, incidents"]
+  graphed["GRAY Graphed systems"]
+  repo --> provider
+  provider --> ops
+  graphed --> repo
+  class repo green
+  class provider red
+  class ops red
+  class graphed gray
+  classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
+  classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
+  classDef gray fill:#eef2f7,stroke:#64748b,stroke-width:1px,color:#111827
+```
+
+## chart proof-status Proof Status
+```mermaid
+flowchart TD
+  tests["GREEN npm test covers MVP API/domain"]
+  typecheck["YELLOW typecheck must stay green"]
+  mmdx["YELLOW MMDX preflight required"]
+  live["RED no live Instagram delivery proof"]
+  pilot["RED no Graphed pilot evidence"]
+  tests --> typecheck
+  typecheck --> mmdx
+  mmdx --> live
+  live --> pilot
+  class tests green
+  class typecheck yellow
+  class mmdx yellow
+  class live red
+  class pilot red
+  classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
+  classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
+  classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
+```
+
+## chart drift Docs vs Code vs Beads
+```mermaid
+flowchart LR
+  docs["GREEN Docs admit live delivery gap"]
+  code["GREEN Code matches API MVP claim"]
+  beads["YELLOW Beads must cover next implementation"]
+  bounty["RED Bounty complete claim would be false today"]
+  docs --> code --> beads --> bounty
+  class docs green
+  class code green
+  class beads yellow
+  class bounty red
+  classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
+  classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
+  classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
+```
+
+## chart next-move Next Move
+```mermaid
+flowchart TD
+  now["Current: API MVP"]
+  first["Next: durable store and idempotency"]
+  second["Then: managed delivery adapter"]
+  third["Then: sender ops and pilot runbook"]
+  now --> first --> second --> third
+```
+
+## chart erd Data Model ERD
+```mermaid
+erDiagram
+  CAMPAIGN ||--o{ TARGET : includes
+  CAMPAIGN ||--o{ PROVIDER_EVENT : receives
+  SENDER_ACCOUNT ||--o{ TARGET : assigned_to
+  TARGET ||--o{ PROVIDER_EVENT : changes_status
+  CAMPAIGN {
+    string id
+    string campaign
+    string status
+    string message
+    datetime createdAt
+  }
+  TARGET {
+    string handle
+    string status
+    string sender
+    datetime scheduledAt
+  }
+  SENDER_ACCOUNT {
+    string id
+    string status
+    int dailyLimit
+  }
+  PROVIDER_EVENT {
+    string eventId
+    string event
+    datetime receivedAt
+  }
+```
