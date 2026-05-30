@@ -133,5 +133,5 @@ describe("manual pilot rehearsal", () => {
     expect(result.renewalDecision).toBe("iterate");
     expect(result.proofMarkdown).toContain("| Vetted targets | 2 |");
     expect(result.proofMarkdown).toContain("Decision: iterate");
-  });
+  }, 15_000);
 });

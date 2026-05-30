@@ -1,13 +1,15 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T16:13:53Z
+Generated: 2026-05-30T16:46:28Z
 
-Validation run base: `7e3bb08d59bda4b3da487c7e58687053cb83d19e` plus the
-current canonical proof-packet export patch.
+Validation run base: `05f364a491ebee582ebb2bcfbcca2437114cf54b` plus the
+current stable MMDX slug header and manual-rehearsal timeout stabilization
+patch.
 
 Validation target: current working tree after the canonical proof-packet export,
-launch/handoff/dashboard contract update, docs refresh, and status-stack
-refresh. `npm run proof:bounty-local` was rerun against this tree and passed.
+launch/handoff/dashboard contract update, docs refresh, status-stack refresh,
+stable Buildooor slug header, and manual-rehearsal timeout stabilization.
+`npm run proof:bounty-local` was rerun against this tree and passed.
 
 Runtime:
 
@@ -41,12 +43,12 @@ delivery or completed Graphed outreach.
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
 | `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender and runtime-renewed, evidence-backed example authorization |
 | `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, manual queue, proof-pack URL, and proof-packet URL state up to `awaiting_manual_evidence`; private authorization files remain strict |
-| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, reached `evidence_ready`, and exported proof-packet hash `e98d220b93465081f1f1a36a5255f6805c5bbe3fe56395df48ea57692ed38c2d` |
-| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths, verified the operator dashboard, and exported proof-packet hash `dfee0dc73f966194d520c57be0e9da8ce8b1c04e377360291a28f28118bdaa53` |
+| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, reached `evidence_ready`, and exported proof-packet hash `c47c49202117eef603ea5266c67947fe5f2653c29394645d2915aceb2892c01e` |
+| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths, verified the operator dashboard, and exported proof-packet hash `7a39e0f2cb2dd150a1691c20c95273406e1022d2e394837863f2738ff93126c5` |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `9fae1fb7c46773a3e620b229933e1566dc70ad63414ac89a702f1ac1546b94c2` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `ad74fa5a202e1b3ffed1d0ddb7b69df4986516570803caef800e8ed44a991dbc` |
 
 ## Live Pilot Intake Validation
 
@@ -161,7 +163,7 @@ Machine summary from the proof run:
   },
   "proofPacket": {
     "version": "proof-packet/v1",
-    "canonicalSha256": "e98d220b93465081f1f1a36a5255f6805c5bbe3fe56395df48ea57692ed38c2d",
+    "canonicalSha256": "c47c49202117eef603ea5266c67947fe5f2653c29394645d2915aceb2892c01e",
     "sourceUrl": "/campaigns/<campaign-id>/proof-packet"
   },
   "readiness": {
@@ -201,7 +203,7 @@ Machine-local temp store paths are omitted from this proof doc.
   "contactedTargets": 1,
   "sentMessages": 1,
   "proofExportContactedTargets": 1,
-  "proofPacketHash": "dfee0dc73f966194d520c57be0e9da8ce8b1c04e377360291a28f28118bdaa53",
+  "proofPacketHash": "7a39e0f2cb2dd150a1691c20c95273406e1022d2e394837863f2738ff93126c5",
   "manualServicePath": {
     "readiness": "evidence_ready",
     "queueDone": 2,

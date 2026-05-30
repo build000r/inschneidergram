@@ -1,7 +1,7 @@
 <!-- mmdx
 {
   "entry": "main",
-  "shortLink": { "username": "buildooor", "slug": "" },
+  "shortLink": { "username": "buildooor", "slug": "mmdx-inschneidergram-project-status" },
   "links": [
     { "from": "main", "label": "Open epic map", "to": "epic-map", "title": "Epic Map" },
     { "from": "main", "label": "Open proof status", "to": "proof-status", "title": "Proof Status" },

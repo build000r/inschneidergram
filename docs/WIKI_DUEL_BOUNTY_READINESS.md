@@ -97,15 +97,15 @@ That critique produced the current hardening patch:
 - Production build passed.
 - Live pilot intake validation and API rehearsal passed.
 - Managed-provider bridge rehearsal passed and exported proof-packet hash
-  `e98d220b93465081f1f1a36a5255f6805c5bbe3fe56395df48ea57692ed38c2d`.
+  `c47c49202117eef603ea5266c67947fe5f2653c29394645d2915aceb2892c01e`.
 - API-key service smoke passed and exported proof-packet hash
-  `dfee0dc73f966194d520c57be0e9da8ce8b1c04e377360291a28f28118bdaa53`.
+  `7a39e0f2cb2dd150a1691c20c95273406e1022d2e394837863f2738ff93126c5`.
 - Manual pilot demo and mock proof-pack demo passed.
 - Project-status MMDX preflight passed with 10 charts.
 - MMDX dry-run passed for
   `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`
   with source hash
-  `9fae1fb7c46773a3e620b229933e1566dc70ad63414ac89a702f1ac1546b94c2`.
+  `ad74fa5a202e1b3ffed1d0ddb7b69df4986516570803caef800e8ed44a991dbc`.
 
 ## External Next Actions
 
