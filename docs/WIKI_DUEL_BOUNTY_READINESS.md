@@ -111,25 +111,24 @@ Docker proof-mode wiring:
   to the status stack, MMDX preflight and dry-run passed again for
   `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`
   with source hash
-  `ff277bcdd4304b700a29bcf931b8106964ed706e6cb497100fd5802070ba8fbe`.
+  `b31bf0f5ea551b9d66bf771f1552d1a9114dc59a48b39bf4bd36193a09eef7ea`.
+- After Buildooor SPAPS auth was refreshed, `npm run status:mmdx:publish`
+  returned `live_verification=OK` for the public status link.
 
 ## External Next Actions
 
-1. Refresh Buildooor SPAPS auth: `npm run status:mmdx:login`.
-2. Publish and verify the public status diagram:
-   `npm run status:mmdx:publish`.
-3. Choose the live pilot path, defaulting to operator-run managed manual unless
+1. Choose the live pilot path, defaulting to operator-run managed manual unless
    a real managed provider is already available.
-4. Collect private pilot inputs: vetted creator list, approved first-touch and
+2. Collect private pilot inputs: vetted creator list, approved first-touch and
    optional follow-up copy, sender/provider access, callback URL, stop
    conditions, and launch authorization.
-5. Validate and rehearse the private files:
+3. Validate and rehearse the private files:
    `npm run pilot:intake:validate -- ...` and
    `npm run pilot:intake:rehearse -- ...`.
-6. Run one low-volume live manual/provider execution through the existing API.
-7. Record real sent, replied, failed, restricted, opt-out, complaint, and sender
+4. Run one low-volume live manual/provider execution through the existing API.
+5. Record real sent, replied, failed, restricted, opt-out, complaint, and sender
    health evidence. Replay webhook dead letters if any.
-8. Publish the real `GET /campaigns/:id/proof-pack` output, matching
+6. Publish the real `GET /campaigns/:id/proof-pack` output, matching
    `GET /campaigns/:id/proof-packet` hash, and verified Buildooor MMDX link.
 
 ## Repo Work Decision
@@ -138,7 +137,7 @@ No code-side blocker remains in the current tree. The proof-packet/report
 closeout is complete: the relevant Beads were closed and synced, `main` was
 committed and pushed, and the public remote now contains the work. The next
 material confidence increase comes from external live pilot evidence and a
-fresh authenticated Buildooor MMDX publish, not another local feature.
+real proof pack generated from live pilot records, not another local feature.
 
 ## Deferred Wiki Updates
 

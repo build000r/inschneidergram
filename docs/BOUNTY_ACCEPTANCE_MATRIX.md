@@ -24,7 +24,10 @@ Latest local proof:
 - MMDX dry-run target:
   `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`.
 - MMDX dry-run source hash:
-  `ff277bcdd4304b700a29bcf931b8106964ed706e6cb497100fd5802070ba8fbe`.
+  `b31bf0f5ea551b9d66bf771f1552d1a9114dc59a48b39bf4bd36193a09eef7ea`.
+- MMDX live publish:
+  `npm run status:mmdx:publish` passed with `live_verification=OK` on
+  2026-05-30.
 
 ## Requirement Matrix
 
@@ -43,7 +46,7 @@ Latest local proof:
 | Product is not a one-off script or pitch deck | Proven locally | API service, JSON persistence, Docker/runtime config, runbooks, intake kit, service smoke, and opt-in Docker-inclusive bounty proof | Operational ownership for live delivery |
 | Product is reliable enough for ongoing client deployments | Partly proven | idempotency, storage, retries, dead-letter replay, auth gate, callback guard, dashboard | Monitoring, stronger production persistence, real incident history |
 | Real pilot completes meaningful Instagram creator outreach | Not proven yet | Local rehearsal stops before fake live evidence by design | Low-volume real pilot with vetted creators, authorization, sender/provider ops, and outcome evidence |
-| Public progress MMDX is live-verifiable | Blocked externally | preflight and dry-run pass; stable slug is embedded | Refresh Buildooor SPAPS auth, then run `npm run status:mmdx:publish` |
+| Public progress MMDX is live-verifiable | Proven live | stable slug is embedded; `npm run status:mmdx:publish` returned `live_verification=OK` | Rerun publish after status-stack edits |
 
 ## Reviewer Path
 
@@ -63,5 +66,5 @@ Latest local proof:
 - No sender credentials, recovery material, session material, proxies, or
   private screenshots belong in git.
 - No official Meta cold-DM compliance claim is made.
-- No public Buildooor MMDX short link is live-verified while SPAPS auth returns
-  401.
+- Public Buildooor MMDX status is live-verified, but it is only project-status
+  evidence, not live Instagram delivery proof.

@@ -48,6 +48,7 @@ the local requirements doc as independently verified.
 - `GET /campaigns/:id/proof-packet` exports the canonical redacted replay
   packet for execution proof, including deterministic SHA-256 provenance.
 - `diagrams/inschneidergram-project-status.mmdx` is the repo-local status stack.
-  Its public Buildooor short link is still blocked by `inschneidergram-j8b.7`.
-- Beads issue `inschneidergram-j8b.3` covers live pilot evidence, and
-  `inschneidergram-j8b.7` covers the public MMDX slug.
+  Its public Buildooor short link is live-verified at
+  `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`.
+- Beads issue `inschneidergram-j8b.3` covers the remaining live pilot evidence
+  gap.

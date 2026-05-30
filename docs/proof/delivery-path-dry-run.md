@@ -7,6 +7,8 @@ Docker smoke and MMDX payload refreshed after Docker status update:
 2026-05-30T17:39:06Z
 Opt-in Docker-inclusive bounty proof refreshed:
 2026-05-30T17:55:50Z
+Public MMDX status link live-verified:
+2026-05-30T19:51:27Z
 
 Validation run base:
 `fb86c37cc7bb81e7b29f11f9ba7718446433ac3b`, the public closeout commit after
@@ -65,7 +67,7 @@ delivery or completed Graphed outreach.
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `ff277bcdd4304b700a29bcf931b8106964ed706e6cb497100fd5802070ba8fbe` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `b31bf0f5ea551b9d66bf771f1552d1a9114dc59a48b39bf4bd36193a09eef7ea` |
 
 ## Live Pilot Intake Validation
 
@@ -446,20 +448,20 @@ authorization.
 - The project-status MMDX stack parses successfully with 10 charts.
 - The repo now has token-safe `status:mmdx:*` npm scripts for preflight,
   dry-run payload inspection, Buildooor MMDX listing, SPAPS login, and publish.
+- `npm run status:mmdx:publish` returned `live_verification=OK` for
+  `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`.
 
 ## What This Does Not Prove
 
 - No live Instagram DM was sent.
 - No Graphed creator list was contacted.
 - No real provider/account operation has been verified.
-- No public Buildooor MMDX short link has been live-verified yet; the current
-  local Buildooor credential returns `401 Invalid or expired access token`.
+- Public Buildooor MMDX status is live-verified, but that only proves the
+  progress diagram publication, not live outreach.
 - No official Meta cold-DM compliance claim is made.
 
 ## Next Required Evidence
 
-- refreshed Buildooor SPAPS auth through `npm run status:mmdx:login`
-- live-verified publish through `npm run status:mmdx:publish`
 - one low-volume real test handoff through the selected manual/provider path
 - private sender/provider credentials or operator-owned account setup
 - vetted Graphed creator list and explicit launch authorization

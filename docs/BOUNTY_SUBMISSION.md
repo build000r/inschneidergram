@@ -114,8 +114,8 @@ After those inputs exist, run the pilot through the flow in
 
 - `inschneidergram-j8b.3`: live pilot proof needs private sender/provider
   access, vetted Graphed creator targets, and launch authorization.
-- `inschneidergram-j8b.7`: the public Buildooor MMDX link needs refreshed
-  Buildooor SPAPS auth, then `npm run status:mmdx:publish`.
+- Public Buildooor MMDX status is unblocked and live-verified at
+  `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`.
 
 ## Non-Claims
 
@@ -123,5 +123,5 @@ After those inputs exist, run the pilot through the flow in
 - No Graphed creator list has been contacted.
 - No sender credentials belong in git or in the local JSON store.
 - No official Meta cold-DM compliance claim is made.
-- No public Buildooor MMDX short link is live-verified until the auth-gated
-  publish succeeds.
+- The public Buildooor MMDX link is status/progress evidence only; it does not
+  prove live Instagram delivery.

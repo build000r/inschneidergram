@@ -46,7 +46,7 @@ flowchart LR
   acceptanceMatrix["GREEN Bounty acceptance evidence matrix"]
   intakeKit["GREEN Live pilot intake kit + schema-backed validation/API rehearsal + non-expiring local examples"]
   providerBridge["GREEN Evidence-bearing managed-provider bridge rehearsal"]
-  statusLink["YELLOW Public Buildooor short link blocked: refresh SPAPS auth then run status:mmdx:publish"]
+  statusLink["GREEN Public Buildooor short link live-verified"]
   next["Next: real delivery ops + live pilot"]
   bounty --> api
   api --> creatorIntake
@@ -166,7 +166,7 @@ flowchart LR
   class acceptanceMatrix green
   class intakeKit green
   class providerBridge green
-  class statusLink yellow
+  class statusLink green
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -207,7 +207,7 @@ gantt
   GREEN Evidence-bearing managed-provider bridge rehearsal :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API execution + atomic manual queue :done, 2026-05-30, 1d
-  YELLOW Public MMDX short link in inschneidergram-j8b.7 :active, 2026-05-30, 1d
+  GREEN Public MMDX short link live-verified :done, 2026-05-30, 1d
   YELLOW Real provider/account operations in inschneidergram-j8b :active, 2026-05-31, 5d
   YELLOW Live pilot preparation in inschneidergram-j8b :active, 2026-06-04, 2d
   section RED Unproven
@@ -246,7 +246,7 @@ flowchart TD
   evaluatorPacket["DONE GREEN Bounty submission packet + proof:bounty-local plus opt-in Docker mode"]
   intakeKit["DONE GREEN Live pilot intake kit + schema-backed validation/API rehearsal"]
   providerBridge["DONE GREEN Evidence-bearing managed-provider bridge rehearsal"]
-  statusLink["BLOCKED YELLOW Public MMDX short link inschneidergram-j8b.7; publish script ready, auth refresh required"]
+  statusLink["DONE GREEN Public MMDX short link live-verified"]
   pilot["FUTURE YELLOW Graphed pilot covered by inschneidergram-j8b"]
   api --> store
   api --> creatorIntake
@@ -342,7 +342,7 @@ flowchart TD
   class evaluatorPacket green
   class intakeKit green
   class providerBridge green
-  class statusLink yellow
+  class statusLink green
   class pilot yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -443,7 +443,7 @@ flowchart TD
   providerBridgeProof["GREEN npm run pilot:provider-bridge creates provider handoff and proof from evidence-bearing provider outcomes"]
   proofPacket["GREEN proof-packet export carries redacted replay data and canonical SHA-256"]
   mmdx["GREEN MMDX preflight passed"]
-  statusLink["YELLOW Public Buildooor short link not live-verified; status:mmdx scripts ready, SPAPS auth refresh required"]
+  statusLink["GREEN Public Buildooor short link live-verified"]
   live["YELLOW no live Instagram delivery proof yet; covered by inschneidergram-j8b"]
   pilot["YELLOW no Graphed pilot evidence yet; covered by inschneidergram-j8b"]
   tests --> typecheck
@@ -474,7 +474,7 @@ flowchart TD
   class providerBridgeProof green
   class proofPacket green
   class mmdx green
-  class statusLink yellow
+  class statusLink green
   class live yellow
   class pilot yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -503,7 +503,7 @@ flowchart LR
 ```mermaid
 flowchart TD
   now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, evidence-bearing managed-provider outcome contract, managed-provider bridge rehearsal, execution readiness, fresh evidence-backed launch authorization, runtime renewal for bundled example authorization windows, pending-manual-evidence enforcement, latest proof export, canonical proof-packet export with stable SHA-256, late provider proof/follow-up refresh, pre-campaign launch packet, live pilot intake validation/rehearsal, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics, bounty submission packet, one-command local proof"]
-  link["Blocked next: refresh Buildooor SPAPS auth and run npm run status:mmdx:publish (inschneidergram-j8b.7)"]
+  link["Next blocker: choose live pilot path and provide private pilot inputs (inschneidergram-j8b.3)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]
   third["Then: proof publication polish after live records exist"]

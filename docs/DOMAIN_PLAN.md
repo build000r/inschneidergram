@@ -284,8 +284,8 @@ more local API shape:
 4. Record real sent, replied, failed, restricted, and incident evidence; replay
    any dead-letter webhooks before publishing proof.
 5. Publish `GET /campaigns/:id/proof-pack` from real pilot records.
-6. Refresh Buildooor SPAPS auth and publish the project-status MMDX public
-   short link with `npm run status:mmdx:publish`.
+6. Keep the project-status MMDX public short link current by rerunning
+   `npm run status:mmdx:publish` after status-stack edits.
 
 SQLite/Postgres persistence, an operator UI, automated cooldown detection, and
 monitoring are production hardening. They can improve adoption after the pilot,
