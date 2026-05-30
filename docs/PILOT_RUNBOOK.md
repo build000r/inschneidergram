@@ -51,19 +51,40 @@ For the first pilot, maintain a private sender inventory outside git with:
    persists creator plus first-touch copy decisions.
 3. Operator claims approved creators and marks any non-actionable creators
    skipped or blocked before execution.
-4. Execution runner creates `SendIntent` records only for approved creators that
+4. Graphed or the operator checks `GET /campaigns/:id/readiness` to confirm the
+   campaign is ready to execute or to see the remaining external inputs.
+5. Execution runner creates `SendIntent` records only for approved creators that
    remain queued or claimed.
-5. Delivery adapter returns sent, failed, restricted, replied, or
+6. Delivery adapter returns sent, failed, restricted, replied, or
    `needs_manual_evidence`.
-6. Operator performs or verifies manual sends outside the codebase when the
+7. Operator performs or verifies manual sends outside the codebase when the
    adapter requires human evidence.
-7. Operator records sent, failed, restricted, or replied evidence through
+8. Operator records sent, failed, restricted, or replied evidence through
    `POST /campaigns/:id/executions/:executionId/manual-events` with an
    `Idempotency-Key` for retry safety.
-8. Campaign events update status and outgoing webhooks notify Graphed.
-9. Execution proof record is persisted for audit replay.
-10. Proof-pack generator produces the renewal report with operator skipped and
+9. Campaign events update status and outgoing webhooks notify Graphed.
+10. Execution proof record is persisted for audit replay.
+11. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
+
+## Readiness Gates
+
+`GET /campaigns/:id/readiness` returns the live campaign checklist:
+
+- creator target intake
+- sender health
+- approval workbench presence
+- approved and actionable creators
+- approved first-touch copy
+- execution proof
+- pending manual evidence
+
+Use this before execution and again before renewal review. A status of
+`ready_to_execute` means the local product state can create send intents. A
+status of `awaiting_manual_evidence` means operator work is still required. A
+status of `evidence_ready` means the latest execution has proof ready for
+review; it does not by itself claim that Instagram delivery was live unless the
+underlying adapter/evidence is live.
 
 ## Evidence Rules
 

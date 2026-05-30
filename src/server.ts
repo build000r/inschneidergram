@@ -34,6 +34,7 @@ import {
   type CampaignExecutionRecord,
   type CampaignStore
 } from "./domain/store.js";
+import { buildPilotReadinessReport } from "./domain/readiness.js";
 import { signWebhookPayload } from "./domain/webhook.js";
 
 export interface ServerOptions {
@@ -85,6 +86,21 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     }
 
     return campaign;
+  });
+
+  app.get("/campaigns/:id/readiness", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    return buildPilotReadinessReport({
+      campaign,
+      approvalWorkbench: await store.getApprovalWorkbench(id),
+      executions: await store.listExecutions(id)
+    });
   });
 
   app.post("/campaigns/:id/events", async (request, reply) => {
@@ -506,6 +522,15 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       "/campaigns/{id}": {
         get: {
           summary: "Get campaign status"
+        }
+      },
+      "/campaigns/{id}/readiness": {
+        get: {
+          summary: "Get pilot launch readiness gates",
+          responses: {
+            "200": { description: "Pilot readiness report returned" },
+            "404": { description: "Campaign not found" }
+          }
         }
       },
       "/campaigns/{id}/events": {

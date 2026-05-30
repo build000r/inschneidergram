@@ -22,7 +22,8 @@ flowchart LR
   beads["YELLOW Beads planning active"]
   proof["GREEN Proof pack generator"]
   runner["GREEN API-callable execution + manual evidence records"]
-  next["Next: real sender ops + live pilot"]
+  readiness["GREEN Pilot readiness report"]
+  next["Next: OpenAPI contract hardening + real sender ops"]
   bounty --> api
   api --> store
   api --> approvalApi
@@ -31,10 +32,12 @@ flowchart LR
   api --> proof
   approvalApi --> runner
   proof --> runner
+  runner --> readiness
   delivery --> beads
   ops --> beads
   runner --> beads
   proof --> beads
+  readiness --> beads
   beads --> next
   class api green
   class store green
@@ -43,6 +46,7 @@ flowchart LR
   class ops yellow
   class proof green
   class runner green
+  class readiness green
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -59,9 +63,11 @@ gantt
   GREEN Durable store and approvals :done, 2026-05-30, 1d
   GREEN Persisted approval + operator state API :done, 2026-05-30, 1d
   GREEN Proof pack generator :done, 2026-05-30, 1d
+  GREEN Pilot readiness report :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API-callable execution + manual evidence records :done, 2026-05-30, 1d
-  YELLOW Live pilot preparation :active, 2026-05-30, 2d
+  YELLOW OpenAPI contract hardening :active, 2026-05-30, 1d
+  YELLOW Live pilot preparation :active, 2026-05-31, 2d
   section RED Unproven
   RED Real delivery adapter :crit, 2026-06-01, 5d
   RED Pilot evidence :crit, 2026-06-06, 4d
@@ -78,6 +84,7 @@ flowchart TD
   webhooks["DONE GREEN Outgoing webhook retry domain"]
   proof["DONE GREEN Proof pack generator"]
   runner["DONE GREEN API execution + manual evidence records"]
+  readiness["DONE GREEN Pilot readiness report"]
   pilot["FUTURE RED Graphed pilot"]
   api --> store
   api --> approval
@@ -88,7 +95,9 @@ flowchart TD
   adapter --> sender
   sender --> proof
   proof --> runner
+  runner --> readiness
   runner --> pilot
+  readiness --> pilot
   class api green
   class store green
   class approval green
@@ -97,6 +106,7 @@ flowchart TD
   class webhooks green
   class proof green
   class runner green
+  class readiness green
   class pilot red
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -160,7 +170,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/approval/operator/execution/manual-evidence/operator-proof/domain"]
+  tests["GREEN npm test covers API/store/approval/operator/execution/manual-evidence/operator-proof/readiness/domain"]
   typecheck["GREEN typecheck green"]
   mmdx["YELLOW MMDX preflight required"]
   live["RED no live Instagram delivery proof"]
@@ -199,11 +209,12 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, approval/operator API, webhooks, operator-proof metrics, manual evidence records"]
-  first["Next: real sender operations"]
-  second["Then: live Graphed pilot"]
-  third["Then: deployment hardening"]
-  now --> first --> second --> third
+  now["Current: API, durable store, approval/operator API, webhooks, readiness, operator-proof metrics, manual evidence records"]
+  first["Next: OpenAPI contract hardening"]
+  second["Then: real sender operations"]
+  third["Then: live Graphed pilot"]
+  fourth["Then: deployment hardening"]
+  now --> first --> second --> third --> fourth
 ```
 
 ## chart erd Data Model ERD

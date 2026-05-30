@@ -34,6 +34,7 @@ This repo currently contains the first API/control-plane slice:
 | Approval workbench API | Working MVP | `POST /campaigns/:id/approval-workbench` |
 | Operator workbench state | Working MVP | claim, skip, block routes before execution |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
+| Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
 | Managed sender infrastructure | Partial | health model exists; real account operations next |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
@@ -129,6 +130,17 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/approval-workbench/candida
   }'
 ```
 
+Check whether a campaign is ready to run or review:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/readiness
+```
+
+The readiness report returns pass/fail/warn gates, next actions, and external
+inputs still needed before a live pilot, such as creator approval, approved
+copy, a healthy sender or provider, operator evidence, or permission to run the
+selected delivery path.
+
 Run a safe execution dry-run:
 
 ```bash
@@ -215,6 +227,12 @@ Operators can claim approved candidates and mark them `skipped` or `blocked`
 with evidence before execution. Executions without inline approval overrides use
 the stored workbench when one exists and only create send intents for approved
 candidates whose work state is still `queued` or `claimed`.
+
+`GET /campaigns/:id/readiness` returns a pilot launch checklist derived from the
+stored campaign, approval workbench, sender health, and execution proof records.
+It is the fastest way to see whether the campaign is blocked, needs approval,
+is ready to execute, is waiting on manual evidence, or has proof ready for
+review.
 
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It builds an
 approval workbench from the stored campaign, routes approved targets through a

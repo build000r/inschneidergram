@@ -471,6 +471,203 @@ describe("API", () => {
     await app.close();
   });
 
+  it("reports pilot launch readiness across approval, manual execution, and proof", async () => {
+    const app = await buildServer({ webhookSecret: "readiness-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@ready_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "readiness-pilot",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/inschneidergram",
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const initialReadiness = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/readiness`
+    });
+    expect(initialReadiness.statusCode).toBe(200);
+    expect(initialReadiness.json()).toMatchObject({
+      status: "needs_approval",
+      readyForExecution: false,
+      counts: {
+        acceptedTargets: 1,
+        availableSenders: 1,
+        approvedTargets: 0,
+        actionableApprovedTargets: 0,
+        approvedCopy: 0
+      },
+      externalInputs: expect.arrayContaining([
+        "creator approval decision",
+        "approved first-touch copy",
+        "permission to run the selected pilot delivery path"
+      ])
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@ready_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+
+    const approvedReadiness = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/readiness`
+    });
+    expect(approvedReadiness.json()).toMatchObject({
+      status: "ready_to_execute",
+      readyForExecution: true,
+      readyForEvidenceReview: false,
+      counts: {
+        approvedTargets: 1,
+        actionableApprovedTargets: 1,
+        approvedCopy: 1,
+        executions: 0
+      }
+    });
+
+    const manualExecution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" }
+      }
+    });
+    const executionId = manualExecution.json().executionId;
+
+    const awaitingEvidence = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/readiness`
+    });
+    expect(awaitingEvidence.json()).toMatchObject({
+      status: "awaiting_manual_evidence",
+      readyForExecution: true,
+      readyForEvidenceReview: false,
+      counts: {
+        executions: 1,
+        pendingManualEvidence: 1,
+        contactedTargets: 0
+      },
+      externalInputs: expect.arrayContaining(["operator delivery evidence"])
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      headers: {
+        "idempotency-key": "readiness-sent-1"
+      },
+      payload: {
+        target: "@ready_creator",
+        type: "sent",
+        messageId: "manual_msg_1",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/ready_creator",
+          screenshotUrl: "s3://proof/readiness-sent.png"
+        }
+      }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        eventId: "readiness-reply-1",
+        target: "@ready_creator",
+        type: "replied",
+        messageId: "manual_msg_1",
+        replyText: "Interested - send details",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/ready_creator",
+          screenshotUrl: "s3://proof/readiness-reply.png",
+          replyCapturedAt: "2026-05-30T01:45:00.000Z"
+        },
+        replyAssessment: {
+          disposition: "interested",
+          qualified: true,
+          note: "Qualified creator asked for the brief"
+        }
+      }
+    });
+
+    const evidenceReady = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/readiness`
+    });
+    expect(evidenceReady.json()).toMatchObject({
+      status: "evidence_ready",
+      readyForExecution: true,
+      readyForEvidenceReview: true,
+      counts: {
+        pendingManualEvidence: 0,
+        contactedTargets: 1,
+        interestedReplies: 1
+      },
+      externalInputs: []
+    });
+
+    await app.close();
+  });
+
+  it("blocks launch readiness when sender health has no available accounts", async () => {
+    const app = await buildServer();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@blocked_sender_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "readiness-sender-block",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "locked",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+
+    const readiness = await app.inject({
+      method: "GET",
+      url: `/campaigns/${createResponse.json().campaignId}/readiness`
+    });
+
+    expect(readiness.json()).toMatchObject({
+      status: "blocked",
+      readyForExecution: false,
+      counts: {
+        availableSenders: 0
+      },
+      externalInputs: expect.arrayContaining(["healthy sender account or managed provider"])
+    });
+
+    await app.close();
+  });
+
   it("executes an approved mock pilot and returns proof pack evidence", async () => {
     const app = await buildServer({ webhookSecret: "execution-secret" });
     const createResponse = await app.inject({
@@ -880,6 +1077,9 @@ describe("API", () => {
     });
     const openapi = response.json();
 
+    expect(openapi.paths["/campaigns/{id}/readiness"].get).toMatchObject({
+      summary: "Get pilot launch readiness gates"
+    });
     expect(openapi.paths["/campaigns/{id}/executions"].get).toMatchObject({
       summary: "List persisted execution proof records for a campaign"
     });

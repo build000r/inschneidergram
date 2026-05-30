@@ -64,6 +64,8 @@ The current implementation covers:
 - persisted execution proof records for audit replay after the initial response
 - manual evidence recording API that validates operator evidence, updates
   campaign state, appends webhook delivery records, and refreshes proof packs
+- pilot launch readiness report that turns campaign, approval, sender,
+  execution, and proof state into pass/fail/warn gates plus next actions
 
 ## Acceptance Criteria
 
@@ -91,7 +93,9 @@ The current implementation covers:
 15. Execution proof records can be listed and fetched after the run.
 16. Manual execution evidence can be recorded idempotently and refreshes the
     stored proof pack.
-17. Tests prove the API contract and domain rules.
+17. Launch readiness can be inspected from one API response before execution,
+    during manual evidence collection, and after proof is ready.
+18. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -118,6 +122,15 @@ outreach through an owned managed operation. The adapter must expose health,
 rate-limit, sender, and incident state. The first live-pilot path is documented
 in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md): operator-run managed manual delivery
 with private sender inventory and explicit evidence capture.
+
+### Pilot Launch Readiness
+
+Expose a campaign-level readiness report so Graphed or the operator can see
+what is missing before a pilot runs. The current API reports creator intake,
+sender health, approval workbench, creator approval, copy approval, execution
+proof, and manual evidence gates, then names next actions and external inputs.
+This keeps the live-pilot blocker explicit while sender credentials, creator
+lists, and permission remain outside the repo.
 
 ### Execution Runner
 

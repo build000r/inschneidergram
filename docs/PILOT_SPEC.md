@@ -26,6 +26,15 @@ content collaborations, or qualified pipeline.
 - stop conditions for opt-outs, complaints, sender warnings, and low quality
 - webhook or export destination for outcomes
 
+## Launch Readiness
+
+Before running a pilot, Graphed or the operator should call
+`GET /campaigns/:id/readiness`. The report classifies the campaign as blocked,
+needing approval, ready to execute, awaiting manual evidence, or evidence-ready.
+It also names the missing external inputs so the pilot cannot look ready while
+creator approvals, approved copy, a healthy sender/provider, operator evidence,
+or launch permission are still missing.
+
 ## Success Thresholds
 
 The exact thresholds should be negotiated with Graphed before the pilot. The
