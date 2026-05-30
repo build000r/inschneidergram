@@ -91,16 +91,17 @@ That critique produced the current hardening patch:
 
 ## Latest Local Proof
 
-`npm run proof:bounty-local` passed on 2026-05-30 after the proof-packet patch:
+`npm run proof:bounty-local` passed on 2026-05-30 after the public closeout and
+proof-dossier provenance refresh:
 
 - TypeScript typecheck passed.
 - Vitest passed: 14 files, 115 tests.
 - Production build passed.
 - Live pilot intake validation and API rehearsal passed.
 - Managed-provider bridge rehearsal passed and exported proof-packet hash
-  `c47c49202117eef603ea5266c67947fe5f2653c29394645d2915aceb2892c01e`.
+  `47b01e03d40e9f42c79d40c3ac530db25e2406061d8078b93b7b26a5cba12509`.
 - API-key service smoke passed and exported proof-packet hash
-  `7a39e0f2cb2dd150a1691c20c95273406e1022d2e394837863f2738ff93126c5`.
+  `18e157adaf1c61d1a61fd19180e75c47c4740498f5c9f0aa8ba2e5baa7edd95d`.
 - Manual pilot demo and mock proof-pack demo passed.
 - Project-status MMDX preflight passed with 10 charts.
 - MMDX dry-run passed for

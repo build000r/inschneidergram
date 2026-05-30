@@ -1,15 +1,16 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T16:46:28Z
+Generated: 2026-05-30T17:09:07Z
 
-Validation run base: `05f364a491ebee582ebb2bcfbcca2437114cf54b` plus the
-current stable MMDX slug header and manual-rehearsal timeout stabilization
-patch.
+Validation run base:
+`fb86c37cc7bb81e7b29f11f9ba7718446433ac3b`, the public closeout commit after
+canonical proof-packet export, stable MMDX slug evidence, manual-rehearsal
+timeout stabilization, Beads sync, push, and public remote verification.
 
-Validation target: current working tree after the canonical proof-packet export,
-launch/handoff/dashboard contract update, docs refresh, status-stack refresh,
-stable Buildooor slug header, and manual-rehearsal timeout stabilization.
-`npm run proof:bounty-local` was rerun against this tree and passed.
+Validation target: current working tree after the public closeout commit plus
+this proof-dossier provenance refresh. No product/runtime source changed since
+the public closeout commit. `npm run proof:bounty-local` was rerun against this
+tree and passed.
 
 Runtime:
 
@@ -43,8 +44,8 @@ delivery or completed Graphed outreach.
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
 | `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender and runtime-renewed, evidence-backed example authorization |
 | `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, manual queue, proof-pack URL, and proof-packet URL state up to `awaiting_manual_evidence`; private authorization files remain strict |
-| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, reached `evidence_ready`, and exported proof-packet hash `c47c49202117eef603ea5266c67947fe5f2653c29394645d2915aceb2892c01e` |
-| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths, verified the operator dashboard, and exported proof-packet hash `7a39e0f2cb2dd150a1691c20c95273406e1022d2e394837863f2738ff93126c5` |
+| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, reached `evidence_ready`, and exported proof-packet hash `47b01e03d40e9f42c79d40c3ac530db25e2406061d8078b93b7b26a5cba12509` |
+| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths, verified the operator dashboard, and exported proof-packet hash `18e157adaf1c61d1a61fd19180e75c47c4740498f5c9f0aa8ba2e5baa7edd95d` |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
@@ -163,7 +164,7 @@ Machine summary from the proof run:
   },
   "proofPacket": {
     "version": "proof-packet/v1",
-    "canonicalSha256": "c47c49202117eef603ea5266c67947fe5f2653c29394645d2915aceb2892c01e",
+    "canonicalSha256": "47b01e03d40e9f42c79d40c3ac530db25e2406061d8078b93b7b26a5cba12509",
     "sourceUrl": "/campaigns/<campaign-id>/proof-packet"
   },
   "readiness": {
@@ -203,7 +204,7 @@ Machine-local temp store paths are omitted from this proof doc.
   "contactedTargets": 1,
   "sentMessages": 1,
   "proofExportContactedTargets": 1,
-  "proofPacketHash": "7a39e0f2cb2dd150a1691c20c95273406e1022d2e394837863f2738ff93126c5",
+  "proofPacketHash": "18e157adaf1c61d1a61fd19180e75c47c4740498f5c9f0aa8ba2e5baa7edd95d",
   "manualServicePath": {
     "readiness": "evidence_ready",
     "queueDone": 2,
@@ -345,8 +346,8 @@ Launch authorization preserved in the proof pack:
   "actor": "demo-approver",
   "deliveryPath": "manual",
   "approvedTargetLimit": 2,
-  "approvedAt": "2026-05-30T14:38:10.933Z",
-  "expiresAt": "2026-06-06T14:38:10.933Z",
+  "approvedAt": "2026-05-30T17:13:17.960Z",
+  "expiresAt": "2026-06-06T17:13:17.960Z",
   "reference": "manual-demo-launch-approval",
   "evidenceUrl": "https://docs.graphed.com/approvals/manual-demo-launch-approval",
   "notes": "Credential-free local rehearsal authorization; no live Instagram delivery."
