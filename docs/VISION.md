@@ -89,7 +89,18 @@ outcomes back without scraping, burner accounts, or unsafe cold-DM claims.
 
 ## Current Reality
 
-The repo now has the API-control-plane slice and a domain delivery adapter
-contract with mock and manual behavior. It is not yet bounty-complete. The next
-decisive milestone is connecting this contract to a real operator workbench or
-managed provider path and generating a pilot proof pack.
+The repo now has the API control plane, persisted local store, sender inventory,
+approval workbench, operator manual queue, manual evidence recording,
+readiness gates, proof-pack generation, and a managed-provider execution
+contract for provider-reported outcomes. Execution now enforces readiness
+approval gates before proof records are created. The service path is also
+operator-testable: startup config is validated, `/health` checks the JSON
+store, `npm run smoke:service` drives the compiled API through real HTTP, and a
+Dockerfile packages the runtime store at `/data/campaigns.json`.
+
+It is not yet bounty-complete because verified provider/account operations, a
+vetted Graphed creator list, explicit permission to run outreach, and live
+pilot evidence remain outside the repo. The next decisive milestone is the
+external pilot handoff: choose the real delivery operation, load a vetted
+creator list, run low-volume outreach with permission, and publish the proof
+pack.

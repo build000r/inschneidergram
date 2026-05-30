@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildServer } from "../src/server.js";
@@ -80,6 +80,37 @@ describe("API", () => {
     expect(response.json().error).toBe("invalid_request");
 
     await app.close();
+  });
+
+  it("reports unhealthy JSON store paths from /health", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "inschneidergram-health-"));
+    const notDirectory = join(dir, "not-directory");
+    await writeFile(notDirectory, "not a directory", "utf8");
+    const app = await buildServer({
+      store: new JsonFileCampaignStore(join(notDirectory, "campaigns.json")),
+      provider: "health-test"
+    });
+
+    try {
+      const response = await app.inject({
+        method: "GET",
+        url: "/health"
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toMatchObject({
+        ok: false,
+        service: "inschneidergram",
+        provider: "health-test",
+        store: {
+          ok: false,
+          kind: "json_file"
+        }
+      });
+    } finally {
+      await app.close();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("honors idempotency-key headers for campaign creation", async () => {
@@ -374,6 +405,16 @@ describe("API", () => {
 
     await app.inject({
       method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@post_creation_lock_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+
+    await app.inject({
+      method: "POST",
       url: "/senders/sender-a/risk-events",
       payload: {
         kind: "lockout",
@@ -407,9 +448,66 @@ describe("API", () => {
     });
     expect(execution.statusCode).toBe(409);
     expect(execution.json()).toMatchObject({
-      error: "conflict",
-      message: "Sender account(s) unavailable for execution: sender-a"
+      error: "conflict"
     });
+    expect(execution.json().message).toContain("blocked");
+    expect(execution.json().message).toContain("Sender health");
+
+    await app.close();
+  });
+
+  it("rejects execution while approval readiness gates are still missing", async () => {
+    const app = await buildServer();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@unapproved_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "unapproved-execution",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const readiness = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/readiness`
+    });
+    expect(readiness.json()).toMatchObject({
+      status: "needs_approval",
+      readyForExecution: false
+    });
+
+    const execution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "mock" }
+      }
+    });
+    expect(execution.statusCode).toBe(409);
+    expect(execution.json()).toMatchObject({
+      error: "conflict"
+    });
+    expect(execution.json().message).toContain("needs_approval");
+    expect(execution.json().message).toContain("Approval workbench");
+
+    const executions = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions`
+    });
+    expect(executions.json().executions).toEqual([]);
 
     await app.close();
   });
@@ -1579,6 +1677,10 @@ describe("API", () => {
       method: "POST",
       url: `/campaigns/${campaignId}/executions`,
       payload: {
+        approvals: {
+          approvedTargets: ["@creator_one", "@creator_two", "@creator_three"],
+          actor: "api-test"
+        },
         adapter: {
           kind: "mock",
           replyTargets: ["@creator_two"],
@@ -1719,6 +1821,10 @@ describe("API", () => {
       method: "POST",
       url: `/campaigns/${createResponse.json().campaignId}/executions`,
       payload: {
+        approvals: {
+          approvedTargets: ["@creator_one"],
+          actor: "api-test"
+        },
         adapter: {
           kind: "manual"
         }
@@ -1770,6 +1876,16 @@ describe("API", () => {
       }
     });
     const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@manual_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
 
     const manualExecution = await app.inject({
       method: "POST",

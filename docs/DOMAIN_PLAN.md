@@ -76,6 +76,9 @@ The current implementation covers:
 - managed-provider execution contract that accepts explicit provider-reported
   outcomes for every approved executable target and records sent, replied,
   failed, or restricted events into campaign status, webhooks, and proof packs
+- execution route rejects campaigns that still fail readiness approval or
+  sender-health gates instead of synthesizing proof records for unapproved
+  pilots
 - pilot launch readiness report that turns campaign, approval, sender,
   execution, and proof state into pass/fail/warn gates plus next actions
 - readiness and execution recheck current stored sender health for campaigns
@@ -86,6 +89,13 @@ The current implementation covers:
 - one-command manual pilot rehearsal that drives the public API through
   readiness, manual execution, sent/replied/restricted evidence, and proof-pack
   renewal output without credentials
+- runtime configuration validation for host, port, provider, store path, and
+  webhook secret
+- `/health` reports JSON store readiness instead of only process liveness
+- one-command service smoke that starts the built API process with an isolated
+  store and proves the approval-to-provider-execution path
+- Docker packaging for the API with `/data/campaigns.json` as the default
+  durable store path
 
 ## Acceptance Criteria
 
@@ -128,7 +138,11 @@ The current implementation covers:
 23. Managed-provider executions require explicit outcomes for all approved
     executable targets and reject duplicate, missing, or unknown outcome
     targets.
-24. Tests prove the API contract and domain rules.
+24. Executions cannot create proof records while approval readiness gates still
+    fail.
+25. The built service can be smoke-tested through real HTTP with an isolated
+    JSON store.
+26. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -137,6 +151,14 @@ The current implementation covers:
 Harden the JSON-backed store into durable SQLite/Postgres storage with migration
 checks. The current slice already persists campaigns, events, idempotency keys,
 and suppression records locally.
+
+### Deployment and Operations Hardening
+
+The API now has predictable startup configuration, container/runtime health
+checks, durable store path setup, Docker packaging, and an operator-facing
+service smoke command. This slice is repo-local and does not require real
+Instagram credentials; it makes the current control plane easier to evaluate
+and operate while live provider/account inputs remain blocked.
 
 ### Approval Store and API
 
@@ -224,4 +246,5 @@ rejections.
 npm test
 npm run typecheck
 npm run build
+npm run smoke:service
 ```

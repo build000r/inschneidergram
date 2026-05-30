@@ -53,9 +53,10 @@ The first slice is the campaign control plane:
 This slice does not pretend to solve live Instagram delivery. It creates the
 contract that a real managed delivery adapter must satisfy.
 
-## Next Build Slice
+## Delivery Slice Status
 
-Build the delivery adapter boundary first, then attach one of two pilot paths:
+The delivery adapter boundary now exists, with two pilot paths represented in
+the product surface:
 
 1. **Managed manual/human-assisted delivery adapter** for low-volume pilot
    proof, with explicit operator queues and status updates.
@@ -77,8 +78,23 @@ The repo now models this as a domain-level managed delivery adapter contract:
 - manual delivery returns `needs_manual_evidence` until an operator records
   required evidence such as operator ID, conversation URL, screenshots,
   restriction source, and reply capture time.
-- managed-provider delivery accepts an operator-supplied provider function while
-  retaining the same risk-posture and event-reporting contract.
+- managed-provider delivery accepts explicit provider-reported outcomes through
+  `POST /campaigns/:id/executions` while retaining the same risk-posture and
+  event-reporting contract.
+
+## Next Build Slice
+
+The service-hardening slice now exists: startup config is validated, `/health`
+checks the JSON store, `npm run smoke:service` starts the compiled API and runs
+the approval-to-provider-execution flow through real HTTP, and the repo includes
+Docker packaging for a `/data/campaigns.json` runtime store.
+
+The next build work should stay in this repo but move closer to pilot
+operations: proof export ergonomics, operator-facing status views, and the
+adapter implementation for whichever real provider/account operation the pilot
+uses. A real Instagram delivery provider remains an external operations
+integration behind this repo's adapter contract, not a reason to adopt an
+unofficial private-API library directly into the core product.
 
 ## Source Notes
 

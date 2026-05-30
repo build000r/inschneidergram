@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { ApprovalWorkbench } from "./approval.js";
 import { summarizeCampaign, type Campaign } from "./campaign.js";
@@ -47,7 +47,15 @@ export interface CampaignExecutionMutation<T> {
   result: T;
 }
 
+export interface CampaignStoreHealth {
+  ok: boolean;
+  kind: "memory" | "json_file";
+  path?: string;
+  message?: string;
+}
+
 export interface CampaignStore {
+  healthCheck(): Promise<CampaignStoreHealth>;
   insert(campaign: Campaign): Promise<Campaign>;
   get(id: string): Promise<Campaign | null>;
   update(campaign: Campaign): Promise<Campaign>;
@@ -83,6 +91,10 @@ export class InMemoryCampaignStore implements CampaignStore {
   private senderAccounts = new Map<string, SenderAccount>();
   private approvalWorkbenches = new Map<string, ApprovalWorkbench>();
   private executions = new Map<string, CampaignExecutionRecord>();
+
+  async healthCheck(): Promise<CampaignStoreHealth> {
+    return { ok: true, kind: "memory" };
+  }
 
   async insert(campaign: Campaign): Promise<Campaign> {
     const existing = this.findByIdempotencyKey(campaign.idempotencyKey);
@@ -228,6 +240,26 @@ export class JsonFileCampaignStore implements CampaignStore {
   private queue = Promise.resolve();
 
   constructor(private readonly path: string) {}
+
+  async healthCheck(): Promise<CampaignStoreHealth> {
+    try {
+      await this.locked(async () => {
+        await this.readSnapshot();
+        await mkdir(dirname(this.path), { recursive: true });
+        const tempPath = `${this.path}.${process.pid}.health.tmp`;
+        await writeFile(tempPath, "", "utf8");
+        await rm(tempPath, { force: true });
+      });
+      return { ok: true, kind: "json_file", path: this.path };
+    } catch (error) {
+      return {
+        ok: false,
+        kind: "json_file",
+        path: this.path,
+        message: error instanceof Error ? error.message : "Store health check failed"
+      };
+    }
+  }
 
   async insert(campaign: Campaign): Promise<Campaign> {
     return this.locked(async () => {

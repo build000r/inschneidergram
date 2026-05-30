@@ -63,6 +63,21 @@ curl -s http://127.0.0.1:3107/senders/sender-a/risk-events \
   -d '{ "kind": "restriction", "note": "Temporary send warning from operator" }'
 ```
 
+## Service Preflight
+
+Before any operator rehearsal or real pilot, verify the compiled service path:
+
+```bash
+npm run build
+npm run smoke:service
+```
+
+The smoke command starts `dist/index.js` on a temporary port with an isolated
+JSON store, checks `/health` and `/openapi.json`, creates a stored sender,
+approves a campaign, runs a provider-reported managed execution, and confirms
+the final readiness status is `evidence_ready`. It uses no real credentials and
+does not claim live Instagram delivery.
+
 ## Pilot Flow
 
 1. Operator registers non-secret sender inventory with `PUT /senders/:id`.
@@ -76,8 +91,9 @@ curl -s http://127.0.0.1:3107/senders/sender-a/risk-events \
    skipped or blocked before execution.
 5. Graphed or the operator checks `GET /campaigns/:id/readiness` to confirm the
    campaign is ready to execute or to see the remaining external inputs.
-6. Execution runner rechecks current sender health, then creates `SendIntent`
-   records only for approved creators that remain queued or claimed.
+6. Execution runner rejects campaigns that are not ready, rechecks current
+   sender health, then creates `SendIntent` records only for approved creators
+   that remain queued or claimed.
 7. Delivery adapter returns sent, failed, restricted, replied, or, for the
    manual-safe adapter, `needs_manual_evidence`.
 8. Operator checks `GET /operator/manual-queue` or

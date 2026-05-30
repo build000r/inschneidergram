@@ -42,6 +42,8 @@ This repo currently contains the first API/control-plane slice:
 | Operator manual delivery queue | Working MVP | `GET /operator/manual-queue` |
 | Manual evidence recording | Working MVP | atomic campaign/execution update via `manual-events` |
 | Managed provider execution contract | Working MVP | `adapter.kind=managed_provider` accepts provider-reported outcomes |
+| Execution readiness enforcement | Working MVP | executions return 409 until approval/sender gates pass |
+| Managed service smoke path | Working MVP | `npm run smoke:service`, `/health` store check, Dockerfile |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs verified delivery operations and live pilot evidence |
 
@@ -50,6 +52,8 @@ This repo currently contains the first API/control-plane slice:
 ```bash
 npm install
 npm test
+npm run build
+npm run smoke:service
 npm run demo:pilot
 npm run demo:manual-pilot
 npm run dev
@@ -57,6 +61,14 @@ npm run dev
 
 By default, the built server persists campaigns to `.data/campaigns.json`.
 Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
+Startup config is read from `HOST`, `PORT`, `INSCHNEIDERGRAM_PROVIDER`,
+`INSCHNEIDERGRAM_STORE_PATH`, and `INSCHNEIDERGRAM_WEBHOOK_SECRET`. Invalid
+ports fail at startup instead of binding to an unintended port.
+
+`npm run smoke:service` starts the compiled `dist/index.js` process with an
+isolated JSON store, verifies `/health` and `/openapi.json`, registers a sender,
+creates and approves a campaign, runs a managed-provider contract execution,
+and confirms the campaign reaches `evidence_ready`.
 
 `npm run demo:pilot` runs a deterministic local proof-pack demo with mock
 delivery, simulated signed webhook delivery records, and no live Instagram
@@ -71,6 +83,26 @@ Inspect the local API contract:
 
 ```bash
 curl -s http://127.0.0.1:3107/openapi.json
+```
+
+Run the API as a service:
+
+```bash
+npm run build
+HOST=0.0.0.0 PORT=3107 \
+  INSCHNEIDERGRAM_PROVIDER=mock \
+  INSCHNEIDERGRAM_STORE_PATH=/tmp/inschneidergram/campaigns.json \
+  npm start
+```
+
+Build and run the container:
+
+```bash
+docker build -t inschneidergram .
+docker run --rm -p 3107:3107 \
+  -v "$PWD/.data:/data" \
+  -e INSCHNEIDERGRAM_PROVIDER=mock \
+  inschneidergram
 ```
 
 The OpenAPI document includes the no-credential pilot flow: managed sender
@@ -306,9 +338,11 @@ execution proof records. It is the fastest way to see whether the campaign is
 blocked, needs approval, is ready to execute, is waiting on manual evidence, or
 has proof ready for review.
 
-`POST /campaigns/:id/executions` is the pilot-demo workflow. It builds an
-approval workbench from the stored campaign, rechecks current managed sender
-health for assigned approved targets, routes approved targets through a safe
+`POST /campaigns/:id/executions` is the pilot-demo workflow. It refuses to
+create proof records until readiness approval gates pass through a stored
+approval workbench or explicit inline execution approvals, rechecks current
+managed sender health for assigned approved targets, routes approved targets
+through a safe
 `mock`, `manual`, or `managed_provider` adapter, records campaign events,
 simulates signed webhook delivery records, and returns the proof-pack metrics
 plus Markdown, including explicit operator skipped/blocked counts from

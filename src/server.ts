@@ -47,20 +47,26 @@ import { signWebhookPayload } from "./domain/webhook.js";
 export interface ServerOptions {
   store?: CampaignStore;
   webhookSecret?: string;
+  provider?: string;
 }
 
 export async function buildServer(options: ServerOptions = {}): Promise<FastifyInstance> {
   const store = options.store ?? new InMemoryCampaignStore();
   const webhookSecret = options.webhookSecret ?? "dev-secret";
+  const provider = options.provider ?? process.env.INSCHNEIDERGRAM_PROVIDER ?? "mock";
   const app = Fastify({ logger: false });
 
   await app.register(cors, { origin: true });
 
-  app.get("/health", async () => ({
-    ok: true,
-    service: "inschneidergram",
-    provider: process.env.INSCHNEIDERGRAM_PROVIDER ?? "mock"
-  }));
+  app.get("/health", async (_request, reply) => {
+    const storeHealth = await store.healthCheck();
+    return reply.code(storeHealth.ok ? 200 : 503).send({
+      ok: storeHealth.ok,
+      service: "inschneidergram",
+      provider,
+      store: storeHealth
+    });
+  });
 
   app.get("/operator/manual-queue", async (request, reply) => {
     try {
@@ -432,10 +438,20 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     try {
       const executionRequest = executionRequestSchema.parse(request.body ?? {});
       const campaignForExecution = await withCurrentSenderInventorySnapshot(store, campaign);
+      const storedWorkbench = await store.getApprovalWorkbench(id);
+      const existingExecutions = await store.listExecutions(id);
+      if (!storedWorkbench && !hasInlineApprovalOverrides(executionRequest)) {
+        assertExecutionReadiness(campaignForExecution, null, existingExecutions);
+      }
       const workbench = buildExecutionApprovalWorkbench(
         campaignForExecution,
         executionRequest,
-        await store.getApprovalWorkbench(id)
+        storedWorkbench
+      );
+      assertExecutionReadiness(
+        campaignForExecution,
+        workbench,
+        existingExecutions
       );
       validateManagedProviderOutcomes(campaignForExecution, workbench, executionRequest);
       assertCurrentSenderAvailability(campaignForExecution, workbench);
@@ -604,7 +620,8 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         get: {
           summary: "Check API health",
           responses: {
-            "200": { description: "Service health returned" }
+            "200": { description: "Service and store health returned" },
+            "503": { description: "Service is running but the store is unhealthy" }
           }
         }
       },
@@ -2059,11 +2076,7 @@ function buildExecutionApprovalWorkbench(
     return storedWorkbench;
   }
 
-  const candidateTargets = uniqueTargets(
-    campaign.targets
-      .filter((target) => target.handle)
-      .map((target) => target.handle as string)
-  );
+  const candidateTargets = uniqueTargets(scheduledTargetHandles(campaign));
   let workbench = createApprovalWorkbench({
     campaignId: campaign.id,
     candidates: candidateTargets.map((target, index) => ({
@@ -2077,9 +2090,7 @@ function buildExecutionApprovalWorkbench(
       }
     ]
   });
-  const approved = new Set(
-    (request.approvals.approvedTargets ?? scheduledTargetHandles(campaign)).map(normalizeHandle)
-  );
+  const approved = new Set((request.approvals.approvedTargets ?? []).map(normalizeHandle));
   const rejected = new Set(request.approvals.rejectedTargets.map(normalizeHandle));
 
   for (const candidate of workbench.candidates) {
@@ -2113,6 +2124,34 @@ function hasInlineApprovalOverrides(request: ExecutionRequest): boolean {
     request.approvals.approvedTargets !== undefined ||
     request.approvals.rejectedTargets.length > 0 ||
     request.approvals.message !== undefined
+  );
+}
+
+function assertExecutionReadiness(
+  campaign: Campaign,
+  workbench: ApprovalWorkbench | null,
+  executions: CampaignExecutionRecord[]
+): void {
+  const readiness = buildPilotReadinessReport({
+    campaign,
+    approvalWorkbench: workbench,
+    executions
+  });
+  if (readiness.readyForExecution) {
+    return;
+  }
+
+  const failingGates = readiness.gates
+    .filter((gate) => gate.status === "fail")
+    .map((gate) => gate.label);
+  const nextAction = readiness.nextActions[0];
+  throw new ConflictError(
+    [
+      `Campaign is not ready for execution (${readiness.status}): ${failingGates.join(", ")}`,
+      nextAction ? `Next action: ${nextAction}` : undefined
+    ]
+      .filter(Boolean)
+      .join(". ")
   );
 }
 
