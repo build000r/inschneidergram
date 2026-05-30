@@ -190,6 +190,7 @@ and a pilot that completes meaningful creator outreach.
 - [Power map](docs/POWER_MAP.md)
 - [Domain plan](docs/DOMAIN_PLAN.md)
 - [Pilot spec](docs/PILOT_SPEC.md)
+- [Pilot runbook](docs/PILOT_RUNBOOK.md)
 - [Marketing surface](docs/MARKETING-SURFACE.md)
 - [Project status MMDX](diagrams/inschneidergram-project-status.mmdx)
 

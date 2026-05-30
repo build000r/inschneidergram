@@ -90,7 +90,9 @@ pure TypeScript and ready to be wired to storage/API surfaces.
 
 Define and implement the adapter that can actually send or queue Instagram
 outreach through an owned managed operation. The adapter must expose health,
-rate-limit, sender, and incident state.
+rate-limit, sender, and incident state. The first live-pilot path is documented
+in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md): operator-run managed manual delivery
+with private sender inventory and explicit evidence capture.
 
 ### Sender Account Operations
 
