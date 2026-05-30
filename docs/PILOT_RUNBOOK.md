@@ -253,6 +253,13 @@ inserting an execution record. Missing `evidenceUrl`/`expiresAt` fails request
 validation before execution. `mock` executions are exempt so local dry-runs stay
 cheap.
 
+Managed-provider outcomes must be complete before execution is recorded. The
+API still requires exactly one outcome for every approved executable target, and
+now also rejects provider events that cannot support the proof contract:
+`sent` requires `messageId` and non-empty `evidence`, `replied` requires
+`messageId`, `replyText`, and non-empty `evidence`, and `failed` or
+`restricted` requires `reason` plus non-empty `evidence`.
+
 `GET /operator/manual-queue` defaults to the same blocking work readiness calls
 pending manual evidence: manual attempts with no recorded evidence from the
 latest manual execution per campaign. Use `status=reply_monitoring` for sent
@@ -307,6 +314,11 @@ Restricted or failed events must include:
 - sender account id
 - operator note
 - decision on cooldown, reconnect, or replacement
+
+For managed-provider execution, the same evidence standard is enforced at
+`POST /campaigns/:id/executions` before a proof record is inserted. Provider
+`evidence` can be non-secret identifiers such as provider run ids, attempt ids,
+reply ids, callback ids, or private evidence pointers.
 
 Skipped or blocked workbench items must include:
 

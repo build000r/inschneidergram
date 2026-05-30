@@ -1,12 +1,12 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T15:03:32Z
+Generated: 2026-05-30T15:11:28Z
 
-Validation run base: `e307567` plus the current example-authorization renewal
+Validation run base: `7f5c740` plus the current managed-provider evidence
 hardening patch.
 
-Validation target: current working tree after the runtime example-authorization
-renewal hardening slice. `npm run proof:bounty-local` was rerun against this
+Validation target: current working tree after the managed-provider evidence
+contract hardening slice. `npm run proof:bounty-local` was rerun against this
 tree and passed.
 
 Runtime:
@@ -41,12 +41,12 @@ delivery or completed Graphed outreach.
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
 | `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender and runtime-renewed, evidence-backed example authorization |
 | `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, and manual queue state up to `awaiting_manual_evidence`; private authorization files remain strict |
-| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 provider outcomes, runtime-renewed the bundled provider authorization, and reached `evidence_ready` through managed-provider execution |
+| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, and reached `evidence_ready` through managed-provider execution |
 | `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths and verified the operator dashboard |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `62b2883bbb3867431659840d0c69a6cbfd4c5efe5b40e8c70bafe4cca5505bb5` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `0de8cd5b00930cd7e80dd40d19e5c2de359f9dc376059dcd9d33a80c5768ce65` |
 
 ## Live Pilot Intake Validation
 
@@ -120,8 +120,8 @@ remaining live-pilot blocker on operator evidence.
 ## Managed Provider Bridge Evidence
 
 `npm run pilot:provider-bridge` builds a managed-provider handoff from the
-validated intake files, then consumes provider-reported outcomes through the
-existing `adapter.kind=managed_provider` execution route:
+validated intake files, then consumes evidence-bearing provider-reported
+outcomes through the existing `adapter.kind=managed_provider` execution route:
 
 ```text
 Provider endpoint: https://provider.example.com/inschneidergram/deliver
@@ -143,7 +143,7 @@ Machine summary from the proof run:
       "accountRiskOwner": "provider"
     },
     "launchAuthorizationReference": "graphed-managed-provider-approval-001",
-    "outcomeContract": "Provider must return exactly one accepted/rejected outcome with one or more sent/failed/restricted/replied events for every approved target."
+    "outcomeContract": "Provider must return exactly one accepted/rejected outcome for every approved target. sent/replied events require messageId and non-empty evidence; replied also requires replyText; failed/restricted events require reason and non-empty evidence."
   },
   "proofMetrics": {
     "contactedTargets": 2,
@@ -400,7 +400,7 @@ authorization.
   approval, manual execution, handoff, dashboard, and manual queue creation
   with `npm run pilot:intake:rehearse`.
 - The managed-provider bridge can export approved send intents and consume
-  provider-reported outcomes into proof metrics with
+  evidence-bearing provider-reported outcomes into proof metrics with
   `npm run pilot:provider-bridge`.
 - Production or non-loopback startup requires strong API and webhook secrets.
 - Public webhook destinations are DNS-checked and the sender uses the

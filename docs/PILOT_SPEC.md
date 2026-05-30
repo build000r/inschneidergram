@@ -55,7 +55,8 @@ sender, campaign, approval, manual execution, handoff, dashboard, and manual
 queue state without inventing live delivery evidence.
 `npm run pilot:provider-bridge` proves the expansion path: approved send
 intents can be handed to a managed provider shape and provider-reported outcomes
-can flow back through the proof-pack route.
+with event-specific message ids, reply text, reasons, and evidence pointers can
+flow back through the proof-pack route.
 
 Before running a created campaign, Graphed or the operator should call
 `GET /campaigns/:id/readiness`. The report classifies the campaign as blocked,
@@ -66,6 +67,9 @@ or launch authorization are still missing. Manual and managed-provider
 executions require a `launchAuthorization` object with actor, delivery path,
 approved target limit, approval timestamp, expiry timestamp, reference, and
 evidence URL; mock executions are exempt for local rehearsal.
+Managed-provider executions also reject bare provider event types: `sent` needs
+`messageId` and evidence, `replied` needs `messageId`, `replyText`, and
+evidence, and `failed` or `restricted` needs `reason` and evidence.
 `GET /campaigns/:id/pilot-handoff` turns the same readiness state into an
 operator packet: source URLs, next API actions, missing external inputs,
 creator/sender/evidence contracts, launch-authorization expectations, proof

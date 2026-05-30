@@ -104,9 +104,11 @@ npm run pilot:provider-bridge
 The provider bridge rehearsal builds a handoff payload with one send intent per
 approved scheduled target, then posts fixture provider outcomes through
 `adapter.kind=managed_provider`. It reaches `evidence_ready` only from
-provider-reported outcomes; replacing the fixture with a real provider endpoint
-still requires external provider access and permission. The bundled provider
-bridge authorization window is renewed for this local rehearsal only.
+provider-reported outcomes that include event-specific message ids, reply text,
+reasons, and non-empty evidence pointers; replacing the fixture with a real
+provider endpoint still requires external provider access and permission. The
+bundled provider bridge authorization window is renewed for this local rehearsal
+only.
 
 ## Live Pilot Use
 

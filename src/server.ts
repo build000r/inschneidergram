@@ -1368,7 +1368,9 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                                     minItems: 1,
                                     items: {
                                       type: "object",
-                                      required: ["type"],
+                                      required: ["type", "evidence"],
+                                      description:
+                                        "Provider outcome event. sent requires messageId and non-empty evidence; replied requires messageId, replyText, and non-empty evidence; failed/restricted require reason and non-empty evidence.",
                                       properties: {
                                         type: {
                                           type: "string",
@@ -1380,6 +1382,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                                         replyText: { type: "string" },
                                         evidence: {
                                           type: "object",
+                                          minProperties: 1,
                                           additionalProperties: { type: "string" }
                                         }
                                       }
@@ -4102,6 +4105,12 @@ function validateManagedProviderOutcomes(
     }
     seen.add(handle);
     provided.add(handle);
+    for (const [eventIndex, event] of outcome.events.entries()) {
+      const eventError = validateManagedProviderOutcomeEvent(outcome.target, eventIndex, event);
+      if (eventError) {
+        throw new Error(eventError);
+      }
+    }
   }
 
   if (duplicates.size > 0) {
@@ -4117,6 +4126,36 @@ function validateManagedProviderOutcomes(
   if (missing.length > 0) {
     throw new Error(`Missing managed provider outcome target(s): ${missing.join(", ")}`);
   }
+}
+
+function validateManagedProviderOutcomeEvent(
+  target: string,
+  eventIndex: number,
+  event: Extract<ExecutionRequest["adapter"], { kind: "managed_provider" }>["outcomes"][number]["events"][number]
+): string | null {
+  const label = `Managed provider outcome ${normalizeHandle(target)} event ${eventIndex + 1} (${event.type})`;
+
+  if ((event.type === "sent" || event.type === "replied") && !event.messageId) {
+    return `${label} requires messageId`;
+  }
+
+  if (event.type === "replied" && !event.replyText) {
+    return `${label} requires replyText`;
+  }
+
+  if ((event.type === "failed" || event.type === "restricted") && !event.reason) {
+    return `${label} requires reason`;
+  }
+
+  if (!hasNonEmptyProviderEvidence(event.evidence)) {
+    return `${label} requires non-empty evidence`;
+  }
+
+  return null;
+}
+
+function hasNonEmptyProviderEvidence(evidence: Record<string, string>): boolean {
+  return Object.values(evidence).some((value) => value.trim().length > 0);
 }
 
 function buildDeliveryAdapter(request: ExecutionRequest) {

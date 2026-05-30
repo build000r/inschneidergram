@@ -52,7 +52,7 @@ they must carry current real approval evidence and expiry.
 | Is sender risk modeled? | sender inventory, risk events, cooldown/lockout/reconnect states |
 | Are outcomes auditable? | execution records, manual queue/evidence, provider events, proof packs |
 | Can Graphed receive status? | signed runtime webhooks, replayable dead letters, proof-pack API |
-| Can a managed provider connect? | `npm run pilot:provider-bridge`, `examples/managed-provider-bridge.example.json` |
+| Can a managed provider connect? | `npm run pilot:provider-bridge`, evidence-bearing provider outcomes in `examples/managed-provider-bridge.example.json` |
 | Is the repo honest about platform risk? | [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md), [BUILD_VS_CLONE.md](BUILD_VS_CLONE.md), adapter `officialColdDmCompliance: "not_claimed"` |
 | Is there any repo-side work left before live proof? | [WIKI_DUEL_BOUNTY_READINESS.md](WIKI_DUEL_BOUNTY_READINESS.md) |
 
@@ -88,8 +88,11 @@ executable intake files are:
 
 For a provider-operated path, `npm run pilot:provider-bridge` exports the
 approved send-intent handoff shape and then records provider-reported outcomes
-through the existing managed-provider execution route. A real provider endpoint
-can replace the fixture once Graphed supplies provider access and authorization.
+through the existing managed-provider execution route. Provider events must
+include event-specific proof fields before an execution record is inserted:
+message ids and evidence for sent/replied events, reply text for replies, and
+reasons plus evidence for failures or restrictions. A real provider endpoint can
+replace the fixture once Graphed supplies provider access and authorization.
 
 After those inputs exist, run the pilot through the flow in
 [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md), then publish the live

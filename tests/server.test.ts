@@ -1272,12 +1272,24 @@ describe("API", () => {
             {
               target: "@auth_creator_one",
               outcome: "accepted",
-              events: [{ type: "sent", messageId: "auth_provider_1" }]
+              events: [
+                {
+                  type: "sent",
+                  messageId: "auth_provider_1",
+                  evidence: { providerRunId: "auth_provider_run" }
+                }
+              ]
             },
             {
               target: "@auth_creator_two",
               outcome: "accepted",
-              events: [{ type: "sent", messageId: "auth_provider_2" }]
+              events: [
+                {
+                  type: "sent",
+                  messageId: "auth_provider_2",
+                  evidence: { providerRunId: "auth_provider_run" }
+                }
+              ]
             }
           ]
         }
@@ -3125,7 +3137,8 @@ describe("API", () => {
                 {
                   type: "sent",
                   occurredAt: "2026-05-30T06:00:00.000Z",
-                  messageId: "late_provider_msg_1"
+                  messageId: "late_provider_msg_1",
+                  evidence: { providerRunId: "late_provider_run" }
                 }
               ]
             },
@@ -3136,7 +3149,8 @@ describe("API", () => {
                 {
                   type: "sent",
                   occurredAt: "2026-05-30T06:05:00.000Z",
-                  messageId: "late_provider_msg_2"
+                  messageId: "late_provider_msg_2",
+                  evidence: { providerRunId: "late_provider_run" }
                 }
               ]
             }
@@ -3458,79 +3472,151 @@ describe("API", () => {
       }
     });
 
-    const basePayload = {
+    const providerOneOutcome = {
+      target: "@provider_one",
+      outcome: "accepted",
+      events: [
+        {
+          type: "sent",
+          messageId: "provider_msg_1",
+          evidence: { providerRunId: "provider_run_1" }
+        }
+      ]
+    };
+    const providerTwoOutcome = {
+      target: "@provider_two",
+      outcome: "accepted",
+      events: [
+        {
+          type: "sent",
+          messageId: "provider_msg_2",
+          evidence: { providerRunId: "provider_run_1" }
+        }
+      ]
+    };
+    const providerPayload = (outcomes: unknown[], reference: string) => ({
       adapter: {
         kind: "managed_provider",
-        outcomes: [
-          {
-            target: "@provider_one",
-            outcome: "accepted",
-            events: [{ type: "sent", messageId: "provider_msg_1" }]
-          }
-        ]
+        outcomes
       },
       launchAuthorization: launchAuthorization("managed_provider", {
         approvedTargetLimit: 2,
-        reference: "provider-validation-launch"
+        reference
       })
-    };
-
-    const missing = await app.inject({
-      method: "POST",
-      url: `/campaigns/${campaignId}/executions`,
-      payload: basePayload
     });
+    const executeProvider = (outcomes: unknown[], reference: string) =>
+      app.inject({
+        method: "POST",
+        url: `/campaigns/${campaignId}/executions`,
+        payload: providerPayload(outcomes, reference)
+      });
+
+    const missing = await executeProvider([providerOneOutcome], "provider-validation-launch");
     expect(missing.statusCode).toBe(400);
     expect(missing.json().message).toBe("Missing managed provider outcome target(s): provider_two");
 
-    const duplicate = await app.inject({
-      method: "POST",
-      url: `/campaigns/${campaignId}/executions`,
-      payload: {
-        adapter: {
-          kind: "managed_provider",
-          outcomes: [
-            ...basePayload.adapter.outcomes,
-            ...basePayload.adapter.outcomes
-          ]
-        },
-        launchAuthorization: launchAuthorization("managed_provider", {
-          approvedTargetLimit: 2,
-          reference: "provider-duplicate-launch"
-        })
-      }
-    });
+    const duplicate = await executeProvider(
+      [providerOneOutcome, providerOneOutcome],
+      "provider-duplicate-launch"
+    );
     expect(duplicate.statusCode).toBe(400);
     expect(duplicate.json().message).toBe("Duplicate managed provider outcome target(s): provider_one");
 
-    const unknown = await app.inject({
-      method: "POST",
-      url: `/campaigns/${campaignId}/executions`,
-      payload: {
-        adapter: {
-          kind: "managed_provider",
-          outcomes: [
-            ...basePayload.adapter.outcomes,
+    const unknown = await executeProvider(
+      [
+        providerOneOutcome,
+        providerTwoOutcome,
+        {
+          target: "@provider_three",
+          outcome: "accepted",
+          events: [
             {
-              target: "@provider_two",
-              outcome: "accepted",
-              events: [{ type: "sent", messageId: "provider_msg_2" }]
-            },
+              type: "sent",
+              messageId: "provider_msg_3",
+              evidence: { providerRunId: "provider_run_1" }
+            }
+          ]
+        }
+      ],
+      "provider-unknown-launch"
+    );
+    expect(unknown.statusCode).toBe(400);
+    expect(unknown.json().message).toBe("Unknown managed provider outcome target(s): provider_three");
+
+    const missingSentEvidence = await executeProvider(
+      [
+        {
+          target: "@provider_one",
+          outcome: "accepted",
+          events: [{ type: "sent", messageId: "provider_msg_1" }]
+        },
+        providerTwoOutcome
+      ],
+      "provider-missing-sent-evidence"
+    );
+    expect(missingSentEvidence.statusCode).toBe(400);
+    expect(missingSentEvidence.json().message).toBe(
+      "Managed provider outcome provider_one event 1 (sent) requires non-empty evidence"
+    );
+
+    const missingReplyText = await executeProvider(
+      [
+        {
+          target: "@provider_one",
+          outcome: "accepted",
+          events: [
             {
-              target: "@provider_three",
-              outcome: "accepted",
-              events: [{ type: "sent", messageId: "provider_msg_3" }]
+              type: "replied",
+              messageId: "provider_msg_1",
+              evidence: { providerRunId: "provider_run_1" }
             }
           ]
         },
-        launchAuthorization: launchAuthorization("managed_provider", {
-          approvedTargetLimit: 2,
-          reference: "provider-unknown-launch"
-        })
-      }
-    });
-    expect(unknown.statusCode).toBe(400);
-    expect(unknown.json().message).toBe("Unknown managed provider outcome target(s): provider_three");
+        providerTwoOutcome
+      ],
+      "provider-missing-reply-text"
+    );
+    expect(missingReplyText.statusCode).toBe(400);
+    expect(missingReplyText.json().message).toBe(
+      "Managed provider outcome provider_one event 1 (replied) requires replyText"
+    );
+
+    const missingFailedReason = await executeProvider(
+      [
+        {
+          target: "@provider_one",
+          outcome: "rejected",
+          events: [
+            {
+              type: "failed",
+              evidence: { providerRunId: "provider_run_1" }
+            }
+          ]
+        },
+        providerTwoOutcome
+      ],
+      "provider-missing-failed-reason"
+    );
+    expect(missingFailedReason.statusCode).toBe(400);
+    expect(missingFailedReason.json().message).toBe(
+      "Managed provider outcome provider_one event 1 (failed) requires reason"
+    );
+
+    const missingRestrictedEvidence = await executeProvider(
+      [
+        {
+          target: "@provider_one",
+          outcome: "rejected",
+          events: [{ type: "restricted", reason: "Provider sender cooldown" }]
+        },
+        providerTwoOutcome
+      ],
+      "provider-missing-restricted-evidence"
+    );
+    expect(missingRestrictedEvidence.statusCode).toBe(400);
+    expect(missingRestrictedEvidence.json().message).toBe(
+      "Managed provider outcome provider_one event 1 (restricted) requires non-empty evidence"
+    );
 
     const invalidEvent = await app.inject({
       method: "POST",
@@ -4673,9 +4759,14 @@ describe("API", () => {
                   events: expect.objectContaining({
                     minItems: 1,
                     items: expect.objectContaining({
+                      required: ["type", "evidence"],
+                      description: expect.stringContaining("sent requires messageId"),
                       properties: expect.objectContaining({
                         type: expect.objectContaining({
                           enum: ["sent", "failed", "restricted", "replied"]
+                        }),
+                        evidence: expect.objectContaining({
+                          minProperties: 1
                         })
                       })
                     })

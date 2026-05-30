@@ -226,7 +226,7 @@ function buildBridgeRequest(input: {
     launchAuthorizationReference: input.fixture.launchAuthorization.reference,
     sendIntents: targets,
     outcomeContract:
-      "Provider must return exactly one accepted/rejected outcome with one or more sent/failed/restricted/replied events for every approved target."
+      "Provider must return exactly one accepted/rejected outcome for every approved target. sent/replied events require messageId and non-empty evidence; replied also requires replyText; failed/restricted events require reason and non-empty evidence."
   };
 }
 

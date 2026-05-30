@@ -51,12 +51,12 @@ This repo currently contains the API/control-plane MVP:
 | Launch authorization gate | Working MVP | manual/provider execution requires a fresh, evidence-backed approval reference |
 | Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from refreshed execution evidence |
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
-| Managed provider bridge | Working MVP | `npm run pilot:provider-bridge` exports provider handoff intents and consumes provider outcomes |
+| Managed provider bridge | Working MVP | `npm run pilot:provider-bridge` exports provider handoff intents and consumes evidence-bearing provider outcomes |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
 | Operator manual delivery queue | Working MVP | `GET /operator/manual-queue` |
 | Manual evidence recording | Working MVP | atomic campaign/execution update via `manual-events` |
-| Managed provider execution contract | Working MVP | `adapter.kind=managed_provider` accepts provider-reported outcomes |
+| Managed provider execution contract | Working MVP | `adapter.kind=managed_provider` accepts one evidence-bearing provider outcome per approved target |
 | Execution readiness enforcement | Working MVP | executions return 409 until approval/sender gates pass |
 | Managed service smoke path | Working MVP | `npm run smoke:service`, `/health` store check, Dockerfile |
 | Latest proof export | Working MVP | `GET /campaigns/:id/proof-pack`, refreshed by late provider replies/failures |
@@ -129,10 +129,11 @@ final proof-pack renewal output.
 `npm run pilot:provider-bridge` runs the managed-provider handoff rehearsal. It
 loads the live intake examples plus `examples/managed-provider-bridge.example.json`,
 builds the provider handoff payload with approved send intents, then consumes
-provider-reported outcomes through `adapter.kind=managed_provider` to produce a
-proof pack. This is the bridge shape for a real managed-delivery endpoint; the
-fixture still does not claim live Instagram delivery. Its bundled launch
-authorization window is refreshed at runtime for the local rehearsal only.
+evidence-bearing provider-reported outcomes through
+`adapter.kind=managed_provider` to produce a proof pack. This is the bridge
+shape for a real managed-delivery endpoint; the fixture still does not claim
+live Instagram delivery. Its bundled launch authorization window is refreshed
+at runtime for the local rehearsal only.
 
 Inspect the local API contract:
 
@@ -583,9 +584,12 @@ dispatches signed webhook records through the runtime sender when
 including explicit operator skipped/blocked counts from workbench evidence.
 The launch authorization records actor, delivery path, approved target limit,
 approval timestamp, and reference, then persists into the execution record and
-proof export. The managed-provider adapter requires an explicit outcome for every approved
-executable target and treats events as provider-reported evidence, not as a
-claim that this repo performs live Instagram delivery. It also persists an
+proof export. The managed-provider adapter requires an explicit outcome for
+every approved executable target. Provider `sent` events require a message id
+and non-empty evidence, `replied` events require a message id, reply text, and
+non-empty evidence, and `failed` or `restricted` events require a reason and
+non-empty evidence. These events are provider-reported evidence, not a claim
+that this repo performs live Instagram delivery. It also persists an
 execution proof record that can be listed with
 `GET /campaigns/:id/executions` or fetched with
 `GET /campaigns/:id/executions/:executionId`. Operators do not have to inspect
