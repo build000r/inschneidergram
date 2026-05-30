@@ -27,6 +27,7 @@ This repo currently contains the first API/control-plane slice:
 | Safe sending limits and scheduling | Working MVP | per-sender limits, delay windows, domain tests |
 | Delivery/reply status tracking | Working MVP | `POST /campaigns/:id/events` |
 | Webhook signing helper | Working MVP | `src/domain/webhook.ts` |
+| Outgoing webhook retries | Working MVP | signed jobs, backoff, dead letters, replay |
 | Persistent local campaign store | Working MVP | `JsonFileCampaignStore`, idempotency/suppression tests |
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
@@ -168,8 +169,8 @@ owns that operational risk.
 ## Roadmap to Bounty Pilot
 
 1. Wire the managed delivery adapter contract into the campaign execution path.
-2. Add signed outgoing webhooks with retry and dead-letter state.
-3. Connect real sender account operations to the sender health model.
+2. Connect real sender account operations to the sender health model.
+3. Wire outgoing webhook dispatch into campaign/event writes.
 4. Run a controlled pilot with a small vetted creator list.
 5. Publish reliability evidence: delivery counts, reply counts, duplicate
    prevention, blocked sends, and incident log.

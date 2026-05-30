@@ -50,6 +50,8 @@ The current implementation covers:
 - sender account limits, cooldowns, lockouts, reconnect-required state, warm-up
   notes, and risk events
 - scheduler refusal when no healthy sender is available
+- outgoing signed webhook payloads and jobs
+- retry/backoff, dead-letter, and replay behavior for injected webhook senders
 
 ## Acceptance Criteria
 
@@ -64,7 +66,8 @@ The current implementation covers:
    evidence.
 8. Unhealthy senders are refused before scheduling and reported in campaign
    status.
-9. Tests prove the API contract and domain rules.
+9. Outgoing webhooks can be signed, retried, dead-lettered, and replayed.
+10. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -95,8 +98,9 @@ shape and scheduler behavior.
 
 ### Webhook Delivery
 
-Add outgoing signed webhooks with retries, backoff, dead-letter queue, and replay
-tooling.
+Wire the current outgoing webhook dispatcher into campaign creation and provider
+event writes. Signed payloads, retries, backoff, dead-letter state, and replay
+tooling now exist as a domain module with injected sender tests.
 
 ### Pilot Evidence
 
