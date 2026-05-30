@@ -19,7 +19,8 @@ import {
   recordManualDeliveryEvent,
   type DeliveryAttempt,
   type DeliveryEventType,
-  type DeliveryOutcome
+  type DeliveryOutcome,
+  type ManualEvidenceRequirement
 } from "./domain/delivery.js";
 import { executeApprovedCampaign } from "./domain/execution.js";
 import { normalizeInstagramHandle } from "./domain/handles.js";
@@ -59,6 +60,17 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     service: "inschneidergram",
     provider: process.env.INSCHNEIDERGRAM_PROVIDER ?? "mock"
   }));
+
+  app.get("/operator/manual-queue", async (request, reply) => {
+    try {
+      return await buildOperatorManualQueue(
+        store,
+        manualQueueQuerySchema.parse(request.query ?? {})
+      );
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
 
   app.get("/senders", async () => {
     const senderAccounts = await store.listSenderAccounts();
@@ -546,6 +558,22 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     return execution;
   });
 
+  app.get("/campaigns/:id/executions/:executionId/manual-queue", async (request, reply) => {
+    const { id, executionId } = request.params as { id: string; executionId: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    const execution = await store.getExecution(executionId);
+    if (!execution || execution.campaignId !== id) {
+      return reply.code(404).send({ error: "execution_not_found" });
+    }
+
+    return buildManualDeliveryQueue(execution, campaign);
+  });
+
   app.post("/webhooks/preview", async (request) => {
     const payload = request.body ?? {};
     return {
@@ -566,6 +594,16 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           summary: "Check API health",
           responses: {
             "200": { description: "Service health returned" }
+          }
+        }
+      },
+      "/operator/manual-queue": {
+        get: {
+          summary: "List actionable manual delivery work across campaigns",
+          parameters: openApiManualQueueQueryParameters(),
+          responses: {
+            "200": { description: "Operator manual delivery queue returned" },
+            "400": { description: "Invalid manual queue filter" }
           }
         }
       },
@@ -1012,6 +1050,16 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           }
         }
       },
+      "/campaigns/{id}/executions/{executionId}/manual-queue": {
+        parameters: openApiPathParameters("id", "executionId"),
+        get: {
+          summary: "List manual delivery work for one execution",
+          responses: {
+            "200": { description: "Manual delivery queue returned" },
+            "404": { description: "Campaign or execution not found" }
+          }
+        }
+      },
       "/campaigns/{id}/executions/{executionId}/manual-events": {
         parameters: openApiPathParameters("id", "executionId"),
         post: {
@@ -1077,6 +1125,45 @@ function openApiIdempotencyHeader() {
     schema: { type: "string" },
     description: "Optional retry-safe idempotency key for create or manual evidence requests."
   };
+}
+
+function openApiManualQueueQueryParameters() {
+  return [
+    {
+      name: "campaignId",
+      in: "query",
+      required: false,
+      schema: { type: "string" }
+    },
+    {
+      name: "executionId",
+      in: "query",
+      required: false,
+      schema: { type: "string" }
+    },
+    {
+      name: "status",
+      in: "query",
+      required: false,
+      schema: {
+        type: "string",
+        enum: ["pending", "pending_initial_evidence", "reply_monitoring", "done", "all"],
+        default: "pending"
+      }
+    },
+    {
+      name: "includeHistorical",
+      in: "query",
+      required: false,
+      schema: { type: "boolean", default: false }
+    },
+    {
+      name: "limit",
+      in: "query",
+      required: false,
+      schema: { type: "integer", minimum: 1, maximum: 500, default: 100 }
+    }
+  ];
 }
 
 function openApiSenderAccountSchema() {
@@ -1394,8 +1481,224 @@ const manualEvidenceRequestSchema = z
 
 type ManualEvidenceRequest = z.infer<typeof manualEvidenceRequestSchema>;
 
+const manualQueueQuerySchema = z.object({
+  campaignId: z.preprocess(queryValue, z.string().min(1).optional()),
+  executionId: z.preprocess(queryValue, z.string().min(1).optional()),
+  status: z.preprocess(
+    queryValue,
+    z
+      .enum(["pending", "pending_initial_evidence", "reply_monitoring", "done", "all"])
+      .default("pending")
+  ),
+  includeHistorical: z.preprocess(queryBooleanValue, z.boolean().default(false)),
+  limit: z.preprocess(queryNumberValue(100), z.number().int().min(1).max(500).default(100))
+});
+
+type ManualQueueQuery = z.infer<typeof manualQueueQuerySchema>;
+
 class NotFoundError extends Error {}
 class ConflictError extends Error {}
+
+type ManualQueueStatus = "pending_initial_evidence" | "reply_monitoring" | "done";
+
+async function buildOperatorManualQueue(
+  store: CampaignStore,
+  query: ManualQueueQuery,
+  now = new Date()
+) {
+  const campaigns = query.campaignId
+    ? await campaignsForManualQueue(store, query.campaignId)
+    : await store.list();
+  const items: Array<ReturnType<typeof manualQueueItem>> = [];
+
+  for (const campaign of campaigns) {
+    const executions = selectManualExecutionsForQueue(
+      await store.listExecutions(campaign.id),
+      query
+    );
+
+    for (const execution of executions) {
+      items.push(...manualQueueItemsForExecution(campaign, execution));
+    }
+  }
+
+  const filteredItems = filterManualQueueItems(items, query.status).slice(0, query.limit);
+
+  return {
+    generatedAt: now.toISOString(),
+    filters: {
+      campaignId: query.campaignId,
+      executionId: query.executionId,
+      status: query.status,
+      includeHistorical: query.includeHistorical,
+      limit: query.limit
+    },
+    counts: countManualQueueItems(items),
+    items: filteredItems
+  };
+}
+
+async function campaignsForManualQueue(
+  store: CampaignStore,
+  campaignId: string
+): Promise<Campaign[]> {
+  const campaign = await store.get(campaignId);
+  return campaign ? [campaign] : [];
+}
+
+function buildManualDeliveryQueue(execution: CampaignExecutionRecord, campaign?: Campaign) {
+  const items = manualQueueItemsForExecution(campaign, execution);
+  return {
+    campaignId: execution.campaignId,
+    campaignName: campaign?.campaign,
+    executionId: execution.id,
+    executionCreatedAt: execution.createdAt,
+    adapterRiskPosture: execution.adapterRiskPosture,
+    counts: countManualQueueItems(items),
+    proofPackSummary: {
+      contactedTargets: execution.proofPack.metrics.contactedTargets,
+      sentMessages: execution.proofPack.metrics.sentMessages,
+      replies: execution.proofPack.metrics.replies,
+      deliveryFailures: execution.proofPack.metrics.deliveryFailures,
+      webhookDelivered: execution.proofPack.metrics.webhookDelivered,
+      webhookDeadLetters: execution.proofPack.metrics.webhookDeadLetters,
+      renewalDecision: execution.proofPack.renewalRecommendation.decision
+    },
+    items
+  };
+}
+
+function selectManualExecutionsForQueue(
+  executions: CampaignExecutionRecord[],
+  query: ManualQueueQuery
+): CampaignExecutionRecord[] {
+  const manualExecutions = executions
+    .filter((execution) => execution.deliveryAttempts.some((attempt) => attempt.riskPosture.kind === "manual"))
+    .filter((execution) => !query.executionId || execution.id === query.executionId)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
+  if (query.executionId || query.includeHistorical) {
+    return manualExecutions;
+  }
+
+  return manualExecutions.slice(0, 1);
+}
+
+function manualQueueItemsForExecution(
+  campaign: Campaign | undefined,
+  execution: CampaignExecutionRecord
+) {
+  return execution.deliveryAttempts
+    .filter((attempt) => attempt.riskPosture.kind === "manual")
+    .map((attempt) => manualQueueItem(campaign, execution, attempt));
+}
+
+function manualQueueItem(
+  campaign: Campaign | undefined,
+  execution: CampaignExecutionRecord,
+  attempt: DeliveryAttempt
+) {
+  const status = manualQueueStatus(attempt);
+  const allowedManualEvents = allowedManualEventsForStatus(status);
+  const events = attempt.events.map((event) => ({
+    id: event.id,
+    type: event.type,
+    occurredAt: event.occurredAt,
+    messageId: event.messageId,
+    reason: event.reason,
+    replyText: event.replyText,
+    evidence: event.evidence
+  }));
+
+  return {
+    queueId: `${execution.campaignId}:${execution.id}:${attempt.intent.id}`,
+    campaignId: execution.campaignId,
+    campaignName: campaign?.campaign,
+    executionId: execution.id,
+    executionCreatedAt: execution.createdAt,
+    intentId: attempt.intent.id,
+    target: attempt.intent.target,
+    targetHandle: attempt.intent.targetHandle,
+    senderAccountId: attempt.intent.senderAccountId,
+    message: attempt.intent.message,
+    scheduledAt: attempt.intent.scheduledAt,
+    approvedAt: attempt.intent.approvedAt,
+    status,
+    outcome: attempt.outcome,
+    allowedManualEvents,
+    requiredEvidenceByEvent: Object.fromEntries(
+      allowedManualEvents.map((type) => [
+        type,
+        requiredEvidenceForType(attempt.requiredEvidence, type).map((field) => field.key)
+      ])
+    ),
+    requiredEvidenceDetailsByEvent: Object.fromEntries(
+      allowedManualEvents.map((type) => [
+        type,
+        requiredEvidenceForType(attempt.requiredEvidence, type)
+      ])
+    ),
+    latestEvent: events.at(-1) ?? null,
+    manualEvents: events,
+    manualEventsUrl: `/campaigns/${execution.campaignId}/executions/${execution.id}/manual-events`
+  };
+}
+
+function manualQueueStatus(attempt: DeliveryAttempt): ManualQueueStatus {
+  const eventTypes = new Set(attempt.events.map((event) => event.type));
+  if (eventTypes.has("replied") || eventTypes.has("restricted") || eventTypes.has("failed")) {
+    return "done";
+  }
+  if (eventTypes.has("sent")) {
+    return "reply_monitoring";
+  }
+  return "pending_initial_evidence";
+}
+
+function allowedManualEventsForStatus(status: ManualQueueStatus): DeliveryEventType[] {
+  if (status === "pending_initial_evidence") {
+    return ["sent", "failed", "restricted"];
+  }
+  if (status === "reply_monitoring") {
+    return ["replied"];
+  }
+  return [];
+}
+
+function filterManualQueueItems(
+  items: ReturnType<typeof manualQueueItem>[],
+  status: ManualQueueQuery["status"]
+) {
+  if (status === "all") {
+    return items;
+  }
+  if (status === "pending") {
+    return items.filter((item) => item.status === "pending_initial_evidence");
+  }
+  return items.filter((item) => item.status === status);
+}
+
+function countManualQueueItems(items: ReturnType<typeof manualQueueItem>[]) {
+  return {
+    total: items.length,
+    pendingInitialEvidence: items.filter((item) => item.status === "pending_initial_evidence").length,
+    replyMonitoring: items.filter((item) => item.status === "reply_monitoring").length,
+    done: items.filter((item) => item.status === "done").length
+  };
+}
+
+function requiredEvidenceForType(
+  requirements: ManualEvidenceRequirement[],
+  type: DeliveryEventType
+) {
+  return requirements
+    .filter((requirement) => requirement.requiredFor.includes(type))
+    .map((requirement) => ({
+      key: requirement.key,
+      label: requirement.label,
+      description: requirement.description
+    }));
+}
 
 async function recordManualEvidence(input: {
   campaign: Campaign;
@@ -1921,6 +2224,31 @@ function withIdempotencyKey(body: unknown, headerValue: string | string[] | unde
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function queryValue(value: unknown): unknown {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function queryBooleanValue(value: unknown): unknown {
+  const normalized = queryValue(value);
+  if (normalized === undefined) {
+    return false;
+  }
+  if (normalized === "true" || normalized === true) {
+    return true;
+  }
+  if (normalized === "false" || normalized === false) {
+    return false;
+  }
+  return normalized;
+}
+
+function queryNumberValue(defaultValue: number) {
+  return (value: unknown): unknown => {
+    const normalized = queryValue(value);
+    return normalized === undefined ? defaultValue : Number(normalized);
+  };
 }
 
 function withManualEventId(body: unknown, headerValue: string | string[] | undefined): unknown {

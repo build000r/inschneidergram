@@ -840,6 +840,258 @@ describe("API", () => {
     await app.close();
   });
 
+  it("exposes an operator manual delivery queue across evidence states", async () => {
+    const app = await buildServer({ webhookSecret: "queue-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@queue_creator_one", "@queue_creator_two"],
+        message: "Open to an affiliate pilot?",
+        campaign: "manual-queue-pilot",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/inschneidergram",
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@queue_creator_one", "@queue_creator_two"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    const executionResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" }
+      }
+    });
+    const executionId = executionResponse.json().executionId;
+
+    const pendingQueue = await app.inject({
+      method: "GET",
+      url: "/operator/manual-queue"
+    });
+    expect(pendingQueue.statusCode).toBe(200);
+    expect(pendingQueue.json()).toMatchObject({
+      counts: {
+        total: 2,
+        pendingInitialEvidence: 2,
+        replyMonitoring: 0,
+        done: 0
+      },
+      items: [
+        expect.objectContaining({
+          status: "pending_initial_evidence",
+          campaignId,
+          campaignName: "manual-queue-pilot",
+          executionId,
+          targetHandle: "queue_creator_one",
+          allowedManualEvents: ["sent", "failed", "restricted"],
+          requiredEvidenceByEvent: {
+            sent: ["operatorId", "conversationUrl", "screenshotUrl"],
+            failed: ["operatorId"],
+            restricted: ["operatorId", "screenshotUrl", "restrictionSource"]
+          },
+          manualEventsUrl: `/campaigns/${campaignId}/executions/${executionId}/manual-events`
+        }),
+        expect.objectContaining({
+          targetHandle: "queue_creator_two"
+        })
+      ]
+    });
+
+    const executionQueue = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-queue`
+    });
+    expect(executionQueue.statusCode).toBe(200);
+    expect(executionQueue.json()).toMatchObject({
+      campaignId,
+      campaignName: "manual-queue-pilot",
+      executionId,
+      counts: {
+        pendingInitialEvidence: 2
+      }
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        eventId: "queue-sent-1",
+        target: "@queue_creator_one",
+        type: "sent",
+        messageId: "manual_msg_1",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/queue_creator_one",
+          screenshotUrl: "s3://proof/queue-sent.png"
+        }
+      }
+    });
+
+    const afterSentDefaultQueue = await app.inject({
+      method: "GET",
+      url: "/operator/manual-queue"
+    });
+    expect(afterSentDefaultQueue.json()).toMatchObject({
+      counts: {
+        total: 2,
+        pendingInitialEvidence: 1,
+        replyMonitoring: 1,
+        done: 0
+      },
+      items: [expect.objectContaining({ targetHandle: "queue_creator_two" })]
+    });
+
+    const replyMonitoringQueue = await app.inject({
+      method: "GET",
+      url: "/operator/manual-queue?status=reply_monitoring"
+    });
+    expect(replyMonitoringQueue.json().items).toEqual([
+      expect.objectContaining({
+        targetHandle: "queue_creator_one",
+        status: "reply_monitoring",
+        allowedManualEvents: ["replied"],
+        requiredEvidenceByEvent: {
+          replied: ["operatorId", "conversationUrl", "screenshotUrl", "replyCapturedAt"]
+        },
+        latestEvent: expect.objectContaining({ type: "sent" })
+      })
+    ]);
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        eventId: "queue-replied-1",
+        target: "@queue_creator_one",
+        type: "replied",
+        messageId: "manual_msg_1",
+        replyText: "Interested - send details",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/queue_creator_one",
+          screenshotUrl: "s3://proof/queue-reply.png",
+          replyCapturedAt: "2026-05-30T01:45:00.000Z"
+        }
+      }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        eventId: "queue-restricted-1",
+        target: "@queue_creator_two",
+        type: "restricted",
+        reason: "Manual queue restricted path",
+        evidence: {
+          operatorId: "op_1",
+          screenshotUrl: "s3://proof/queue-restricted.png",
+          restrictionSource: "manual-queue-test"
+        }
+      }
+    });
+
+    const allQueue = await app.inject({
+      method: "GET",
+      url: "/operator/manual-queue?status=all"
+    });
+    expect(allQueue.json()).toMatchObject({
+      counts: {
+        total: 2,
+        pendingInitialEvidence: 0,
+        replyMonitoring: 0,
+        done: 2
+      },
+      items: [
+        expect.objectContaining({
+          targetHandle: "queue_creator_one",
+          status: "done",
+          latestEvent: expect.objectContaining({ type: "replied" })
+        }),
+        expect.objectContaining({
+          targetHandle: "queue_creator_two",
+          status: "done",
+          latestEvent: expect.objectContaining({ type: "restricted" })
+        })
+      ]
+    });
+
+    await app.close();
+  });
+
+  it("excludes mock executions from the manual delivery queue", async () => {
+    const app = await buildServer();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@mock_queue_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "mock-queue-pilot",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@mock_queue_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "mock" }
+      }
+    });
+
+    const queue = await app.inject({
+      method: "GET",
+      url: "/operator/manual-queue?status=all"
+    });
+    expect(queue.json()).toMatchObject({
+      counts: {
+        total: 0
+      },
+      items: []
+    });
+
+    await app.close();
+  });
+
   it("blocks launch readiness when sender health has no available accounts", async () => {
     const app = await buildServer();
     const createResponse = await app.inject({
@@ -1328,6 +1580,13 @@ describe("API", () => {
         }
       }
     });
+    expect(openapi.paths["/operator/manual-queue"].get).toMatchObject({
+      summary: "List actionable manual delivery work across campaigns",
+      parameters: expect.arrayContaining([
+        expect.objectContaining({ name: "status", in: "query" }),
+        expect.objectContaining({ name: "includeHistorical", in: "query" })
+      ])
+    });
     expect(openapi.paths["/campaigns/{id}/readiness"].get).toMatchObject({
       summary: "Get pilot launch readiness gates"
     });
@@ -1380,6 +1639,9 @@ describe("API", () => {
     });
     expect(openapi.paths["/campaigns/{id}/executions/{executionId}"].get).toMatchObject({
       summary: "Get one persisted execution proof record"
+    });
+    expect(openapi.paths["/campaigns/{id}/executions/{executionId}/manual-queue"].get).toMatchObject({
+      summary: "List manual delivery work for one execution"
     });
     expect(openapi.paths["/campaigns/{id}/executions/{executionId}/manual-events"].post).toMatchObject({
       summary: "Record manual evidence for one execution intent",

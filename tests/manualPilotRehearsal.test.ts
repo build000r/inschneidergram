@@ -21,6 +21,7 @@ describe("manual pilot rehearsal", () => {
     expect(result.openApiPaths).toEqual(
       expect.arrayContaining([
         "/health",
+        "/operator/manual-queue",
         "/campaigns",
         "/campaigns/{id}/readiness",
         "/campaigns/{id}/approval-workbench",
@@ -28,6 +29,7 @@ describe("manual pilot rehearsal", () => {
         "/campaigns/{id}/approval-workbench/candidates/{candidateId}/work",
         "/campaigns/{id}/executions",
         "/campaigns/{id}/executions/{executionId}",
+        "/campaigns/{id}/executions/{executionId}/manual-queue",
         "/campaigns/{id}/executions/{executionId}/manual-events",
         "/webhooks/preview"
       ])
@@ -43,6 +45,29 @@ describe("manual pilot rehearsal", () => {
       readyForEvidenceReview: true,
       pendingManualEvidence: 0
     });
+    expect(result.manualQueueTimeline).toEqual([
+      {
+        label: "manual_execution_created",
+        pendingInitialEvidence: 2,
+        replyMonitoring: 0,
+        done: 0,
+        items: 2
+      },
+      {
+        label: "sent_recorded",
+        pendingInitialEvidence: 1,
+        replyMonitoring: 1,
+        done: 0,
+        items: 2
+      },
+      {
+        label: "evidence_recorded",
+        pendingInitialEvidence: 0,
+        replyMonitoring: 0,
+        done: 2,
+        items: 2
+      }
+    ]);
     expect(result.readinessTimeline.at(-1)?.externalInputs).toEqual([]);
     expect(result.adapterRiskPosture).toMatchObject({
       kind: "manual",

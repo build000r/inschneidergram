@@ -67,6 +67,8 @@ The current implementation covers:
   webhooks, and proof-pack generation
 - API pilot-demo execution route for safe mock/manual runs
 - persisted execution proof records for audit replay after the initial response
+- operator manual delivery queue that projects pending, reply-monitoring, and
+  terminal manual attempts without exposing raw execution internals
 - manual evidence recording API that validates operator evidence, updates
   campaign state, appends webhook delivery records, and refreshes proof packs
 - pilot launch readiness report that turns campaign, approval, sender,
@@ -116,7 +118,9 @@ The current implementation covers:
     and updated through risk events.
 21. Campaign creation uses stored sender inventory when inline sender accounts
     are absent and rejects unknown managed sender ids.
-22. Tests prove the API contract and domain rules.
+22. Operators can list pending and completed manual delivery work with stable
+    intent ids and required evidence fields.
+23. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -169,6 +173,10 @@ metrics.
 The refreshed proof pack keeps campaign ingest/policy blocks separate from
 operator skipped and operator blocked targets captured in the approval
 workbench.
+
+The operator manual queue is a read model over execution delivery attempts. It
+defaults to pending initial manual evidence from the latest manual execution per
+campaign and can also show reply monitoring or terminal attempts for audit.
 
 ### Sender Account Operations
 

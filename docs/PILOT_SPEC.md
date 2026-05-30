@@ -99,6 +99,10 @@ are only valid after creator approval, message approval, and operator claim.
 Operators can then record one terminal outcome per creator: sent, skipped, or
 blocked.
 
+For manual executions, the operator queue should be the working surface. It
+lists the latest manual attempts that still need initial evidence by default,
+then exposes reply-monitoring and done views for audit and renewal review.
+
 ## Proof Pack Generator
 
 The domain proof pack turns campaign status, approval state, delivery attempts,

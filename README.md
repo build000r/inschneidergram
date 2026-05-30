@@ -39,6 +39,7 @@ This repo currently contains the first API/control-plane slice:
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
+| Operator manual delivery queue | Working MVP | `GET /operator/manual-queue` |
 | Manual evidence recording | Working MVP | `POST /campaigns/:id/executions/:executionId/manual-events` |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs real delivery adapter and live pilot evidence |
@@ -73,10 +74,10 @@ curl -s http://127.0.0.1:3107/openapi.json
 
 The OpenAPI document includes the no-credential pilot flow: managed sender
 inventory, campaign creation, approval workbench, readiness, manual-safe
-execution, manual evidence, proof records, health, and webhook signature
-preview. Templated routes document path parameters, and manual evidence schemas
-are split by event type so operators can see the required proof fields before a
-run.
+execution, operator manual queue, manual evidence, proof records, health, and
+webhook signature preview. Templated routes document path parameters, and
+manual evidence schemas are split by event type so operators can see the
+required proof fields before a run.
 
 Register a non-secret sender account before scheduling a managed campaign:
 
@@ -189,6 +190,13 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions \
   }'
 ```
 
+List pending manual delivery work for operators:
+
+```bash
+curl -s 'http://127.0.0.1:3107/operator/manual-queue?status=pending'
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions/<execution-id>/manual-queue
+```
+
 Record manual send evidence for a manual execution:
 
 ```bash
@@ -277,8 +285,14 @@ delivery records, and returns the proof-pack metrics plus Markdown, including
 explicit operator skipped/blocked counts from workbench evidence. It also
 persists an execution proof record that can be listed with
 `GET /campaigns/:id/executions` or fetched with
-`GET /campaigns/:id/executions/:executionId`. Manual executions can be updated
-with `POST /campaigns/:id/executions/:executionId/manual-events`; that route
+`GET /campaigns/:id/executions/:executionId`. Operators do not have to inspect
+the raw execution record to know what to do next:
+`GET /operator/manual-queue` returns pending initial evidence by default, while
+`status=reply_monitoring`, `status=done`, and `status=all` expose sent-but-not-replied
+and terminal attempts. The campaign-scoped execution view
+`GET /campaigns/:id/executions/:executionId/manual-queue` returns the same
+manual work projection for one execution. Manual executions can be updated with
+`POST /campaigns/:id/executions/:executionId/manual-events`; that route
 validates required operator evidence, updates campaign status, appends webhook
 delivery records, and refreshes the stored proof pack. It does not claim live
 Instagram delivery.

@@ -26,6 +26,13 @@ export interface ManualPilotRehearsalResult {
     pendingManualEvidence: number;
     externalInputs: string[];
   }>;
+  manualQueueTimeline: Array<{
+    label: string;
+    pendingInitialEvidence: number;
+    replyMonitoring: number;
+    done: number;
+    items: number;
+  }>;
   finalMetrics: {
     contactedTargets: number;
     sentMessages: number;
@@ -113,6 +120,12 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
       adapter: { kind: "manual" }
     });
     const adapterRiskPosture = execution.adapterRiskPosture;
+    const manualQueueTimeline = [
+      manualQueuePoint(
+        "manual_execution_created",
+        await injectJson(app, "GET", `/operator/manual-queue?campaignId=${campaign.campaignId}`)
+      )
+    ];
     readinessTimeline.push(
       readinessPoint(
         "manual_execution_created",
@@ -143,6 +156,16 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
       `/campaigns/${campaign.campaignId}/executions/${execution.executionId}/manual-events`,
       sentPayload,
       { "idempotency-key": "manual-rehearsal-sent-1" }
+    );
+    manualQueueTimeline.push(
+      manualQueuePoint(
+        "sent_recorded",
+        await injectJson(
+          app,
+          "GET",
+          `/operator/manual-queue?campaignId=${campaign.campaignId}&status=all`
+        )
+      )
     );
     await injectJson(
       app,
@@ -185,6 +208,16 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
     );
     const finalReadiness = await injectJson(app, "GET", `/campaigns/${campaign.campaignId}/readiness`);
     readinessTimeline.push(readinessPoint("evidence_recorded", finalReadiness));
+    manualQueueTimeline.push(
+      manualQueuePoint(
+        "evidence_recorded",
+        await injectJson(
+          app,
+          "GET",
+          `/operator/manual-queue?campaignId=${campaign.campaignId}&status=all`
+        )
+      )
+    );
     const executionList = await injectJson(app, "GET", `/campaigns/${campaign.campaignId}/executions`);
     const persistedExecution = await injectJson(
       app,
@@ -200,6 +233,7 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
       openApiPaths,
       adapterRiskPosture,
       readinessTimeline,
+      manualQueueTimeline,
       finalMetrics: {
         contactedTargets: finalEvidence.proofPack.metrics.contactedTargets,
         sentMessages: finalEvidence.proofPack.metrics.sentMessages,
@@ -258,6 +292,16 @@ function readinessPoint(label: string, readiness: any) {
   };
 }
 
+function manualQueuePoint(label: string, queue: any) {
+  return {
+    label,
+    pendingInitialEvidence: queue.counts.pendingInitialEvidence,
+    replyMonitoring: queue.counts.replyMonitoring,
+    done: queue.counts.done,
+    items: queue.items.length
+  };
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const result = await runManualPilotRehearsal();
   console.log("# Manual Pilot Rehearsal");
@@ -266,6 +310,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   for (const point of result.readinessTimeline) {
     console.log(
       `- ${point.label}: ${point.status} (readyForExecution=${point.readyForExecution}, readyForEvidenceReview=${point.readyForEvidenceReview}, pendingManualEvidence=${point.pendingManualEvidence})`
+    );
+  }
+  console.log("");
+  console.log("## Manual Queue Timeline");
+  for (const point of result.manualQueueTimeline) {
+    console.log(
+      `- ${point.label}: pending=${point.pendingInitialEvidence}, replyMonitoring=${point.replyMonitoring}, done=${point.done}, returnedItems=${point.items}`
     );
   }
   console.log("");
@@ -278,6 +329,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         health: result.health,
         openApiPathCount: result.openApiPathCount,
         adapterRiskPosture: result.adapterRiskPosture,
+        manualQueueTimeline: result.manualQueueTimeline,
         finalMetrics: result.finalMetrics,
         executionListCount: result.executionListCount,
         renewalDecision: result.renewalDecision

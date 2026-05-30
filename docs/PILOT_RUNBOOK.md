@@ -78,14 +78,18 @@ curl -s http://127.0.0.1:3107/senders/sender-a/risk-events \
    records only for approved creators that remain queued or claimed.
 7. Delivery adapter returns sent, failed, restricted, replied, or
    `needs_manual_evidence`.
-8. Operator performs or verifies manual sends outside the codebase when the
+8. Operator checks `GET /operator/manual-queue` or
+   `GET /campaigns/:id/executions/:executionId/manual-queue` to see stable
+   intent ids, target handles, sender accounts, messages, allowed manual
+   events, and required evidence fields.
+9. Operator performs or verifies manual sends outside the codebase when the
    adapter requires human evidence.
-9. Operator records sent, failed, restricted, or replied evidence through
+10. Operator records sent, failed, restricted, or replied evidence through
    `POST /campaigns/:id/executions/:executionId/manual-events` with an
    `Idempotency-Key` for retry safety.
-10. Campaign events update status and outgoing webhooks notify Graphed.
-11. Execution proof record is persisted for audit replay.
-12. Proof-pack generator produces the renewal report with operator skipped and
+11. Campaign events update status and outgoing webhooks notify Graphed.
+12. Execution proof record is persisted for audit replay.
+13. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
 
 ## Readiness Gates
@@ -111,6 +115,12 @@ Readiness and execution use the current managed sender inventory when a
 campaign was scheduled from stored sender ids. If a sender is locked or cooling
 down after campaign creation, readiness blocks and execution returns a conflict
 instead of creating send intents for that account.
+
+`GET /operator/manual-queue` defaults to the same blocking work readiness calls
+pending manual evidence: manual attempts with no recorded evidence from the
+latest manual execution per campaign. Use `status=reply_monitoring` for sent
+messages that can still receive reply evidence, `status=done` for terminal
+attempts, and `status=all` for an audit view.
 
 ## Evidence Rules
 
@@ -156,10 +166,11 @@ suppression behavior without claiming a live Instagram send.
 
 The local OpenAPI contract is available at `/openapi.json`. Use it as the
 operator contract for the credential-free pilot path: campaign creation,
-approval, readiness, sender inventory, manual-safe execution, manual evidence,
-execution proof records, `/health`, and `/webhooks/preview`. Manual evidence
-schemas are event-specific, so sent, failed, restricted, and replied events
-list the required evidence fields separately.
+approval, readiness, sender inventory, manual-safe execution, operator manual
+queue, manual evidence, execution proof records, `/health`, and
+`/webhooks/preview`. Manual evidence schemas are event-specific, so sent,
+failed, restricted, and replied events list the required evidence fields
+separately.
 
 For a repeatable local proof-pack demo, run:
 
