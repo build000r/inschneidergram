@@ -115,6 +115,8 @@ The current implementation covers:
 - intake-to-API rehearsal that creates sender, campaign, approval, manual
   execution, handoff, dashboard, and manual queue state from the kit while
   stopping before fake delivery evidence
+- managed-provider bridge rehearsal that builds a provider handoff request from
+  approved send intents and records provider-reported outcomes through proof
 - pilot launch readiness report that turns campaign, approval, sender,
   creator vetting, launch authorization, execution, and proof state into
   pass/fail/warn gates plus next actions
@@ -228,6 +230,9 @@ The current implementation covers:
 41. Operators can rehearse validated intake files through the API up to
     `awaiting_manual_evidence`, proving the handoff produces actionable manual
     queue state without claiming live delivery.
+42. A managed provider can receive a handoff-shaped payload and return explicit
+    outcomes that flow through execution, callbacks, readiness, and proof-pack
+    metrics.
 
 ## Delivered Domain Slices
 
@@ -247,6 +252,7 @@ delivered at MVP proof level:
   DNS-pinned dispatch
 - pre-campaign launch packet and pilot handoff packet
 - live pilot intake kit, validation, and `npm run pilot:intake:rehearse`
+- managed-provider bridge rehearsal through `npm run pilot:provider-bridge`
 - cross-campaign operator dashboard
 - service smoke for managed-provider and manual paths
 - bounty submission packet and `npm run proof:bounty-local` evaluator gate
@@ -262,8 +268,9 @@ more local API shape:
    contract.
 2. Obtain private sender/provider access, a vetted Graphed creator list, the
    Graphed callback endpoint, and explicit launch authorization, then validate
-   and rehearse those files with `npm run pilot:intake:validate` and
-   `npm run pilot:intake:rehearse`.
+   and rehearse those files with `npm run pilot:intake:validate`,
+   `npm run pilot:intake:rehearse`, and, for provider-operated delivery,
+   `npm run pilot:provider-bridge`.
 3. Run one low-volume real pilot through the existing manual or
    managed-provider execution route.
 4. Record real sent, replied, failed, restricted, and incident evidence; replay
@@ -275,6 +282,11 @@ more local API shape:
 SQLite/Postgres persistence, an operator UI, automated cooldown detection, and
 monitoring are production hardening. They can improve adoption after the pilot,
 but they do not replace the live delivery/proof gate that decides the bounty.
+
+The provider bridge rehearsal narrows the expansion-path risk: the API can
+construct a provider handoff and consume provider outcomes without storing
+credentials. It still needs a real provider/account owner to operate Instagram
+delivery before it counts as live proof.
 
 ## Domain Detail Notes
 

@@ -1,10 +1,10 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T10:21:57Z
+Generated: 2026-05-30T10:34:14Z
 
-Validation run base: `06ad07b`
+Validation run base: `1e642ec`
 
-Validation target: the working tree after the live pilot intake API rehearsal
+Validation target: the working tree after the managed-provider bridge rehearsal
 slice. The next commit records this proof refresh with the implementation.
 
 Runtime:
@@ -24,26 +24,27 @@ Risk posture:
 - human evidence required: yes
 
 This is the credential-free proof surface for the current repo. It proves the
-API/control-plane, manual-pilot, managed-provider contract, launch packet,
-operator dashboard, proof export, live-intake handoff, runtime-secret, and
-webhook-proof surfaces are intact. It does not claim live Instagram delivery or
-completed Graphed outreach.
+API/control-plane, manual-pilot, managed-provider contract and bridge, launch
+packet, operator dashboard, proof export, live-intake handoff, runtime-secret,
+and webhook-proof surfaces are intact. It does not claim live Instagram
+delivery or completed Graphed outreach.
 
 ## Validation Summary
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, pilot intake validation/rehearsal, MMDX preflight, and MMDX publish dry-run |
+| `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, pilot intake validation/rehearsal, managed-provider bridge rehearsal, MMDX preflight, and MMDX publish dry-run |
 | `npm test` | Passed | 13 files, 112 tests |
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exited 0 |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
 | `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender |
 | `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, and manual queue state up to `awaiting_manual_evidence` |
+| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 provider outcomes, and reached `evidence_ready` through managed-provider execution |
 | `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths and verified the operator dashboard |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `817286f062e4584b85799588f61ee04f848bfcbb970b23cb713bd0f23c5669b7` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `034c561d01d3ef73687218f9ef3e04714b6fc2fcf205a22d87a804be5a5f87a6` |
 
 ## Live Pilot Intake Validation
 
@@ -111,6 +112,57 @@ This proves the intake handoff can create actionable API state: sender
 inventory, campaign scheduling, creator/copy approval, operator claims, manual
 execution, handoff, dashboard, and manual queue. It intentionally keeps the
 remaining live-pilot blocker on operator evidence.
+
+## Managed Provider Bridge Evidence
+
+`npm run pilot:provider-bridge` builds a managed-provider handoff from the
+validated intake files, then consumes provider-reported outcomes through the
+existing `adapter.kind=managed_provider` execution route:
+
+```text
+Provider endpoint: https://provider.example.com/inschneidergram/deliver
+Bridge handoff targets: 3
+Provider outcomes consumed: 3
+Readiness: evidence_ready
+```
+
+Machine summary from the proof run:
+
+```json
+{
+  "handoffTargetCount": 3,
+  "outcomeCount": 3,
+  "bridgeRequest": {
+    "provider": {
+      "id": "graphed-managed-provider",
+      "endpoint": "https://provider.example.com/inschneidergram/deliver",
+      "accountRiskOwner": "provider"
+    },
+    "launchAuthorizationReference": "graphed-managed-provider-approval-001",
+    "outcomeContract": "Provider must return exactly one accepted/rejected outcome with one or more sent/failed/restricted/replied events for every approved target."
+  },
+  "proofMetrics": {
+    "contactedTargets": 2,
+    "sentMessages": 2,
+    "replies": 1,
+    "interestedReplies": 1,
+    "deliveryFailures": 1,
+    "senderWarnings": 1,
+    "webhookDelivered": 4,
+    "webhookDeadLetters": 0
+  },
+  "readiness": {
+    "status": "evidence_ready",
+    "readyForEvidenceReview": true,
+    "externalInputs": []
+  }
+}
+```
+
+This narrows the provider-path gap: a managed provider can receive a handoff
+payload and return explicit outcomes that flow through execution, callbacks,
+readiness, and proof metrics. The fixture still is not live Instagram delivery;
+a real provider or account owner must replace it before bounty proof.
 
 ## Service Smoke Evidence
 
@@ -341,6 +393,9 @@ authorization.
 - The live pilot intake files can be rehearsed through campaign creation,
   approval, manual execution, handoff, dashboard, and manual queue creation
   with `npm run pilot:intake:rehearse`.
+- The managed-provider bridge can export approved send intents and consume
+  provider-reported outcomes into proof metrics with
+  `npm run pilot:provider-bridge`.
 - Production or non-loopback startup requires strong API and webhook secrets.
 - Public webhook destinations are DNS-checked and the sender uses the
   prevalidated DNS addresses for the outbound request.

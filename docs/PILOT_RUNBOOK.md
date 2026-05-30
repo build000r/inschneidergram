@@ -29,6 +29,17 @@ target has an explicit provider-reported outcome and the provider can produce
 the same evidence contract: sent, failed, restricted, replied, account-health
 events, webhook delivery, and proof-pack records.
 
+For the credential-free provider bridge rehearsal, run:
+
+```bash
+npm run pilot:provider-bridge
+```
+
+That command builds a provider handoff payload from the approved intake targets,
+then consumes fixture provider outcomes through the managed-provider execution
+route. It proves the bridge contract without claiming that the fixture contacted
+Instagram.
+
 ## Sender Accounts
 
 No credentials belong in this repo.

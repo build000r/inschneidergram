@@ -51,6 +51,7 @@ This repo currently contains the API/control-plane MVP:
 | Launch authorization gate | Working MVP | manual/provider execution requires a structured approval reference |
 | Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from refreshed execution evidence |
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
+| Managed provider bridge | Working MVP | `npm run pilot:provider-bridge` exports provider handoff intents and consumes provider outcomes |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
 | Operator manual delivery queue | Working MVP | `GET /operator/manual-queue` |
@@ -70,6 +71,7 @@ npm install
 npm run proof:bounty-local
 npm run pilot:intake:validate
 npm run pilot:intake:rehearse
+npm run pilot:provider-bridge
 npm test
 npm run build
 npm run smoke:service
@@ -80,8 +82,9 @@ npm run dev
 
 For bounty review, `npm run proof:bounty-local` is the one-command local proof
 gate. It runs the test, typecheck, build, service-smoke, manual-rehearsal,
-pilot-intake validation/rehearsal, mock-demo, MMDX preflight, and MMDX publish
-dry-run checks without requiring Instagram credentials.
+pilot-intake validation/rehearsal, managed-provider bridge rehearsal, mock-demo,
+MMDX preflight, and MMDX publish dry-run checks without requiring Instagram
+credentials.
 
 By default, the built server persists campaigns to `.data/campaigns.json`.
 Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
@@ -117,6 +120,13 @@ creator-provenance intake, campaign creation from stored sender ids, approval,
 readiness, manual-safe execution, sent/replied/restricted evidence with
 timestamps, sender-risk cooldown reconciliation, simulated webhook records, and
 final proof-pack renewal output.
+
+`npm run pilot:provider-bridge` runs the managed-provider handoff rehearsal. It
+loads the live intake examples plus `examples/managed-provider-bridge.example.json`,
+builds the provider handoff payload with approved send intents, then consumes
+provider-reported outcomes through `adapter.kind=managed_provider` to produce a
+proof pack. This is the bridge shape for a real managed-delivery endpoint; the
+fixture still does not claim live Instagram delivery.
 
 Inspect the local API contract:
 

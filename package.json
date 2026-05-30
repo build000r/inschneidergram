@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.build.json",
     "demo:manual-pilot": "tsx scripts/manual-pilot-rehearsal.ts",
     "demo:pilot": "tsx scripts/pilot-demo.ts",
+    "pilot:provider-bridge": "tsx scripts/managed-provider-bridge-rehearsal.ts",
     "pilot:intake:rehearse": "tsx scripts/pilot-intake-api-rehearsal.ts",
     "pilot:intake:validate": "tsx scripts/validate-pilot-intake.ts",
     "proof:bounty-local": "bash scripts/bounty-local-proof.sh",

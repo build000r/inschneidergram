@@ -28,6 +28,7 @@ The proof command runs the local gates that matter for bounty review:
 - production build
 - live pilot intake validation
 - live pilot intake API rehearsal
+- managed-provider bridge rehearsal
 - API-key protected service smoke
 - strict-provenance managed-sender manual rehearsal
 - deterministic mock pilot demo
@@ -46,6 +47,7 @@ Expected result: `Local bounty proof passed.`
 | Is sender risk modeled? | sender inventory, risk events, cooldown/lockout/reconnect states |
 | Are outcomes auditable? | execution records, manual queue/evidence, provider events, proof packs |
 | Can Graphed receive status? | signed runtime webhooks, replayable dead letters, proof-pack API |
+| Can a managed provider connect? | `npm run pilot:provider-bridge`, `examples/managed-provider-bridge.example.json` |
 | Is the repo honest about platform risk? | [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md), [BUILD_VS_CLONE.md](BUILD_VS_CLONE.md), adapter `officialColdDmCompliance: "not_claimed"` |
 
 ## Pilot Ask
@@ -76,6 +78,12 @@ executable intake files are:
 - `examples/live-pilot-senders.example.json`
 - `examples/live-pilot-launch-authorization.example.json`
 - `examples/live-pilot-webhook.example.json`
+- `examples/managed-provider-bridge.example.json`
+
+For a provider-operated path, `npm run pilot:provider-bridge` exports the
+approved send-intent handoff shape and then records provider-reported outcomes
+through the existing managed-provider execution route. A real provider endpoint
+can replace the fixture once Graphed supplies provider access and authorization.
 
 After those inputs exist, run the pilot through the flow in
 [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md), then publish the live

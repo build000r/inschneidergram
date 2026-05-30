@@ -36,6 +36,8 @@ content collaborations, or qualified pipeline.
   creation
 - rehearsal of those files through the API up to `awaiting_manual_evidence`
   with `npm run pilot:intake:rehearse`
+- managed-provider bridge rehearsal with `npm run pilot:provider-bridge` when
+  Graphed selects a provider-operated path
 
 ## Launch Readiness
 
@@ -51,6 +53,9 @@ created.
 `npm run pilot:intake:rehearse` then proves the files can create the real
 sender, campaign, approval, manual execution, handoff, dashboard, and manual
 queue state without inventing live delivery evidence.
+`npm run pilot:provider-bridge` proves the expansion path: approved send
+intents can be handed to a managed provider shape and provider-reported outcomes
+can flow back through the proof-pack route.
 
 Before running a created campaign, Graphed or the operator should call
 `GET /campaigns/:id/readiness`. The report classifies the campaign as blocked,

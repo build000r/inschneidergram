@@ -13,6 +13,7 @@ or webhook inputs fail locally instead of during launch.
 | `examples/live-pilot-senders.example.json` | Non-secret sender inventory for `PUT /senders/:id`; credentials and session material stay outside git |
 | `examples/live-pilot-launch-authorization.example.json` | `launchAuthorization` object required by manual execution |
 | `examples/live-pilot-webhook.example.json` | Callback URL, allowlist host, signing-secret owner, and dead-letter policy |
+| `examples/managed-provider-bridge.example.json` | Provider endpoint, managed-provider launch authorization, returned outcomes, reply assessments, and incidents for bridge rehearsal |
 
 The example files use placeholder creator handles, sender ids, and approval
 references. Replace them with private pilot values outside public artifacts.
@@ -82,6 +83,20 @@ Expected default output includes:
 Readiness after execution: awaiting_manual_evidence
 Pending manual evidence: 3
 ```
+
+## Rehearse Provider Bridge
+
+For a provider-operated path, run:
+
+```bash
+npm run pilot:provider-bridge
+```
+
+The provider bridge rehearsal builds a handoff payload with one send intent per
+approved scheduled target, then posts fixture provider outcomes through
+`adapter.kind=managed_provider`. It reaches `evidence_ready` only from
+provider-reported outcomes; replacing the fixture with a real provider endpoint
+still requires external provider access and permission.
 
 ## Live Pilot Use
 

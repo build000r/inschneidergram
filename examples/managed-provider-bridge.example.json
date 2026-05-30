@@ -1,0 +1,93 @@
+{
+  "provider": {
+    "id": "graphed-managed-provider",
+    "endpoint": "https://provider.example.com/inschneidergram/deliver",
+    "accountRiskOwner": "provider",
+    "requiresHumanEvidence": false,
+    "notes": [
+      "Provider bridge fixture; replace endpoint and outcomes with a managed delivery provider before live use.",
+      "The provider operates sender credentials outside this repo and returns one explicit outcome per approved target."
+    ]
+  },
+  "launchAuthorization": {
+    "actor": "Graphed pilot approver",
+    "deliveryPath": "managed_provider",
+    "approvedTargetLimit": 3,
+    "approvedAt": "2026-05-30T09:00:00.000Z",
+    "reference": "graphed-managed-provider-approval-001",
+    "evidenceUrl": "https://docs.graphed.com/approvals/inschneidergram-managed-provider-001",
+    "notes": "Approves the provider-operated sender path, creator list, first-touch copy, callback destination, target limit, and stop conditions for this bridge rehearsal."
+  },
+  "outcomes": [
+    {
+      "target": "@creator_one_live",
+      "outcome": "accepted",
+      "events": [
+        {
+          "type": "sent",
+          "messageId": "provider_msg_001",
+          "evidence": {
+            "providerRunId": "provider_run_001",
+            "providerAttemptId": "attempt_001"
+          }
+        }
+      ]
+    },
+    {
+      "target": "@creator_two_live",
+      "outcome": "accepted",
+      "events": [
+        {
+          "type": "sent",
+          "messageId": "provider_msg_002",
+          "evidence": {
+            "providerRunId": "provider_run_001",
+            "providerAttemptId": "attempt_002"
+          }
+        },
+        {
+          "type": "replied",
+          "messageId": "provider_msg_002",
+          "replyText": "Interested - send the brief.",
+          "evidence": {
+            "providerRunId": "provider_run_001",
+            "providerReplyId": "reply_002"
+          }
+        }
+      ]
+    },
+    {
+      "target": "@creator_three_live",
+      "outcome": "rejected",
+      "events": [
+        {
+          "type": "restricted",
+          "reason": "Provider reported sender cooldown before delivery.",
+          "evidence": {
+            "providerRunId": "provider_run_001",
+            "providerAttemptId": "attempt_003"
+          }
+        }
+      ]
+    }
+  ],
+  "replyAssessments": [
+    {
+      "targetHandle": "@creator_two_live",
+      "disposition": "interested",
+      "qualified": true,
+      "replyText": "Interested - send the brief.",
+      "note": "Provider bridge fixture reply assessment."
+    }
+  ],
+  "incidents": [
+    {
+      "kind": "sender_restriction",
+      "severity": "warning",
+      "at": "2026-05-30T09:20:00.000Z",
+      "note": "Provider fixture reported one sender cooldown.",
+      "targetHandle": "@creator_three_live",
+      "senderAccountId": "sender-graphed-manual-1"
+    }
+  ]
+}

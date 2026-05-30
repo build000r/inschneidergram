@@ -12,6 +12,7 @@ run npm test
 run npm run build
 run npm run pilot:intake:validate
 run npm run pilot:intake:rehearse
+run npm run pilot:provider-bridge
 run npm run smoke:service
 run npm run demo:manual-pilot
 run npm run demo:pilot
