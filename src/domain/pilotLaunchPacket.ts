@@ -80,6 +80,7 @@ export function buildPilotLaunchPacket(now = new Date()): PilotLaunchPacket {
       createCampaign: "/campaigns",
       campaignReadiness: "/campaigns/{campaignId}/readiness",
       campaignHandoff: "/campaigns/{campaignId}/pilot-handoff",
+      operatorDashboard: "/operator/dashboard",
       executeCampaign: "/campaigns/{campaignId}/executions",
       operatorManualQueue: "/operator/manual-queue",
       manualEvidence: "/campaigns/{campaignId}/executions/{executionId}/manual-events",
@@ -217,6 +218,13 @@ export function buildPilotLaunchPacket(now = new Date()): PilotLaunchPacket {
         path: "/campaigns/{campaignId}/pilot-handoff",
         state: "available_after_campaign",
         purpose: "Inspect campaign-specific missing inputs and next actions."
+      },
+      {
+        id: "check_operator_dashboard",
+        method: "GET",
+        path: "/operator/dashboard",
+        state: "available_after_campaign",
+        purpose: "Review cross-campaign readiness, manual work, sender health, dead letters, and proof status."
       },
       {
         id: "execute_or_queue",

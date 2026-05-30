@@ -90,7 +90,7 @@ outcomes back without scraping, burner accounts, or unsafe cold-DM claims.
 ## Current Reality
 
 The repo now has the API control plane, persisted local store, sender inventory,
-approval workbench, operator manual queue, manual evidence recording,
+approval workbench, operator dashboard, operator manual queue, manual evidence recording,
 sender-risk reconciliation for manual restrictions, readiness gates, creator
 profile provenance intake, follow-up planning, proof-pack generation, and a
 managed-provider execution contract for provider-reported outcomes. Execution
@@ -115,7 +115,10 @@ and validation commands. After a campaign exists, they can fetch
 pack without knowing the internal execution id, and
 `GET /campaigns/:id/pilot-handoff` turns readiness into a campaign-level
 operator packet with missing inputs, next API actions, evidence contracts, proof
-URLs, and stop conditions. Execution and proof records preserve the structured
+URLs, and stop conditions. `GET /operator/dashboard` rolls campaign readiness,
+manual queue counts, sender health, follow-up counts, runtime webhook dead
+letters, latest proof metrics, renewal decisions, and urgent actions into one
+operator surface. Execution and proof records preserve the structured
 launch authorization reference for manual and managed-provider pilots. The
 credential-free manual rehearsal now uses stored
 managed senders and strict creator-provenance intake, then proves that

@@ -78,7 +78,8 @@ JSON store and `INSCHNEIDERGRAM_API_KEY` enabled, checks `/health` and
 validates `GET /pilot-launch-packet`, creates a stored sender, approves a
 campaign, runs a provider-reported managed execution, then runs the selected
 manual path through the HTTP manual queue and manual evidence endpoints. It
-checks `GET /campaigns/:id/proof-pack` and confirms both paths reach
+checks `GET /campaigns/:id/proof-pack`, verifies `GET /operator/dashboard`
+summarizes both provider and manual paths, and confirms both paths reach
 `evidence_ready`. It uses no real credentials and does not claim live Instagram
 delivery.
 
@@ -147,7 +148,11 @@ private or special-use addresses before the outbound request is made.
     `settings.followUps`. The plan lists only contacted creators without reply,
     failure, or restriction evidence, with due/pending status, sequence,
     sender, message, and creator provenance for the next operator touch.
-18. Proof-pack generator produces the renewal report with operator skipped and
+18. Operator checks `GET /operator/dashboard` for the cross-campaign command
+    surface: readiness state, manual evidence counts, reply-monitoring work,
+    due follow-ups, sender-health blockers, runtime webhook dead letters,
+    latest proof metrics, renewal decisions, and source URLs.
+19. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
 
 ## Readiness Gates
@@ -190,6 +195,13 @@ credential boundaries, launch-authorization evidence fields, manual evidence
 requirements, provider outcome expectations, stop conditions, follow-up state,
 and latest proof context. Use it before moving from local rehearsal to a real
 Graphed pilot.
+
+`GET /operator/dashboard` is the operator overview for one or more active
+campaigns. It reuses the readiness, manual queue, follow-up, proof, sender
+health, and runtime webhook dead-letter surfaces, then returns urgent actions
+with source URLs. It does not store new state and it does not expose full proof
+Markdown or target-message payloads; operators should click through to the
+campaign-specific routes when they need details.
 
 `POST /campaigns/:id/executions` requires `launchAuthorization` for `manual`
 and `managed_provider` adapters. The authorization delivery path must match the

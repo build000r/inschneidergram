@@ -148,6 +148,10 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
   app.get("/pilot-launch-packet", async () => buildPilotLaunchPacket());
 
+  app.get("/operator/dashboard", async () =>
+    buildOperatorDashboard(store, runtimeWebhookDispatcher)
+  );
+
   app.get("/operator/manual-queue", async (request, reply) => {
     try {
       return await buildOperatorManualQueue(
@@ -852,6 +856,18 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                   schema: openApiPilotLaunchPacketSchema()
                 }
               }
+            },
+            "401": { description: "Valid API key required when deployment auth is enabled" }
+          }
+        }
+      },
+      "/operator/dashboard": {
+        get: {
+          summary: "Inspect cross-campaign operator pilot status",
+          responses: {
+            "200": {
+              description:
+                "Operator dashboard returned with campaign readiness, manual queue, sender health, follow-up, proof, and webhook dead-letter summaries"
             },
             "401": { description: "Valid API key required when deployment auth is enabled" }
           }
@@ -3154,6 +3170,196 @@ function pilotStopConditions() {
     "missing operator evidence",
     "webhook dead-letter that cannot be replayed before proof publication"
   ];
+}
+
+async function buildOperatorDashboard(
+  store: CampaignStore,
+  runtimeWebhookDispatcher: OutgoingWebhookDispatcher,
+  now = new Date()
+) {
+  const generatedAt = now.toISOString();
+  const campaigns = await store.list();
+  const senderAccounts = await store.listSenderAccounts();
+  const senderHealth = summarizeSenderInventory(senderAccounts);
+  const manualQueue = await buildOperatorManualQueue(
+    store,
+    {
+      status: "all",
+      includeHistorical: false,
+      limit: 500
+    },
+    now
+  );
+  const deadLetters = runtimeWebhookDispatcher.deadLetters();
+  const readinessStatusCounts: Record<string, number> = {};
+  const urgentActions: Array<Record<string, unknown>> = [];
+  const campaignSummaries = [];
+
+  for (const campaign of campaigns) {
+    const campaignForReadiness = await withCurrentSenderInventorySnapshot(store, campaign);
+    const approvalWorkbench = await store.getApprovalWorkbench(campaign.id);
+    const executions = await store.listExecutions(campaign.id);
+    const latestExecution = latestExecutionForCampaign(executions);
+    const latestManualExecution = selectManualExecutionsForQueue(executions, {
+      status: "all",
+      includeHistorical: false,
+      limit: 1
+    })[0];
+    const campaignManualQueue = latestManualExecution
+      ? buildManualDeliveryQueue(latestManualExecution, campaignForReadiness)
+      : null;
+    const readiness = buildPilotReadinessReport({
+      campaign: campaignForReadiness,
+      approvalWorkbench,
+      executions
+    });
+    const followUpPlan = buildFollowUpPlan({
+      campaign: campaignForReadiness,
+      executions,
+      generatedAt
+    });
+
+    readinessStatusCounts[readiness.status] =
+      (readinessStatusCounts[readiness.status] ?? 0) + 1;
+
+    if (readiness.externalInputs.length > 0) {
+      urgentActions.push({
+        id: `${campaignForReadiness.id}:external-inputs`,
+        priority: "high",
+        kind: "external_input",
+        campaignId: campaignForReadiness.id,
+        campaignName: campaignForReadiness.campaign,
+        label: "Resolve campaign external inputs",
+        count: readiness.externalInputs.length,
+        href: `/campaigns/${campaignForReadiness.id}/pilot-handoff`
+      });
+    }
+
+    if ((campaignManualQueue?.counts.pendingInitialEvidence ?? 0) > 0) {
+      urgentActions.push({
+        id: `${campaignForReadiness.id}:manual-evidence`,
+        priority: "high",
+        kind: "manual_evidence",
+        campaignId: campaignForReadiness.id,
+        campaignName: campaignForReadiness.campaign,
+        label: "Record pending manual delivery evidence",
+        count: campaignManualQueue?.counts.pendingInitialEvidence ?? 0,
+        href: `/campaigns/${campaignForReadiness.id}/executions/${campaignManualQueue?.executionId}/manual-queue`
+      });
+    }
+
+    if ((campaignManualQueue?.counts.replyMonitoring ?? 0) > 0) {
+      urgentActions.push({
+        id: `${campaignForReadiness.id}:reply-monitoring`,
+        priority: "medium",
+        kind: "reply_monitoring",
+        campaignId: campaignForReadiness.id,
+        campaignName: campaignForReadiness.campaign,
+        label: "Monitor sent manual outreach for replies",
+        count: campaignManualQueue?.counts.replyMonitoring ?? 0,
+        href: `/campaigns/${campaignForReadiness.id}/executions/${campaignManualQueue?.executionId}/manual-queue`
+      });
+    }
+
+    if (followUpPlan.counts.due > 0) {
+      urgentActions.push({
+        id: `${campaignForReadiness.id}:follow-ups-due`,
+        priority: "medium",
+        kind: "follow_up_due",
+        campaignId: campaignForReadiness.id,
+        campaignName: campaignForReadiness.campaign,
+        label: "Review due follow-up work",
+        count: followUpPlan.counts.due,
+        href: `/campaigns/${campaignForReadiness.id}/follow-ups`
+      });
+    }
+
+    campaignSummaries.push({
+      campaignId: campaignForReadiness.id,
+      campaignName: campaignForReadiness.campaign,
+      status: campaignForReadiness.status,
+      summary: campaignForReadiness.summary,
+      readiness: {
+        status: readiness.status,
+        readyForExecution: readiness.readyForExecution,
+        readyForEvidenceReview: readiness.readyForEvidenceReview,
+        pendingManualEvidence: readiness.counts.pendingManualEvidence,
+        externalInputs: readiness.externalInputs,
+        nextActions: readiness.nextActions
+      },
+      manualQueue: campaignManualQueue
+        ? {
+            executionId: campaignManualQueue.executionId,
+            counts: campaignManualQueue.counts,
+            manualQueueUrl:
+              `/campaigns/${campaignForReadiness.id}/executions/${campaignManualQueue.executionId}/manual-queue`
+          }
+        : null,
+      followUps: {
+        counts: followUpPlan.counts,
+        followUpsUrl: `/campaigns/${campaignForReadiness.id}/follow-ups`
+      },
+      proof: latestExecution
+        ? {
+            latestExecutionId: latestExecution.id,
+            metrics: latestExecution.proofPack.metrics,
+            renewalDecision: latestExecution.proofPack.renewalRecommendation.decision,
+            proofPackUrl: `/campaigns/${campaignForReadiness.id}/proof-pack`
+          }
+        : null,
+      source: pilotHandoffSourceUrls(campaignForReadiness.id, latestExecution?.id)
+    });
+  }
+
+  if (senderHealth.blocked > 0) {
+    urgentActions.push({
+      id: "sender-health:blocked",
+      priority: "high",
+      kind: "sender_health",
+      label: "Repair blocked or cooling-down sender accounts",
+      count: senderHealth.blocked,
+      href: "/senders/health"
+    });
+  }
+
+  if (deadLetters.length > 0) {
+    urgentActions.push({
+      id: "webhooks:dead-letters",
+      priority: "high",
+      kind: "webhook_dead_letter",
+      label: "Replay or resolve dead-lettered webhooks before publishing proof",
+      count: deadLetters.length,
+      href: "/webhooks/dead-letters"
+    });
+  }
+
+  return {
+    generatedAt,
+    counts: {
+      campaigns: campaignSummaries.length,
+      readiness: readinessStatusCounts,
+      readyForExecution: campaignSummaries.filter(
+        (campaign) => campaign.readiness.readyForExecution
+      ).length,
+      readyForEvidenceReview: campaignSummaries.filter(
+        (campaign) => campaign.readiness.readyForEvidenceReview
+      ).length
+    },
+    senderHealth,
+    manualQueue: {
+      counts: manualQueue.counts,
+      itemsReturned: manualQueue.items.length,
+      manualQueueUrl: "/operator/manual-queue?status=all"
+    },
+    webhooks: {
+      runtimeDeadLetters: deadLetters.length,
+      deadLetters: deadLetters.length,
+      runtimeDeadLettersUrl: "/webhooks/dead-letters",
+      deadLettersUrl: "/webhooks/dead-letters"
+    },
+    urgentActions,
+    campaigns: campaignSummaries
+  };
 }
 
 async function buildOperatorManualQueue(

@@ -1,12 +1,11 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T08:24:47Z
+Generated: 2026-05-30T09:01:25Z
 
-Validation run commit: `08c29eb`
+Validation run base: `e4eaeab`
 
-Validation target: the code/proof state before the later source-evidence docs
-refresh. The docs refresh does not change runtime behavior; rerun the commands
-below after code changes.
+Validation target: the working tree after the operator-dashboard status API
+slice. The next commit records this proof refresh with the implementation.
 
 Runtime:
 
@@ -26,17 +25,17 @@ Risk posture:
 
 This is the credential-free proof surface for the current repo. It proves the
 API/control-plane, manual-pilot, managed-provider contract, launch packet,
-proof export, runtime-secret, and webhook-proof surfaces are intact. It does
-not claim live Instagram delivery or completed Graphed outreach.
+operator dashboard, proof export, runtime-secret, and webhook-proof surfaces are
+intact. It does not claim live Instagram delivery or completed Graphed outreach.
 
 ## Validation Summary
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `npm test` | Passed | 13 files, 111 tests |
+| `npm test` | Passed | 13 files, 112 tests |
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exited 0 |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
-| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths |
+| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths and verified the operator dashboard |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
@@ -60,7 +59,7 @@ Machine-local temp store paths are omitted from this proof doc.
     }
   },
   "apiAuth": "enabled",
-  "openApiPathCount": 27,
+  "openApiPathCount": 28,
   "launchPacketInputs": 6,
   "contactedTargets": 1,
   "sentMessages": 1,
@@ -76,6 +75,13 @@ Machine-local temp store paths are omitted from this proof doc.
     "webhookDeadLetters": 0,
     "renewalDecision": "iterate"
   },
+  "operatorDashboard": {
+    "campaigns": 2,
+    "readyForEvidenceReview": 2,
+    "manualQueueDone": 2,
+    "senderBlocked": 1,
+    "deadLetters": 0
+  },
   "readiness": "evidence_ready"
 }
 ```
@@ -84,8 +90,10 @@ What this proves:
 
 - `/health` and the JSON store are service-checkable.
 - API-key protection is active for non-public routes in the smoke path.
-- `/openapi.json` exposes 27 documented paths.
+- `/openapi.json` exposes 28 documented paths.
 - `GET /pilot-launch-packet` exposes the pre-campaign private-input checklist.
+- `GET /operator/dashboard` aggregates readiness, manual queue, sender health,
+  runtime dead-letter, proof, and urgent-action status under API key auth.
 - Provider-reported execution can produce a proof export and readiness state.
 - The selected manual path works over the compiled service with API key auth,
   the JSON store, manual queue, timestamped manual evidence, webhook records,

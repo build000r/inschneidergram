@@ -2472,6 +2472,296 @@ describe("API", () => {
     await app.close();
   });
 
+  it("summarizes cross-campaign operator dashboard actions", async () => {
+    const app = await buildServer({
+      webhookSecret: "dashboard-secret",
+      async webhookSender() {
+        return { statusCode: 400 };
+      }
+    });
+
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-a",
+      payload: {
+        status: "healthy",
+        dailyLimit: 20,
+        warmupNote: "dashboard primary sender"
+      }
+    });
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-b",
+      payload: {
+        status: "healthy",
+        dailyLimit: 20,
+        warmupNote: "dashboard backup sender"
+      }
+    });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: [
+          {
+            target: "@dashboard_creator_one",
+            source: "graphed-sheet:row-1",
+            fitReason: "Audience overlaps the pilot offer"
+          },
+          {
+            target: "@dashboard_creator_two",
+            source: "graphed-sheet:row-2",
+            fitReason: "Strong creator fit for the campaign"
+          }
+        ],
+        message: "Open to a managed creator outreach pilot?",
+        campaign: "operator-dashboard-pilot",
+        settings: {
+          senderPool: ["sender-a", "sender-b"],
+          requireTargetProvenance: true,
+          followUps: [
+            {
+              delayHours: 1,
+              message: "Checking back before I close the loop."
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@dashboard_creator_one", "@dashboard_creator_two"],
+        approveMessage: true,
+        actor: "dashboard-approver"
+      }
+    });
+    const executionResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 2,
+          reference: "dashboard-launch"
+        })
+      }
+    });
+    const executionId = executionResponse.json().executionId;
+
+    const pendingDashboard = await app.inject({
+      method: "GET",
+      url: "/operator/dashboard"
+    });
+    expect(pendingDashboard.statusCode).toBe(200);
+    expect(pendingDashboard.json()).toMatchObject({
+      counts: {
+        campaigns: 1,
+        readiness: {
+          awaiting_manual_evidence: 1
+        }
+      },
+      senderHealth: {
+        total: 2,
+        blocked: 0
+      },
+      manualQueue: {
+        counts: {
+          total: 2,
+          pendingInitialEvidence: 2,
+          replyMonitoring: 0,
+          done: 0
+        }
+      },
+      campaigns: [
+        expect.objectContaining({
+          campaignId,
+          campaignName: "operator-dashboard-pilot",
+          readiness: expect.objectContaining({
+            status: "awaiting_manual_evidence",
+            pendingManualEvidence: 2
+          }),
+          manualQueue: expect.objectContaining({
+            executionId,
+            manualQueueUrl: `/campaigns/${campaignId}/executions/${executionId}/manual-queue`,
+            counts: {
+              total: 2,
+              pendingInitialEvidence: 2,
+              replyMonitoring: 0,
+              done: 0
+            }
+          }),
+          followUps: {
+            counts: {
+              total: 0,
+              due: 0,
+              pending: 0
+            },
+            followUpsUrl: `/campaigns/${campaignId}/follow-ups`
+          },
+          source: expect.objectContaining({
+            proofPackUrl: `/campaigns/${campaignId}/proof-pack`,
+            webhookDeadLettersUrl: "/webhooks/dead-letters"
+          })
+        })
+      ],
+      urgentActions: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "manual_evidence",
+          campaignId,
+          count: 2,
+          href: `/campaigns/${campaignId}/executions/${executionId}/manual-queue`
+        })
+      ])
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        eventId: "dashboard-sent-1",
+        target: "@dashboard_creator_one",
+        type: "sent",
+        occurredAt: "2026-05-30T01:00:00.000Z",
+        messageId: "dashboard_msg_1",
+        simulateWebhookDelivery: true,
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/dashboard_creator_one",
+          screenshotUrl: "s3://proof/dashboard-sent.png"
+        }
+      }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        eventId: "dashboard-restricted-1",
+        target: "@dashboard_creator_two",
+        type: "restricted",
+        occurredAt: "2026-05-30T01:05:00.000Z",
+        reason: "Dashboard test restriction",
+        simulateWebhookDelivery: true,
+        evidence: {
+          operatorId: "op_1",
+          screenshotUrl: "s3://proof/dashboard-restricted.png",
+          restrictionSource: "dashboard-test"
+        }
+      }
+    });
+    const deadLetterCampaign = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@dashboard_dead_letter"],
+        message: "Open to a managed creator outreach pilot?",
+        campaign: "operator-dashboard-dead-letter",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/dashboard"
+        }
+      }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${deadLetterCampaign.json().campaignId}/events`,
+      payload: {
+        target: "@dashboard_dead_letter",
+        event: "failed",
+        eventId: "dashboard_dead_letter",
+        error: "callback rejected"
+      }
+    });
+
+    const dashboard = await app.inject({
+      method: "GET",
+      url: "/operator/dashboard"
+    });
+    expect(dashboard.statusCode).toBe(200);
+    expect(dashboard.json()).toMatchObject({
+      counts: {
+        campaigns: 2,
+        readiness: expect.objectContaining({
+          evidence_ready: 1
+        }),
+        readyForEvidenceReview: 1
+      },
+      senderHealth: {
+        total: 2,
+        blocked: 1
+      },
+      manualQueue: {
+        counts: {
+          total: 2,
+          pendingInitialEvidence: 0,
+          replyMonitoring: 1,
+          done: 1
+        }
+      },
+      webhooks: {
+        deadLetters: 1,
+        deadLettersUrl: "/webhooks/dead-letters"
+      },
+      urgentActions: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "reply_monitoring",
+          campaignId,
+          count: 1
+        }),
+        expect.objectContaining({
+          kind: "follow_up_due",
+          campaignId,
+          count: 1,
+          href: `/campaigns/${campaignId}/follow-ups`
+        }),
+        expect.objectContaining({
+          kind: "sender_health",
+          count: 1,
+          href: "/senders/health"
+        }),
+        expect.objectContaining({
+          kind: "webhook_dead_letter",
+          count: 1,
+          href: "/webhooks/dead-letters"
+        })
+      ]),
+      campaigns: expect.arrayContaining([
+        expect.objectContaining({
+          campaignId,
+          readiness: expect.objectContaining({
+            status: "evidence_ready",
+            pendingManualEvidence: 0
+          }),
+          manualQueue: expect.objectContaining({
+            counts: {
+              total: 2,
+              pendingInitialEvidence: 0,
+              replyMonitoring: 1,
+              done: 1
+            }
+          }),
+          followUps: {
+            counts: {
+              total: 1,
+              due: 1,
+              pending: 0
+            },
+            followUpsUrl: `/campaigns/${campaignId}/follow-ups`
+          },
+          proof: expect.objectContaining({
+            latestExecutionId: executionId,
+            renewalDecision: "iterate",
+            proofPackUrl: `/campaigns/${campaignId}/proof-pack`
+          })
+        })
+      ])
+    });
+
+    await app.close();
+  });
+
   it("executes approved targets through managed provider outcomes", async () => {
     const app = await buildServer({ webhookSecret: "provider-secret" });
     const createResponse = await app.inject({
@@ -4220,6 +4510,18 @@ describe("API", () => {
               required: ["kind", "note"]
             }
           }
+        }
+      }
+    });
+    expect(openapi.paths["/operator/dashboard"].get).toMatchObject({
+      summary: "Inspect cross-campaign operator pilot status",
+      responses: {
+        "200": {
+          description:
+            "Operator dashboard returned with campaign readiness, manual queue, sender health, follow-up, proof, and webhook dead-letter summaries"
+        },
+        "401": {
+          description: "Valid API key required when deployment auth is enabled"
         }
       }
     });

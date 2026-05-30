@@ -42,6 +42,7 @@ This repo currently contains the API/control-plane MVP:
 | Pre-campaign launch packet | Working MVP | `GET /pilot-launch-packet` exports private-input requirements before a campaign exists |
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
 | Pilot handoff packet | Working MVP | `GET /campaigns/:id/pilot-handoff` turns readiness into operator actions |
+| Operator dashboard | Working MVP | `GET /operator/dashboard` aggregates readiness, manual queue, sender health, follow-ups, proof, and runtime dead letters |
 | Launch authorization gate | Working MVP | manual/provider execution requires a structured approval reference |
 | Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from refreshed execution evidence |
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
@@ -90,8 +91,8 @@ isolated JSON store and API key protection enabled, verifies `/health` and
 requests, validates the protected pre-campaign launch packet, registers a
 sender, creates and approves a campaign, runs a managed-provider contract
 execution, then runs the selected manual path through HTTP manual-queue and
-manual-evidence endpoints. It checks proof exports and confirms both paths reach
-`evidence_ready`.
+manual-evidence endpoints. It checks proof exports and the operator dashboard,
+then confirms both paths reach `evidence_ready`.
 
 `npm run demo:pilot` runs a deterministic local proof-pack demo with mock
 delivery, simulated signed webhook delivery records, and no live Instagram
@@ -157,12 +158,12 @@ docker run --rm -p 3107:3107 \
 ```
 
 The OpenAPI document includes the no-credential pilot flow: managed sender
-inventory, campaign creation, approval workbench, readiness, manual-safe
-execution, provider-reported managed execution, operator manual queue, manual
-evidence, proof records, webhook dead-letter replay, health, webhook signature
-preview, and optional API key security schemes. Templated routes document path
-parameters, and manual evidence schemas are split by event type so operators
-can see the required proof fields before a run.
+inventory, campaign creation, approval workbench, readiness, dashboard,
+manual-safe execution, provider-reported managed execution, operator manual
+queue, manual evidence, proof records, webhook dead-letter replay, health,
+webhook signature preview, and optional API key security schemes. Templated
+routes document path parameters, and manual evidence schemas are split by event
+type so operators can see the required proof fields before a run.
 
 Register a non-secret sender account before scheduling a managed campaign:
 
@@ -501,6 +502,13 @@ boundaries, manual evidence requirements, managed-provider expectations, proof
 criteria, and stop conditions. Use it before a real pilot handoff so Graphed can
 see exactly which external input or API call remains.
 
+`GET /operator/dashboard` is the cross-campaign operator command surface. It
+aggregates campaign readiness, current manual-queue counts, sender inventory
+health, runtime webhook dead letters, follow-up counts, latest proof metrics,
+renewal decisions, urgent actions, and source URLs. It intentionally reports
+replayable runtime dead letters separately from persisted proof metrics, so a
+restarted process does not imply old proof dead letters are still replayable.
+
 `GET /campaigns/:id/proof-pack` exports the latest proof record with readiness
 context, source URLs, metrics, renewal recommendation, and Markdown. It returns
 `404 proof_pack_not_found` when the campaign has not produced execution proof
@@ -611,10 +619,12 @@ trusted provider that already owns that operational risk.
 
 1. Use `GET /pilot-launch-packet` to collect the private creator, sender,
    callback, and authorization inputs.
-2. Connect verified provider/account operations to the managed-provider contract.
-3. Bring a verified sender account and vetted creator list into a controlled pilot.
-4. Run the pilot with structured launch authorization and low sender limits.
-5. Publish live reliability evidence using the proof-pack generator.
+2. Use `GET /operator/dashboard` during setup to keep sender health, manual
+   evidence, follow-ups, and webhook dead letters visible from one surface.
+3. Connect verified provider/account operations to the managed-provider contract.
+4. Bring a verified sender account and vetted creator list into a controlled pilot.
+5. Run the pilot with structured launch authorization and low sender limits.
+6. Publish live reliability evidence using the proof-pack generator.
 
 ## Limitations
 

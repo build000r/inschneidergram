@@ -24,6 +24,7 @@ describe("manual pilot rehearsal", () => {
         "/senders",
         "/senders/{id}",
         "/senders/{id}/risk-events",
+        "/operator/dashboard",
         "/operator/manual-queue",
         "/campaigns",
         "/campaigns/{id}/readiness",

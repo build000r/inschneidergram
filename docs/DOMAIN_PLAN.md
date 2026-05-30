@@ -77,6 +77,9 @@ The current implementation covers:
 - non-simulated executions route proof webhook deliveries through the runtime
   webhook sender instead of the local simulator
 - operator routes list dead-lettered webhooks and replay one failed delivery
+- operator dashboard route that aggregates campaign readiness, manual queue
+  counts, sender health, follow-up counts, latest proof metrics, renewal
+  decisions, runtime dead-letter counts, urgent actions, and source URLs
 - webhook destination policy that requires public HTTPS callback URLs, rejects
   localhost/private/special-use destinations, supports an explicit host
   allowlist, blocks private DNS answers before real sends, and guards both
@@ -130,7 +133,8 @@ The current implementation covers:
   webhook secret
 - `/health` reports JSON store readiness instead of only process liveness
 - one-command service smoke that starts the built API process with an isolated
-  store and proves the approval-to-provider-execution path
+  store and proves the approval-to-provider-execution, manual evidence, and
+  operator dashboard paths
 - Docker packaging for the API with `/data/campaigns.json` as the default
   durable store path
 - optional API key protection for network-exposed deployments, leaving
@@ -231,6 +235,7 @@ delivered at MVP proof level:
 - runtime webhooks, dead-letter listing/replay, callback destination guard, and
   DNS-pinned dispatch
 - pre-campaign launch packet and pilot handoff packet
+- cross-campaign operator dashboard
 - service smoke for managed-provider and manual paths
 - Docker/runtime config, health checks, and strong API/webhook secret gate
 
@@ -325,6 +330,14 @@ source plus fit rationale.
 The operator manual queue is a read model over execution delivery attempts. It
 defaults to pending initial manual evidence from the latest manual execution per
 campaign and can also show reply monitoring or terminal attempts for audit.
+
+The operator dashboard is a thin aggregation surface over existing read models,
+not a new state store. It gives Graphed or an operator one API call for
+readiness distribution, latest manual queue counts, sender-health blockers,
+runtime webhook dead letters, due follow-ups, latest proof metrics, renewal
+decisions, urgent actions, and source URLs. Runtime dead letters are intentionally
+reported separately from persisted proof metrics because only the in-memory
+runtime dispatcher can replay them.
 
 ### Sender Account Operations
 

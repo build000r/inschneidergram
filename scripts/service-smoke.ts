@@ -48,11 +48,31 @@ interface ReadinessResponse {
 
 interface ManualQueueResponse {
   counts: {
+    total: number;
     pendingInitialEvidence: number;
     replyMonitoring: number;
     done: number;
   };
   items: unknown[];
+}
+
+interface OperatorDashboardResponse {
+  counts: {
+    campaigns: number;
+    readyForEvidenceReview: number;
+  };
+  senderHealth: {
+    blocked: number;
+  };
+  manualQueue: {
+    counts: ManualQueueResponse["counts"];
+  };
+  webhooks: {
+    deadLetters: number;
+  };
+  urgentActions: Array<{
+    kind: string;
+  }>;
 }
 
 interface FetchJsonInit {
@@ -110,6 +130,7 @@ async function main(): Promise<void> {
     const openapi = await fetchJson<{ paths: Record<string, unknown> }>(baseUrl, "/openapi.json");
     await assertRouteRequiresApiKey(baseUrl, "/campaigns");
     await assertRouteRequiresApiKey(baseUrl, "/pilot-launch-packet");
+    await assertRouteRequiresApiKey(baseUrl, "/operator/dashboard");
     const protectedFetch = <T>(path: string, init: FetchJsonInit = {}) =>
       fetchJson<T>(baseUrl, path, {
         ...init,
@@ -238,6 +259,24 @@ async function main(): Promise<void> {
       throw new Error(`Expected proof export readiness evidence_ready, got ${proofExport.readiness.status}`);
     }
     const manualServicePath = await runManualServicePath(protectedFetch);
+    const dashboard = await protectedFetch<OperatorDashboardResponse>("/operator/dashboard");
+    if (dashboard.counts.campaigns !== 2 || dashboard.counts.readyForEvidenceReview !== 2) {
+      throw new Error(`Unexpected dashboard campaign counts: ${JSON.stringify(dashboard.counts)}`);
+    }
+    if (dashboard.manualQueue.counts.done !== 2 || dashboard.manualQueue.counts.total !== 2) {
+      throw new Error(
+        `Unexpected dashboard manual queue counts: ${JSON.stringify(dashboard.manualQueue.counts)}`
+      );
+    }
+    if (dashboard.senderHealth.blocked !== 1) {
+      throw new Error(`Expected one blocked sender in dashboard, got ${dashboard.senderHealth.blocked}`);
+    }
+    if (dashboard.webhooks.deadLetters !== 0) {
+      throw new Error(`Expected zero dashboard dead letters, got ${dashboard.webhooks.deadLetters}`);
+    }
+    if (!dashboard.urgentActions.some((action) => action.kind === "sender_health")) {
+      throw new Error("Expected dashboard to surface sender health action after restriction evidence");
+    }
 
     console.log(
       JSON.stringify(
@@ -252,6 +291,13 @@ async function main(): Promise<void> {
           sentMessages: execution.proofPack.metrics.sentMessages,
           proofExportContactedTargets: proofExport.metrics.contactedTargets,
           manualServicePath,
+          operatorDashboard: {
+            campaigns: dashboard.counts.campaigns,
+            readyForEvidenceReview: dashboard.counts.readyForEvidenceReview,
+            manualQueueDone: dashboard.manualQueue.counts.done,
+            senderBlocked: dashboard.senderHealth.blocked,
+            deadLetters: dashboard.webhooks.deadLetters
+          },
           readiness: finalReadiness.status,
           storePath
         },

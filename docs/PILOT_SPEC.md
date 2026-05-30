@@ -53,6 +53,10 @@ executions are exempt for local rehearsal.
 operator packet: source URLs, next API actions, missing external inputs,
 creator/sender/evidence contracts, launch-authorization expectations, proof
 criteria, stop conditions, follow-up state, and latest execution context.
+`GET /operator/dashboard` rolls those campaign-level surfaces up for the
+operator: readiness counts, manual evidence and reply-monitoring work, due
+follow-ups, current sender health, replayable runtime webhook dead letters,
+latest proof metrics, renewal decisions, urgent actions, and source URLs.
 For campaigns scheduled from managed sender ids, readiness rechecks the current
 stored sender inventory so post-creation lockouts or cooldowns block launch.
 Manual `restricted` evidence for managed senders writes back into that sender
@@ -133,6 +137,10 @@ blocked.
 For manual executions, the operator queue should be the working surface. It
 lists the latest manual attempts that still need initial evidence by default,
 then exposes reply-monitoring and done views for audit and renewal review.
+For multi-campaign operation, the operator dashboard should be the starting
+surface. It shows what is blocked, what needs evidence, what is due for
+follow-up, which senders are unhealthy, and whether callback dead letters must
+be replayed before proof is published.
 
 ## Proof Pack Generator
 
