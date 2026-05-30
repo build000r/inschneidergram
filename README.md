@@ -3,12 +3,12 @@
 API-first Instagram creator outreach control plane for managed campaign pilots.
 
 Inschneidergram is being built for a specific bounty: Graphed wants a
-production-ready, HeyReach-style Instagram creator outreach product that can
-accept a list of creator profiles, campaign settings, message copy, optional
-follow-up logic, and then return delivery/reply status through an API or
-webhook. The sharper wedge is policy-aware orchestration: decide which creators
-are worth contacting, queue the safest approved action, and make every delivery
-outcome auditable.
+production-ready Instagram creator outreach product that can accept a list of
+creator profiles, campaign settings, message copy, optional follow-up logic,
+and then return delivery/reply status through an API or webhook. The sharper
+wedge is policy-aware orchestration: decide which creators are worth
+contacting, queue the safest approved action, and make every delivery outcome
+auditable.
 
 The important product bet is the managed layer. The buyer does not want a local
 browser script to host, babysit, or repair. They want a service interface that
@@ -17,7 +17,7 @@ and platform-change maintenance.
 
 ## Current Status
 
-This repo currently contains the first API/control-plane slice:
+This repo currently contains the API/control-plane MVP:
 
 | Requirement from bounty | Status | Evidence |
 | --- | --- | --- |
@@ -589,12 +589,13 @@ operation.
 
 ## Why Not Just Use the Official Instagram API?
 
-Current research indicates that the official Instagram Messaging API is built
-around user-initiated conversation windows, not arbitrary cold outreach to any
-profile. That does not invalidate the bounty, but it changes the product shape:
-the winning product must be honest about compliance boundaries and either
-operate a managed delivery layer or integrate a trusted provider that already
-owns that operational risk.
+Current public-source evidence shows official Instagram messaging APIs are
+professional-account inbox and reply surfaces, not a blanket compliance
+guarantee for arbitrary cold outreach to any profile. See
+[Source evidence](docs/SOURCE_EVIDENCE.md). That does not invalidate the bounty,
+but it changes the product shape: the winning product must be honest about
+compliance boundaries and either operate a managed delivery layer or integrate a
+trusted provider that already owns that operational risk.
 
 ## Design Principles
 
@@ -628,6 +629,7 @@ a pilot that completes meaningful creator outreach.
 - [Vision](docs/VISION.md)
 - [Bounty requirements](docs/BOUNTY_REQUIREMENTS.md)
 - [Build-vs-clone analysis](docs/BUILD_VS_CLONE.md)
+- [Source evidence](docs/SOURCE_EVIDENCE.md)
 - [Power map](docs/POWER_MAP.md)
 - [Domain plan](docs/DOMAIN_PLAN.md)
 - [Pilot spec](docs/PILOT_SPEC.md)

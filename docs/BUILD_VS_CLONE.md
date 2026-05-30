@@ -13,11 +13,15 @@ for a managed operational layer that Graphed can call programmatically without
 owning sender accounts, browser automation, infrastructure maintenance, or
 Instagram breakage.
 
-Existing products prove demand and product shape, but most public products are
-inbound/comment-to-DM automation rather than outbound creator-list outreach.
-Open-source private API clients can be useful for prototyping, but adopting one
-would fail the managed-product and reliability bar by pushing platform risk into
-the repo.
+Public platform and provider sources prove there is a real Instagram messaging
+automation/inbox market, but they do not prove official permission for arbitrary
+cold outbound creator-list DMs. Sampled public products should be treated as
+evidence of product shape only: ManyChat-style official automation patterns,
+Unipile-style provider APIs, and the Waveloop/Lyncly/DMFlow-style no-password,
+inbox, webhook, analytics, and safety positioning named in the audit are
+inspiration, not drop-in proof. Open-source private API clients can be useful
+for prototyping, but adopting one would fail the managed-product and reliability
+bar by pushing platform risk into the repo.
 
 ## Placement
 
@@ -82,7 +86,7 @@ The repo now models this as a domain-level managed delivery adapter contract:
   `POST /campaigns/:id/executions` while retaining the same risk-posture and
   event-reporting contract.
 
-## Next Build Slice
+## Delivered Build Slices
 
 The service-hardening slice now exists: startup config is validated, production
 or non-loopback startup requires strong API/webhook secrets, `/health` checks
@@ -102,6 +106,8 @@ credential boundary, delivery-path options, launch-authorization template,
 proof metrics, stop conditions, sample campaign payload, and validation
 commands before submitting a live creator list.
 
+## Next Build Work
+
 The next build work should stay in this repo but move closer to pilot
 operations: operator-facing status views and the adapter implementation for
 whichever real provider/account operation the pilot uses. A real Instagram
@@ -111,10 +117,18 @@ directly into the core product.
 
 ## Source Notes
 
-- Meta's Instagram Send API documentation says conversations begin only after
-  an Instagram user messages the professional account, and the recipient must
-  have messaged the IG professional account before API send.
-- ManyChat's messaging-window guidance reflects the 24-hour automation window
-  constraints common to official Meta messaging automation.
-- Unipile and private API libraries are adapter candidates, not compliance
-  shields; if used, the product must name and own the operational risk.
+See [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md) for retrieval dates, URLs, and
+access caveats.
+
+- Meta's Instagram Messaging docs describe messaging solutions for Instagram
+  Professional accounts, including receiving/responding to inbox messages and
+  private replies. That supports the "borrow official messaging patterns"
+  decision, not an official cold-DM compliance claim.
+- The Postman public Meta Instagram collection is a useful API-shape reference,
+  but it is not permission evidence for outbound creator-list outreach.
+- Unipile's public Instagram API page shows third-party provider capabilities
+  such as account linking, realtime webhooks, quota/proxy protection, and
+  unified provider APIs. That makes provider adapters plausible, but not a
+  compliance shield.
+- ManyChat messaging-window evidence is intentionally omitted from strong
+  claims until it is available from a citation-grade source.

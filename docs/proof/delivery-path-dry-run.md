@@ -2,10 +2,11 @@
 
 Generated: 2026-05-30T08:24:47Z
 
-Validation base HEAD: `02b042b`
+Validation run commit: `08c29eb`
 
-Validation target: the working tree that produced the commit containing this
-file.
+Validation target: the code/proof state before the later source-evidence docs
+refresh. The docs refresh does not change runtime behavior; rerun the commands
+below after code changes.
 
 Runtime:
 

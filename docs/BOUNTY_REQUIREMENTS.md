@@ -1,6 +1,11 @@
 # Bounty Requirements
 
-Source: Graphed Notion bounty page, retrieved 2026-05-30.
+Source basis: Graphed Notion bounty URL from the user prompt, retrieved
+2026-05-30. See [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md) for access limits:
+the URL is reachable, but unauthenticated HTML does not expose stable bounty
+body text in this shell, so this document should be treated as
+operator-provided bounty interpretation until a reviewer with page access
+cross-checks it.
 
 ## What Graphed Wants
 

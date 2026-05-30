@@ -214,33 +214,48 @@ The current implementation covers:
     storing campaigns and before dispatching legacy callback records.
 39. Tests prove the API contract and domain rules.
 
-## Next Domain Slices
+## Delivered Domain Slices
 
-### Persistent Campaign Store
+The repo-local API/control-plane slices that were formerly "next" are now
+delivered at MVP proof level:
 
-Harden the JSON-backed store into durable SQLite/Postgres storage with migration
-checks. The current slice already persists campaigns, events, idempotency keys,
-and suppression records locally.
+- campaign API and duplicate-safe scheduling
+- JSON-backed local store with idempotency and suppression records
+- approval workbench and operator state APIs
+- sender inventory, health, risk events, and manual restriction reconciliation
+- execution readiness gates, pending-manual-evidence guard, and launch
+  authorization
+- manual delivery queue plus timestamped manual evidence recording
+- managed-provider outcome contract
+- proof-pack generation, campaign-level proof export, and follow-up planning
+- runtime webhooks, dead-letter listing/replay, callback destination guard, and
+  DNS-pinned dispatch
+- pre-campaign launch packet and pilot handoff packet
+- service smoke for managed-provider and manual paths
+- Docker/runtime config, health checks, and strong API/webhook secret gate
 
-### Deployment and Operations Hardening
+## Remaining Before Bounty
 
-The API now has predictable startup configuration, optional API key protection,
-webhook destination allowlisting/private-network blocking, container/runtime
-health checks, durable store path setup, Docker packaging, and an
-operator-facing service smoke command that runs with auth enabled. This slice is
-repo-local and does not require real Instagram credentials; it makes the current
-control plane easier to evaluate and operate while live provider/account inputs
-remain blocked.
+The remaining bounty blockers are external operation and evidence gates, not
+more local API shape:
 
-### Approval Store and API
+1. Select and provision the live delivery operation: operator-run managed
+   manual sender or a real managed provider behind the existing adapter
+   contract.
+2. Obtain private sender/provider access, a vetted Graphed creator list, the
+   Graphed callback endpoint, and explicit launch authorization.
+3. Run one low-volume real pilot through the existing manual or
+   managed-provider execution route.
+4. Record real sent, replied, failed, restricted, and incident evidence; replay
+   any dead-letter webhooks before publishing proof.
+5. Publish `GET /campaigns/:id/proof-pack` from real pilot records.
+6. Publish the project-status MMDX public Buildooor short link.
 
-Persist approval workbenches and expose routes for candidate decisions, copy
-decisions, operator claims, and evidence capture. The current API now persists
-approval workbenches, exposes candidate/copy decision routes, persists operator
-claim plus skip/block state, and lets execution reuse stored approvals while
-excluding non-actionable candidates. Workbench-native sent evidence remains
-domain-only; manual execution evidence is currently handled through the
-execution `manual-events` API.
+SQLite/Postgres persistence, an operator UI, automated cooldown detection, and
+monitoring are production hardening. They can improve adoption after the pilot,
+but they do not replace the live delivery/proof gate that decides the bounty.
+
+## Domain Detail Notes
 
 ### Managed Delivery Adapter
 
