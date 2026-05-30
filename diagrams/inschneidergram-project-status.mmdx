@@ -40,6 +40,7 @@ flowchart LR
   contract["GREEN Hardened OpenAPI pilot contract"]
   rehearsal["GREEN Manual pilot rehearsal + provenance/sender-risk proof"]
   serviceSmoke["GREEN Service smoke for provider + manual + dashboard paths"]
+  dockerSmoke["GREEN Docker runtime smoke proof"]
   apiAuth["GREEN Strong API/webhook secret deployment gate"]
   evaluatorPacket["GREEN Bounty submission packet + one-command local proof"]
   acceptanceMatrix["GREEN Bounty acceptance evidence matrix"]
@@ -93,7 +94,9 @@ flowchart LR
   readiness --> contract
   contract --> rehearsal
   rehearsal --> serviceSmoke
+  serviceSmoke --> dockerSmoke
   serviceSmoke --> apiAuth
+  dockerSmoke --> apiAuth
   contract --> apiAuth
   apiAuth --> evaluatorPacket
   intakeKit --> evaluatorPacket
@@ -124,6 +127,7 @@ flowchart LR
   contract --> beads
   rehearsal --> beads
   apiAuth --> beads
+  dockerSmoke --> beads
   providerContract --> beads
   statusLink --> beads
   evaluatorPacket --> beads
@@ -156,6 +160,7 @@ flowchart LR
   class contract green
   class rehearsal green
   class serviceSmoke green
+  class dockerSmoke green
   class apiAuth green
   class evaluatorPacket green
   class acceptanceMatrix green
@@ -428,6 +433,7 @@ flowchart TD
   tests["GREEN npm test covers API/store/senders/sender-risk-reconciliation/approval/operator-dashboard/operator/manual-queue/managed-provider-evidence/atomic-evidence/execution-gating/fresh-evidence-backed-launch-authorization-gating/pending-manual-evidence-gating/proof-export/proof-freshness/pilot-handoff/pre-campaign-launch-packet/follow-ups/auth/runtime-webhooks/manual-evidence-runtime-webhooks/webhook-guard/creator-provenance/operator-proof/readiness/openapi/provenance-sender-manual-rehearsal/runtime/domain"]
   typecheck["GREEN typecheck green"]
   smoke["GREEN npm run smoke:service builds first and passed provider + manual paths plus operator dashboard with API key enabled"]
+  dockerSmoke["GREEN npm run smoke:docker builds the image and verifies container health/auth/launch packet"]
   sourceDoc["GREEN source evidence doc separates public sources from operator-provided bounty interpretation"]
   proofDoc["GREEN current local proof dossier refreshed"]
   evaluatorProof["GREEN npm run proof:bounty-local wraps local evaluator gates"]
@@ -442,7 +448,8 @@ flowchart TD
   pilot["YELLOW no Graphed pilot evidence yet; covered by inschneidergram-j8b"]
   tests --> typecheck
   typecheck --> smoke
-  smoke --> sourceDoc
+  smoke --> dockerSmoke
+  dockerSmoke --> sourceDoc
   sourceDoc --> proofDoc
   proofDoc --> evaluatorProof
   evaluatorProof --> acceptanceMatrix
@@ -457,6 +464,7 @@ flowchart TD
   class tests green
   class typecheck green
   class smoke green
+  class dockerSmoke green
   class sourceDoc green
   class proofDoc green
   class evaluatorProof green

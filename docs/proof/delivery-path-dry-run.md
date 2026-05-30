@@ -3,6 +3,8 @@
 Generated from latest full proof run: 2026-05-30T17:09:07Z
 MMDX payload refreshed after acceptance-matrix status update:
 2026-05-30T17:26:01Z
+Docker smoke and MMDX payload refreshed after Docker status update:
+2026-05-30T17:39:06Z
 
 Validation run base:
 `fb86c37cc7bb81e7b29f11f9ba7718446433ac3b`, the public closeout commit after
@@ -15,7 +17,10 @@ product/runtime source changed since the public closeout commit.
 `npm run proof:bounty-local` was rerun after the proof-dossier provenance
 refresh and passed. After the acceptance matrix updated the status stack,
 `npm run status:mmdx:preflight` and `npm run status:mmdx:dry-run` were rerun
-and passed with the current MMDX source hash below.
+and passed. After the Docker smoke proof updated the status stack,
+`npm run smoke:docker`, `npm run status:mmdx:preflight`, and
+`npm run status:mmdx:dry-run` were rerun and passed with the current MMDX
+source hash below.
 
 Runtime:
 
@@ -51,10 +56,11 @@ delivery or completed Graphed outreach.
 | `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, manual queue, proof-pack URL, and proof-packet URL state up to `awaiting_manual_evidence`; private authorization files remain strict |
 | `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, reached `evidence_ready`, and exported proof-packet hash `47b01e03d40e9f42c79d40c3ac530db25e2406061d8078b93b7b26a5cba12509` |
 | `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths, verified the operator dashboard, and exported proof-packet hash `18e157adaf1c61d1a61fd19180e75c47c4740498f5c9f0aa8ba2e5baa7edd95d` |
+| `npm run smoke:docker` | Passed | built the production container, started it with API/webhook secrets and `/data`, checked `/health` and `/openapi.json`, verified `/campaigns` requires auth, and fetched `GET /pilot-launch-packet` with API key auth |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `9dead052e536fbb4cbd6658dcb010d28f065d863ee3b8a374fe4092f6ef9bbf7` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `6f4857b708d20ec8844aa0f1ffb551b56a40f48dee1aac27fdad21548a20bca3` |
 
 ## Live Pilot Intake Validation
 

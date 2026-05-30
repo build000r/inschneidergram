@@ -258,8 +258,12 @@ delivered at MVP proof level:
 - managed-provider bridge rehearsal through `npm run pilot:provider-bridge`
 - cross-campaign operator dashboard
 - service smoke for managed-provider and manual paths
+- Docker runtime smoke for container health, API auth, and launch-packet access
 - bounty submission packet and `npm run proof:bounty-local` evaluator gate
 - Docker/runtime config, health checks, and strong API/webhook secret gate
+- Docker smoke proof that the container starts with `/data` persistence,
+  production-style secrets, public health/OpenAPI, protected campaign routes,
+  and authenticated pilot-launch packet access
 
 ## Remaining Before Bounty
 

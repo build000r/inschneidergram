@@ -55,6 +55,7 @@ they must carry current real approval evidence and expiry.
 | Are outcomes auditable? | execution records, manual queue/evidence, provider events, proof packs, canonical proof packets |
 | Can Graphed receive status? | signed runtime webhooks, replayable dead letters, proof-pack and proof-packet APIs |
 | Can a managed provider connect? | `npm run pilot:provider-bridge`, evidence-bearing provider outcomes in `examples/managed-provider-bridge.example.json` |
+| Can the service run from the public container? | `npm run smoke:docker` verifies container health, API auth, OpenAPI, and launch packet access |
 | Is the repo honest about platform risk? | [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md), [BUILD_VS_CLONE.md](BUILD_VS_CLONE.md), adapter `officialColdDmCompliance: "not_claimed"` |
 | How does each bounty expectation map to proof? | [BOUNTY_ACCEPTANCE_MATRIX.md](BOUNTY_ACCEPTANCE_MATRIX.md) |
 | Is there any repo-side work left before live proof? | [WIKI_DUEL_BOUNTY_READINESS.md](WIKI_DUEL_BOUNTY_READINESS.md) |

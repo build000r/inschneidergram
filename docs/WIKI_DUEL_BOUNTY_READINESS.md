@@ -105,10 +105,11 @@ proof-dossier provenance refresh:
 - Manual pilot demo and mock proof-pack demo passed.
 - Project-status MMDX preflight passed with 10 charts.
 - After the bounty acceptance matrix was added to the status stack, MMDX
-  preflight passed again with 10 charts and dry-run passed for
+  preflight passed again with 10 charts. After the Docker smoke proof was added
+  to the status stack, MMDX preflight and dry-run passed again for
   `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`
   with source hash
-  `9dead052e536fbb4cbd6658dcb010d28f065d863ee3b8a374fe4092f6ef9bbf7`.
+  `6f4857b708d20ec8844aa0f1ffb551b56a40f48dee1aac27fdad21548a20bca3`.
 
 ## External Next Actions
 

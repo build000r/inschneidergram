@@ -24,7 +24,7 @@ Latest local proof:
 - MMDX dry-run target:
   `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`.
 - MMDX dry-run source hash:
-  `9dead052e536fbb4cbd6658dcb010d28f065d863ee3b8a374fe4092f6ef9bbf7`.
+  `6f4857b708d20ec8844aa0f1ffb551b56a40f48dee1aac27fdad21548a20bca3`.
 
 ## Requirement Matrix
 
@@ -40,7 +40,7 @@ Latest local proof:
 | Delivery and reply status are reportable | Proven locally for recorded evidence | manual evidence API, provider-reported outcomes, runtime webhooks, proof packs, proof packets, operator dashboard | Real sent/replied/failed/restricted evidence from the pilot |
 | Graphed can receive callbacks or inspect status | Proven locally | signed runtime callbacks, dead-letter listing/replay, `GET /operator/dashboard`, proof-pack/proof-packet APIs | Graphed public HTTPS callback URL, if callback delivery is desired |
 | Reporting is auditable after execution | Proven locally | `GET /campaigns/:id/proof-pack`, `GET /campaigns/:id/proof-packet`, canonical SHA-256, local proof dossier | Live proof pack exported from real pilot records |
-| Product is not a one-off script or pitch deck | Proven locally | API service, JSON persistence, Docker/runtime config, runbooks, intake kit, smoke test | Operational ownership for live delivery |
+| Product is not a one-off script or pitch deck | Proven locally | API service, JSON persistence, Docker/runtime config, runbooks, intake kit, service and Docker smoke tests | Operational ownership for live delivery |
 | Product is reliable enough for ongoing client deployments | Partly proven | idempotency, storage, retries, dead-letter replay, auth gate, callback guard, dashboard | Monitoring, stronger production persistence, real incident history |
 | Real pilot completes meaningful Instagram creator outreach | Not proven yet | Local rehearsal stops before fake live evidence by design | Low-volume real pilot with vetted creators, authorization, sender/provider ops, and outcome evidence |
 | Public progress MMDX is live-verifiable | Blocked externally | preflight and dry-run pass; stable slug is embedded | Refresh Buildooor SPAPS auth, then run `npm run status:mmdx:publish` |

@@ -59,6 +59,7 @@ This repo currently contains the API/control-plane MVP:
 | Managed provider execution contract | Working MVP | `adapter.kind=managed_provider` accepts one evidence-bearing provider outcome per approved target |
 | Execution readiness enforcement | Working MVP | executions return 409 until approval/sender gates pass |
 | Managed service smoke path | Working MVP | `npm run smoke:service`, `/health` store check, Dockerfile |
+| Docker runtime smoke path | Working MVP | `npm run smoke:docker` builds the image and verifies container health/auth/launch packet |
 | Latest proof export | Working MVP | `GET /campaigns/:id/proof-pack` plus canonical `GET /campaigns/:id/proof-packet`, refreshed by late provider replies/failures |
 | Service secret enforcement | Working MVP | production or non-loopback startup requires strong API/webhook secrets |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
@@ -75,6 +76,7 @@ npm run pilot:provider-bridge
 npm test
 npm run build
 npm run smoke:service
+npm run smoke:docker
 npm run demo:pilot
 npm run demo:manual-pilot
 npm run dev
@@ -114,6 +116,13 @@ sender, creates and approves a campaign, runs a managed-provider contract
 execution, then runs the selected manual path through HTTP manual-queue and
 manual-evidence endpoints. It checks proof exports and the operator dashboard,
 then confirms both paths reach `evidence_ready`.
+
+`npm run smoke:docker` builds the production container, starts it with
+production-style API and webhook secrets plus an isolated `/data` volume, checks
+`/health` and `/openapi.json`, confirms protected routes reject unauthenticated
+requests, and fetches `GET /pilot-launch-packet` with API key auth. It proves
+the documented container path starts as a service, but still does not claim live
+Instagram delivery.
 
 `npm run demo:pilot` runs a deterministic local proof-pack demo with mock
 delivery, simulated signed webhook delivery records, and no live Instagram
