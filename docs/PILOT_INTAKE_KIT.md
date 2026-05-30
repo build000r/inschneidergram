@@ -17,6 +17,11 @@ or webhook inputs fail locally instead of during launch.
 
 The example files use placeholder creator handles, sender ids, and approval
 references. Replace them with private pilot values outside public artifacts.
+The bundled public example authorization windows are refreshed at runtime by
+the local proof and rehearsal commands so this repo's examples do not age out.
+Private pilot authorization files passed with `--authorization` are not
+refreshed; their `approvedAt`, `expiresAt`, reference, and evidence URL must be
+real current operator inputs.
 
 ## Validate
 
@@ -77,7 +82,9 @@ The rehearsal registers the selected non-secret senders, creates the campaign,
 approves and claims the scheduled targets, posts a manual execution with the
 validated `launchAuthorization`, fetches the handoff and operator dashboard,
 and stops at `awaiting_manual_evidence`. It proves the intake files can become
-real API state while keeping the live proof gap honest.
+real API state while keeping the live proof gap honest. Only the bundled
+example authorization window is renewed for this local rehearsal; private kits
+remain strict.
 
 Expected default output includes:
 
@@ -98,7 +105,8 @@ The provider bridge rehearsal builds a handoff payload with one send intent per
 approved scheduled target, then posts fixture provider outcomes through
 `adapter.kind=managed_provider`. It reaches `evidence_ready` only from
 provider-reported outcomes; replacing the fixture with a real provider endpoint
-still requires external provider access and permission.
+still requires external provider access and permission. The bundled provider
+bridge authorization window is renewed for this local rehearsal only.
 
 ## Live Pilot Use
 

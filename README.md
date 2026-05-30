@@ -84,7 +84,9 @@ For bounty review, `npm run proof:bounty-local` is the one-command local proof
 gate. It runs the test, typecheck, build, service-smoke, manual-rehearsal,
 pilot-intake validation/rehearsal, managed-provider bridge rehearsal, mock-demo,
 MMDX preflight, and MMDX publish dry-run checks without requiring Instagram
-credentials.
+credentials. The bundled public example authorization windows are refreshed at
+runtime for these local proof commands so the examples do not expire; private
+pilot files supplied with `--authorization` are validated exactly as supplied.
 
 For the grounded adversarial stop condition on repo-side work, see
 [`docs/WIKI_DUEL_BOUNTY_READINESS.md`](docs/WIKI_DUEL_BOUNTY_READINESS.md).
@@ -129,7 +131,8 @@ loads the live intake examples plus `examples/managed-provider-bridge.example.js
 builds the provider handoff payload with approved send intents, then consumes
 provider-reported outcomes through `adapter.kind=managed_provider` to produce a
 proof pack. This is the bridge shape for a real managed-delivery endpoint; the
-fixture still does not claim live Instagram delivery.
+fixture still does not claim live Instagram delivery. Its bundled launch
+authorization window is refreshed at runtime for the local rehearsal only.
 
 Inspect the local API contract:
 

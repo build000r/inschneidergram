@@ -35,13 +35,13 @@ flowchart LR
   launchPacket["GREEN Pre-campaign pilot launch packet"]
   readiness["GREEN Pilot readiness report"]
   pilotHandoff["GREEN Pilot handoff packet"]
-  launchAuth["GREEN Fresh evidence-backed launch authorization gate"]
+  launchAuth["GREEN Fresh evidence-backed launch authorization gate + local example renewal"]
   contract["GREEN Hardened OpenAPI pilot contract"]
   rehearsal["GREEN Manual pilot rehearsal + provenance/sender-risk proof"]
   serviceSmoke["GREEN Service smoke for provider + manual + dashboard paths"]
   apiAuth["GREEN Strong API/webhook secret deployment gate"]
   evaluatorPacket["GREEN Bounty submission packet + one-command local proof"]
-  intakeKit["GREEN Live pilot intake kit + schema-backed validation/API rehearsal"]
+  intakeKit["GREEN Live pilot intake kit + schema-backed validation/API rehearsal + non-expiring local examples"]
   providerBridge["GREEN Managed-provider bridge rehearsal"]
   statusLink["YELLOW Public Buildooor short link blocked: refresh SPAPS auth then run status:mmdx:publish"]
   next["Next: real delivery ops + live pilot"]
@@ -413,7 +413,7 @@ flowchart TD
   sourceDoc["GREEN source evidence doc separates public sources from operator-provided bounty interpretation"]
   proofDoc["GREEN current local proof dossier refreshed"]
   evaluatorProof["GREEN npm run proof:bounty-local wraps local evaluator gates"]
-  intakeValidation["GREEN npm run pilot:intake:validate checks live pilot campaign/sender/auth/webhook inputs"]
+  intakeValidation["GREEN npm run pilot:intake:validate checks live pilot campaign/sender/auth/webhook inputs and renews only bundled example auth windows"]
   intakeRehearsal["GREEN npm run pilot:intake:rehearse creates sender/campaign/approval/manual queue state"]
   providerBridgeProof["GREEN npm run pilot:provider-bridge creates provider handoff and proof from provider outcomes"]
   mmdx["GREEN MMDX preflight passed"]
@@ -454,7 +454,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/senders/sender-risk-reconciliation/approval/operator-dashboard/operator/manual-queue/managed-provider/managed-provider-bridge/atomic-evidence/execution-gating/fresh-evidence-backed-launch-authorization-gating/pending-manual-evidence-gating/proof-export/proof-freshness/pilot-handoff/pre-campaign-launch-packet/live-pilot-intake/live-pilot-rehearsal/follow-ups/auth/runtime-webhooks/manual-evidence-runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/provenance-sender-rehearsal claims"]
+  code["GREEN Code matches API/store/senders/sender-risk-reconciliation/approval/operator-dashboard/operator/manual-queue/managed-provider/managed-provider-bridge/atomic-evidence/execution-gating/fresh-evidence-backed-launch-authorization-gating/example-authorization-renewal/pending-manual-evidence-gating/proof-export/proof-freshness/pilot-handoff/pre-campaign-launch-packet/live-pilot-intake/live-pilot-rehearsal/follow-ups/auth/runtime-webhooks/manual-evidence-runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/provenance-sender-rehearsal claims"]
   beads["YELLOW Beads keep live ops and pilot gap open"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -470,7 +470,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, managed-provider outcome contract, managed-provider bridge rehearsal, execution readiness, fresh evidence-backed launch authorization, pending-manual-evidence enforcement, latest proof export, late provider proof/follow-up refresh, pre-campaign launch packet, live pilot intake validation/rehearsal, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics, bounty submission packet, one-command local proof"]
+  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, managed-provider outcome contract, managed-provider bridge rehearsal, execution readiness, fresh evidence-backed launch authorization, runtime renewal for bundled example authorization windows, pending-manual-evidence enforcement, latest proof export, late provider proof/follow-up refresh, pre-campaign launch packet, live pilot intake validation/rehearsal, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics, bounty submission packet, one-command local proof"]
   link["Blocked next: refresh Buildooor SPAPS auth and run npm run status:mmdx:publish (inschneidergram-j8b.7)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]

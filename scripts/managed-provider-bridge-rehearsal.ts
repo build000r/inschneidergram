@@ -10,11 +10,12 @@ import {
   assertPilotIntakeKit,
   loadPilotIntakeKit,
   parsePilotIntakeArgs,
+  renewLaunchAuthorizationWindow,
   selectedPilotSenderAccounts,
   type PilotIntakeKit
 } from "./validate-pilot-intake.js";
 
-const providerBridgePath = "examples/managed-provider-bridge.example.json";
+export const providerBridgePath = "examples/managed-provider-bridge.example.json";
 
 const providerOutcomeEventSchema = z.object({
   type: z.enum(["sent", "failed", "restricted", "replied"]),
@@ -79,7 +80,12 @@ const providerBridgeSchema = z.object({
     .default([])
 });
 
-type ProviderBridgeFixture = z.infer<typeof providerBridgeSchema>;
+export type ProviderBridgeFixture = z.infer<typeof providerBridgeSchema>;
+
+export interface ProviderBridgeFixtureLoadOptions {
+  now?: Date;
+  refreshDefaultExampleAuthorization?: boolean;
+}
 
 export interface ManagedProviderBridgeRehearsalResult {
   campaignId: string;
@@ -270,9 +276,21 @@ function targetRaw(target: CreateCampaignInput["targets"][number]): string {
   return typeof target === "string" ? target : target.target;
 }
 
-async function loadProviderBridgeFixture(path = providerBridgePath): Promise<ProviderBridgeFixture> {
+export async function loadProviderBridgeFixture(
+  path = providerBridgePath,
+  options: ProviderBridgeFixtureLoadOptions = {}
+): Promise<ProviderBridgeFixture> {
   try {
-    return providerBridgeSchema.parse(JSON.parse(await readFile(resolve(path), "utf8")));
+    const fixture = providerBridgeSchema.parse(JSON.parse(await readFile(resolve(path), "utf8")));
+    return shouldRefreshDefaultProviderAuthorization(path, options)
+      ? {
+          ...fixture,
+          launchAuthorization: renewLaunchAuthorizationWindow(
+            fixture.launchAuthorization,
+            options.now
+          )
+        }
+      : fixture;
   } catch (error) {
     if (error instanceof ZodError) {
       throw new Error(`provider bridge fixture is invalid:\n${formatZodError(error)}`);
@@ -280,6 +298,16 @@ async function loadProviderBridgeFixture(path = providerBridgePath): Promise<Pro
     const detail = error instanceof Error ? error.message : "unknown error";
     throw new Error(`Failed to read ${path}: ${detail}`);
   }
+}
+
+function shouldRefreshDefaultProviderAuthorization(
+  path: string,
+  options: ProviderBridgeFixtureLoadOptions
+): boolean {
+  return (
+    options.refreshDefaultExampleAuthorization !== false &&
+    resolve(path) === resolve(providerBridgePath)
+  );
 }
 
 function formatZodError(error: ZodError): string {

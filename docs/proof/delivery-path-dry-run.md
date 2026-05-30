@@ -1,12 +1,13 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T14:50:37Z
+Generated: 2026-05-30T15:03:32Z
 
-Validation run base: `30f5487`
+Validation run base: `e307567` plus the current example-authorization renewal
+hardening patch.
 
-Validation target: current `HEAD` after the launch-authorization evidence gate
-hardening slice. `npm run proof:bounty-local` was rerun against this commit and
-passed.
+Validation target: current working tree after the runtime example-authorization
+renewal hardening slice. `npm run proof:bounty-local` was rerun against this
+tree and passed.
 
 Runtime:
 
@@ -35,17 +36,17 @@ delivery or completed Graphed outreach.
 | Command | Result | Evidence |
 | --- | --- | --- |
 | `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, pilot intake validation/rehearsal, managed-provider bridge rehearsal, MMDX preflight, and MMDX publish dry-run |
-| `npm test` | Passed | 13 files, 112 tests |
+| `npm test` | Passed | 14 files, 115 tests |
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exited 0 |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
-| `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender and fresh evidence-backed authorization |
-| `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, and manual queue state up to `awaiting_manual_evidence` |
-| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 provider outcomes, and reached `evidence_ready` through managed-provider execution |
+| `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender and runtime-renewed, evidence-backed example authorization |
+| `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, and manual queue state up to `awaiting_manual_evidence`; private authorization files remain strict |
+| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 provider outcomes, runtime-renewed the bundled provider authorization, and reached `evidence_ready` through managed-provider execution |
 | `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths and verified the operator dashboard |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `5b2d517e3e7917c112faf0290d8abdddbbd098523bf3010c22bc14d2bfae958c` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `62b2883bbb3867431659840d0c69a6cbfd4c5efe5b40e8c70bafe4cca5505bb5` |
 
 ## Live Pilot Intake Validation
 
@@ -62,9 +63,11 @@ Pilot intake validation passed.
 ```
 
 This proves the handoff files for campaign creation, sender inventory, launch
-authorization, and callback configuration are executable. It still does not
-prove that the private Graphed creator list, sender account, or authorization
-has been supplied.
+authorization, and callback configuration are executable. The bundled example
+authorization window is renewed at runtime so public examples keep working;
+private Graphed authorization files are validated exactly as supplied. This
+still does not prove that the private Graphed creator list, sender account, or
+authorization has been supplied.
 
 ## Live Pilot Intake API Rehearsal
 

@@ -21,6 +21,8 @@ export const defaultPilotIntakePaths = {
   webhook: "examples/live-pilot-webhook.example.json"
 };
 
+const EXAMPLE_AUTHORIZATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export const pilotIntakeSendersFileSchema = z.object({
   senders: z.array(senderAccountSchema).min(1),
   privateInputsNotInGit: z.array(z.string().min(1)).min(1).default([])
@@ -47,6 +49,15 @@ export interface PilotIntakeKit {
   webhook: PilotIntakeWebhookFile;
 }
 
+export interface PilotIntakeLoadOptions {
+  now?: Date;
+  refreshDefaultExampleAuthorization?: boolean;
+}
+
+export interface PilotIntakeValidationOptions {
+  now?: Date;
+}
+
 async function main(): Promise<void> {
   const paths = parsePilotIntakeArgs(process.argv.slice(2));
   const kit = await loadPilotIntakeKit(paths);
@@ -66,7 +77,10 @@ async function main(): Promise<void> {
   console.log(`- webhook: ${kit.webhook.callbackUrl}`);
 }
 
-export async function loadPilotIntakeKit(paths: PilotIntakePaths): Promise<PilotIntakeKit> {
+export async function loadPilotIntakeKit(
+  paths: PilotIntakePaths,
+  options: PilotIntakeLoadOptions = {}
+): Promise<PilotIntakeKit> {
   const campaignInput = parseWith(
     createCampaignSchema,
     await readJson(paths.campaign),
@@ -77,11 +91,14 @@ export async function loadPilotIntakeKit(paths: PilotIntakePaths): Promise<Pilot
     await readJson(paths.senders),
     "senders"
   );
-  const launchAuthorization = parseWith(
+  const parsedLaunchAuthorization = parseWith(
     launchAuthorizationSchema,
     await readJson(paths.authorization),
     "launch authorization"
   );
+  const launchAuthorization = shouldRefreshDefaultPilotAuthorization(paths, options)
+    ? renewLaunchAuthorizationWindow(parsedLaunchAuthorization, options.now)
+    : parsedLaunchAuthorization;
   const webhook = parseWith(
     pilotIntakeWebhookFileSchema,
     await readJson(paths.webhook),
@@ -96,8 +113,22 @@ export async function loadPilotIntakeKit(paths: PilotIntakePaths): Promise<Pilot
   };
 }
 
-export function assertPilotIntakeKit(kit: PilotIntakeKit): void {
-  const errors = validateLivePilotKit(kit);
+export function renewLaunchAuthorizationWindow<T extends PilotIntakeLaunchAuthorization>(
+  authorization: T,
+  now = new Date()
+): T {
+  return {
+    ...authorization,
+    approvedAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + EXAMPLE_AUTHORIZATION_TTL_MS).toISOString()
+  };
+}
+
+export function assertPilotIntakeKit(
+  kit: PilotIntakeKit,
+  options: PilotIntakeValidationOptions = {}
+): void {
+  const errors = validateLivePilotKit(kit, options.now);
 
   if (errors.length > 0) {
     throw new Error(
@@ -125,7 +156,7 @@ export function createPilotIntakeValidationCampaign(kit: PilotIntakeKit) {
   );
 }
 
-function validateLivePilotKit(input: PilotIntakeKit): string[] {
+function validateLivePilotKit(input: PilotIntakeKit, now = new Date()): string[] {
   const errors: string[] = [];
   const { campaignInput, sendersInput, launchAuthorization, webhook } = input;
 
@@ -174,7 +205,7 @@ function validateLivePilotKit(input: PilotIntakeKit): string[] {
   }
 
   const launchAuthorizationFreshnessError =
-    validateLaunchAuthorizationFreshness(launchAuthorization);
+    validateLaunchAuthorizationFreshness(launchAuthorization, now);
   if (launchAuthorizationFreshnessError) {
     errors.push(launchAuthorizationFreshnessError);
   }
@@ -212,6 +243,16 @@ function validateLivePilotKit(input: PilotIntakeKit): string[] {
   }
 
   return errors;
+}
+
+function shouldRefreshDefaultPilotAuthorization(
+  paths: PilotIntakePaths,
+  options: PilotIntakeLoadOptions
+): boolean {
+  return (
+    options.refreshDefaultExampleAuthorization !== false &&
+    resolve(paths.authorization) === resolve(defaultPilotIntakePaths.authorization)
+  );
 }
 
 export function selectedPilotSenderAccounts(

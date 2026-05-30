@@ -37,6 +37,11 @@ The proof command runs the local gates that matter for bounty review:
 
 Expected result: `Local bounty proof passed.`
 
+The bundled public example authorization windows are renewed at runtime for
+this local proof path so the examples remain evaluator-friendly after their
+static fixture dates pass. Private pilot authorization files are not renewed;
+they must carry current real approval evidence and expiry.
+
 ## What To Inspect
 
 | Question | Evidence |
