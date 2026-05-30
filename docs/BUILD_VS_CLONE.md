@@ -55,7 +55,7 @@ contract that a real managed delivery adapter must satisfy.
 
 ## Next Build Slice
 
-Build a provider adapter with one of two pilot paths:
+Build the delivery adapter boundary first, then attach one of two pilot paths:
 
 1. **Managed manual/human-assisted delivery adapter** for low-volume pilot
    proof, with explicit operator queues and status updates.
@@ -64,6 +64,21 @@ Build a provider adapter with one of two pilot paths:
 
 Either path must produce evidence: accepted targets, sent counts, delivered
 counts, replies, skips, duplicate blocks, failures, and incident notes.
+
+The repo now models this as a domain-level managed delivery adapter contract:
+
+- `SendIntent` records the campaign, target handle, sender account, approved
+  message, schedule time, and metadata handed to delivery.
+- every adapter declares risk posture, including `officialColdDmCompliance:
+  "not_claimed"` so mock, manual, or provider paths cannot be mistaken for an
+  official cold-DM compliance guarantee.
+- mock delivery can emit `sent`, `failed`, `restricted`, and `replied` events
+  for contract tests and dry-run proof design.
+- manual delivery returns `needs_manual_evidence` until an operator records
+  required evidence such as operator ID, conversation URL, screenshots,
+  restriction source, and reply capture time.
+- managed-provider delivery accepts an operator-supplied provider function while
+  retaining the same risk-posture and event-reporting contract.
 
 ## Source Notes
 

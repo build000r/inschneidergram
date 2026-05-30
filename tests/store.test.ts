@@ -1,0 +1,109 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { createCampaign } from "../src/domain/campaign.js";
+import { InMemoryCampaignStore, JsonFileCampaignStore } from "../src/domain/store.js";
+
+describe("campaign stores", () => {
+  it("deduplicates inserts by idempotency key in memory", async () => {
+    const store = new InMemoryCampaignStore();
+    const first = await store.insert(
+      createCampaign({
+        idempotencyKey: "pilot-key-1",
+        targets: ["creator_one"],
+        message: "Hey",
+        campaign: "pilot"
+      })
+    );
+    const second = await store.insert(
+      createCampaign({
+        idempotencyKey: "pilot-key-1",
+        targets: ["creator_two"],
+        message: "Different message",
+        campaign: "pilot"
+      })
+    );
+
+    expect(second.id).toBe(first.id);
+    expect(second.targets[0]?.handle).toBe("creator_one");
+  });
+
+  it("suppresses previously scheduled handles across campaigns", async () => {
+    const store = new InMemoryCampaignStore();
+    const first = await store.insert(
+      createCampaign({
+        targets: ["creator_one"],
+        message: "Hey",
+        campaign: "pilot-a"
+      })
+    );
+    const second = await store.insert(
+      createCampaign({
+        targets: ["creator_one", "creator_two"],
+        message: "Hey again",
+        campaign: "pilot-b"
+      })
+    );
+
+    expect(second.targets.map((target) => [target.handle, target.status])).toEqual([
+      ["creator_one", "skipped_duplicate"],
+      ["creator_two", "scheduled"]
+    ]);
+    expect(await store.listSuppressions()).toEqual([
+      expect.objectContaining({ handle: "creator_one", campaignId: first.id }),
+      expect.objectContaining({ handle: "creator_two", campaignId: second.id })
+    ]);
+  });
+
+  it("persists campaigns across JsonFileCampaignStore instances", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "inschneidergram-store-"));
+    const storePath = join(dir, "campaigns.json");
+
+    try {
+      const firstStore = new JsonFileCampaignStore(storePath);
+      const campaign = await firstStore.insert(
+        createCampaign({
+          idempotencyKey: "pilot-key-2",
+          targets: ["creator_one"],
+          message: "Hey",
+          campaign: "pilot"
+        })
+      );
+
+      const secondStore = new JsonFileCampaignStore(storePath);
+      const loaded = await secondStore.get(campaign.id);
+      const replay = await secondStore.insert(
+        createCampaign({
+          idempotencyKey: "pilot-key-2",
+          targets: ["creator_two"],
+          message: "Different message",
+          campaign: "pilot"
+        })
+      );
+
+      expect(loaded?.id).toBe(campaign.id);
+      expect(replay.id).toBe(campaign.id);
+      expect(await secondStore.list()).toHaveLength(1);
+
+      const crossCampaign = await secondStore.insert(
+        createCampaign({
+          targets: ["creator_one", "creator_three"],
+          message: "Fresh campaign",
+          campaign: "pilot-follow-up"
+        })
+      );
+      const thirdStore = new JsonFileCampaignStore(storePath);
+
+      expect(crossCampaign.targets.map((target) => [target.handle, target.status])).toEqual([
+        ["creator_one", "skipped_duplicate"],
+        ["creator_three", "scheduled"]
+      ]);
+      expect(await thirdStore.listSuppressions()).toEqual([
+        expect.objectContaining({ handle: "creator_one", campaignId: campaign.id }),
+        expect.objectContaining({ handle: "creator_three", campaignId: crossCampaign.id })
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

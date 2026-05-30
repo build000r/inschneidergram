@@ -25,7 +25,9 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
   app.post("/campaigns", async (request, reply) => {
     try {
-      const campaign = await store.insert(createCampaign(request.body));
+      const campaign = await store.insert(
+        createCampaign(withIdempotencyKey(request.body, request.headers["idempotency-key"]))
+      );
       const response = {
         campaignId: campaign.id,
         status: campaign.status,
@@ -128,4 +130,19 @@ function sendDomainError(reply: { code: (statusCode: number) => { send: (body: u
     error: "invalid_request",
     message: error instanceof Error ? error.message : "Request could not be processed"
   });
+}
+
+function withIdempotencyKey(body: unknown, headerValue: string | string[] | undefined): unknown {
+  const headerKey = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+
+  if (!headerKey || typeof body !== "object" || body === null || Array.isArray(body)) {
+    return body;
+  }
+
+  const record = body as Record<string, unknown>;
+  return {
+    ...record,
+    idempotencyKey:
+      typeof record.idempotencyKey === "string" ? record.idempotencyKey : headerKey
+  };
 }

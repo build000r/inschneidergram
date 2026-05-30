@@ -19,6 +19,8 @@ content collaborations, or qualified pipeline.
 - 50-200 vetted Instagram creator profiles
 - one campaign offer
 - one approved first-touch message or template
+- creator approval criteria and approving actor
+- copy approval criteria and approving actor
 - optional follow-up copy
 - sender account pool or selected delivery adapter
 - stop conditions for opt-outs, complaints, sender warnings, and low quality
@@ -31,6 +33,7 @@ default proof pack should include:
 
 - accepted targets
 - approved targets
+- approved first-touch copy
 - contacted targets
 - sent messages
 - delivered messages when provider can prove delivery
@@ -68,4 +71,13 @@ default proof pack should include:
 - complaint rate above agreed threshold
 - duplicate send attempt detected after suppression
 - target list provenance cannot be defended
+- creator or copy approval cannot be produced before send
 - delivery adapter cannot produce enough status evidence for the proof pack
+
+## Operator Workbench
+
+The pilot workbench should expose every creator candidate and first-touch copy
+candidate with approval state, claim state, evidence, and audit history. Sends
+are only valid after creator approval, message approval, and operator claim.
+Operators can then record one terminal outcome per creator: sent, skipped, or
+blocked.

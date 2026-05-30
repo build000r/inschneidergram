@@ -77,4 +77,70 @@ describe("API", () => {
 
     await app.close();
   });
+
+  it("honors idempotency-key headers for campaign creation", async () => {
+    const app = await buildServer();
+    const payload = {
+      targets: ["instagram_profile_1"],
+      message: "Hey - loved your content.",
+      campaign: "pilot"
+    };
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      headers: {
+        "idempotency-key": "pilot-idempotency-key"
+      },
+      payload
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      headers: {
+        "idempotency-key": "pilot-idempotency-key"
+      },
+      payload: {
+        ...payload,
+        targets: ["instagram_profile_2"]
+      }
+    });
+
+    expect(second.statusCode).toBe(202);
+    expect(second.json().campaignId).toBe(first.json().campaignId);
+    expect(second.json().targets[0].handle).toBe("instagram_profile_1");
+
+    await app.close();
+  });
+
+  it("suppresses duplicate handles from earlier campaigns", async () => {
+    const app = await buildServer();
+
+    await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["instagram_profile_1"],
+        message: "Hey - loved your content.",
+        campaign: "pilot-a"
+      }
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["instagram_profile_1", "instagram_profile_2"],
+        message: "Fresh campaign",
+        campaign: "pilot-b"
+      }
+    });
+
+    expect(second.statusCode).toBe(202);
+    expect(second.json().targets.map((target: { status: string }) => target.status)).toEqual([
+      "skipped_duplicate",
+      "scheduled"
+    ]);
+
+    await app.close();
+  });
 });

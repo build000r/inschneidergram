@@ -23,10 +23,12 @@ This repo currently contains the first API/control-plane slice:
 | --- | --- | --- |
 | `POST /campaigns` API | Working MVP | `src/server.ts`, `tests/server.test.ts` |
 | Target normalization | Working MVP | `src/domain/handles.ts`, `tests/campaign.test.ts` |
-| Duplicate prevention | Working MVP | `createCampaign`, domain tests |
+| Duplicate prevention | Working MVP | in-campaign dedupe plus persisted suppression records |
 | Safe sending limits and scheduling | Working MVP | per-sender limits, delay windows, domain tests |
 | Delivery/reply status tracking | Working MVP | `POST /campaigns/:id/events` |
 | Webhook signing helper | Working MVP | `src/domain/webhook.ts` |
+| Persistent local campaign store | Working MVP | `JsonFileCampaignStore`, idempotency/suppression tests |
+| Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Managed sender infrastructure | Not implemented | next product slice |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Not yet | needs live delivery adapter, ops runbook, observability |
@@ -39,11 +41,15 @@ npm test
 npm run dev
 ```
 
+By default, the built server persists campaigns to `.data/campaigns.json`.
+Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
+
 Create a campaign:
 
 ```bash
 curl -s http://127.0.0.1:3107/campaigns \
   -H 'content-type: application/json' \
+  -H 'idempotency-key: client_creator_outreach_may_2026_batch_1' \
   -d '{
     "targets": ["instagram_profile_1", "instagram_profile_2"],
     "message": "Hey - loved your content. Would you be open to an affiliate partnership?",
@@ -102,7 +108,10 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/events \
 ```
 
 Returns `202 Accepted` with the campaign id, status, summary, and normalized
-target schedule.
+target schedule. Repeating the same request with the same `Idempotency-Key`
+returns the original campaign instead of scheduling duplicate outreach. New
+campaigns also consult the persisted suppression records created by earlier
+campaigns, so previously scheduled handles are returned as `skipped_duplicate`.
 
 ## Architecture
 
@@ -146,12 +155,11 @@ owns that operational risk.
 
 ## Roadmap to Bounty Pilot
 
-1. Connect a real delivery adapter behind the current campaign contract.
-2. Add persistent storage and idempotency keys.
-3. Add sender account inventory, warm-up state, and health scoring.
-4. Add signed outgoing webhooks with retry and dead-letter state.
-5. Run a controlled pilot with a small vetted creator list.
-6. Publish reliability evidence: delivery counts, reply counts, duplicate
+1. Wire the managed delivery adapter contract into the campaign execution path.
+2. Add sender account inventory, warm-up state, and health scoring.
+3. Add signed outgoing webhooks with retry and dead-letter state.
+4. Run a controlled pilot with a small vetted creator list.
+5. Publish reliability evidence: delivery counts, reply counts, duplicate
    prevention, blocked sends, and incident log.
 
 ## Limitations

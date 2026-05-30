@@ -48,6 +48,7 @@ const campaignSettingsSchema = z
   .default(defaultCampaignSettings);
 
 export const createCampaignSchema = z.object({
+  idempotencyKey: z.string().min(8).max(200).optional(),
   targets: z.array(z.string().min(1)).min(1).max(5000),
   message: z.string().min(1).max(1000).optional(),
   template: z
@@ -112,6 +113,7 @@ export interface CampaignTarget {
 
 export interface Campaign {
   id: string;
+  idempotencyKey?: string;
   campaign: string;
   status: CampaignStatus;
   message: string;
@@ -147,6 +149,7 @@ export function createCampaign(
 
   return summarizeCampaign({
     id: `camp_${randomUUID()}`,
+    idempotencyKey: parsed.idempotencyKey,
     campaign: parsed.campaign,
     status: "queued",
     message,
@@ -293,7 +296,7 @@ function scheduleAt(
   return new Date(timestamp).toISOString();
 }
 
-function summarizeCampaign(campaign: Campaign): Campaign {
+export function summarizeCampaign(campaign: Campaign): Campaign {
   const summary = emptySummary();
   summary.total = campaign.targets.length;
 

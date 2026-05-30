@@ -15,18 +15,21 @@
 flowchart LR
   bounty["Bounty: managed Instagram creator outreach"]
   api["GREEN API control plane MVP"]
-  delivery["RED Real delivery adapter missing"]
+  store["GREEN Durable local store + idempotency"]
+  delivery["YELLOW Adapter contract only"]
   ops["RED Sender operations missing"]
   beads["YELLOW Beads planning active"]
-  next["Next: persistent store + delivery adapter"]
+  next["Next: sender ops + webhook proof"]
   bounty --> api
+  api --> store
   bounty --> delivery
   bounty --> ops
   delivery --> beads
   ops --> beads
   beads --> next
   class api green
-  class delivery red
+  class store green
+  class delivery yellow
   class ops red
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -41,8 +44,9 @@ gantt
   dateFormat YYYY-MM-DD
   section GREEN Working
   GREEN Campaign API MVP :done, 2026-05-30, 1d
+  GREEN Durable store and approvals :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
-  YELLOW Product docs and task graph :active, 2026-05-30, 2d
+  YELLOW Delivery adapter contract :active, 2026-05-30, 1d
   section RED Unproven
   RED Real delivery adapter :crit, 2026-06-01, 5d
   RED Pilot evidence :crit, 2026-06-06, 4d
@@ -52,20 +56,23 @@ gantt
 ```mermaid
 flowchart TD
   api["DONE GREEN API contract"]
-  store["PLANNED YELLOW Persistent store"]
-  adapter["PLANNED RED Delivery adapter"]
+  store["DONE GREEN Persistent store + suppression"]
+  approval["DONE GREEN Approval workbench domain"]
+  adapter["PARTIAL YELLOW Delivery adapter contract"]
   sender["PLANNED RED Sender operations"]
   webhooks["PLANNED YELLOW Outgoing webhooks"]
   pilot["FUTURE RED Graphed pilot"]
   api --> store
+  api --> approval
   api --> adapter
   store --> webhooks
   adapter --> sender
   sender --> pilot
   webhooks --> pilot
   class api green
-  class store yellow
-  class adapter red
+  class store green
+  class approval green
+  class adapter yellow
   class sender red
   class webhooks yellow
   class pilot red
@@ -82,8 +89,9 @@ sequenceDiagram
   participant P as Delivery provider
   participant C as Creator
   G->>I: POST /campaigns
-  I->>I: validate, normalize, dedupe, schedule
-  I->>P: enqueue managed send
+  I->>I: validate, normalize, suppress, schedule
+  I->>I: approval and operator evidence gates
+  I->>P: hand off approved send intent
   P->>C: Instagram DM
   C-->>P: reply
   P-->>I: provider event
@@ -105,18 +113,19 @@ stateDiagram-v2
 ## chart architecture-boundary Architecture Boundary
 ```mermaid
 flowchart LR
-  repo["GREEN This repo: API, scheduling, status model"]
-  provider["RED Provider adapter: real Instagram delivery"]
+  repo["GREEN This repo: API, store, approvals, status model"]
+  provider["YELLOW Adapter contract; real delivery unproven"]
   ops["RED Ops: sender accounts, warm-up, incidents"]
   graphed["GRAY Graphed systems"]
   repo --> provider
   provider --> ops
   graphed --> repo
   class repo green
-  class provider red
+  class provider yellow
   class ops red
   class graphed gray
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
+  classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
   classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
   classDef gray fill:#eef2f7,stroke:#64748b,stroke-width:1px,color:#111827
 ```
@@ -124,8 +133,8 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers MVP API/domain"]
-  typecheck["YELLOW typecheck must stay green"]
+  tests["GREEN npm test covers API/store/ops/domain"]
+  typecheck["GREEN typecheck green"]
   mmdx["YELLOW MMDX preflight required"]
   live["RED no live Instagram delivery proof"]
   pilot["RED no Graphed pilot evidence"]
@@ -134,7 +143,7 @@ flowchart TD
   mmdx --> live
   live --> pilot
   class tests green
-  class typecheck yellow
+  class typecheck green
   class mmdx yellow
   class live red
   class pilot red
@@ -147,7 +156,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API MVP claim"]
+  code["GREEN Code matches API/store/adapter-contract claim"]
   beads["YELLOW Beads must cover next implementation"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -163,10 +172,10 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API MVP"]
-  first["Next: durable store and idempotency"]
-  second["Then: managed delivery adapter"]
-  third["Then: sender ops and pilot runbook"]
+  now["Current: API, durable store, approvals, adapter contract"]
+  first["Next: sender health and execution routing"]
+  second["Then: webhooks and proof pack"]
+  third["Then: real Graphed pilot"]
   now --> first --> second --> third
 ```
 
@@ -175,8 +184,11 @@ flowchart TD
 erDiagram
   CAMPAIGN ||--o{ TARGET : includes
   CAMPAIGN ||--o{ PROVIDER_EVENT : receives
+  CAMPAIGN ||--o{ SUPPRESSION_RECORD : creates
+  CAMPAIGN ||--o{ APPROVAL_WORKBENCH : reviewed_by
   SENDER_ACCOUNT ||--o{ TARGET : assigned_to
   TARGET ||--o{ PROVIDER_EVENT : changes_status
+  TARGET ||--o{ OPERATOR_EVIDENCE : records
   CAMPAIGN {
     string id
     string campaign
@@ -199,5 +211,20 @@ erDiagram
     string eventId
     string event
     datetime receivedAt
+  }
+  SUPPRESSION_RECORD {
+    string handle
+    string campaignId
+    string reason
+  }
+  APPROVAL_WORKBENCH {
+    string id
+    string campaignId
+    string updatedAt
+  }
+  OPERATOR_EVIDENCE {
+    string kind
+    string actor
+    datetime at
   }
 ```

@@ -30,12 +30,16 @@ Proof: tests and local API demo pass.
 
 Attach a real delivery adapter and operator runbook:
 
+- send intent handoff contract
+- adapter risk posture
 - sender account inventory
 - daily limits and warm-up state
 - delivery attempt logs
+- sent, failed, restricted, and replied events
 - incident notes
 - account health checks
 - manual override path
+- manual proof requirements for operator-verified sends and replies
 
 Proof: a small campaign can be run without Graphed touching Instagram sessions
 or browser automation.
@@ -70,6 +74,7 @@ Proof: Graphed can adopt the product for ongoing client deployments.
 ## Non-Negotiables
 
 - Do not represent a mock provider as real Instagram delivery.
+- Do not claim official cold-DM compliance from this adapter contract.
 - Do not force Graphed to host or maintain browser automation.
 - Do not hide account risk; model it as product state.
 - Do not overfit to one pilot campaign at the expense of repeatable operations.
@@ -84,5 +89,7 @@ outcomes back without scraping, burner accounts, or unsafe cold-DM claims.
 
 ## Current Reality
 
-The repo now has the API-control-plane slice. It is not yet bounty-complete.
-The next decisive milestone is a real delivery adapter and pilot runbook.
+The repo now has the API-control-plane slice and a domain delivery adapter
+contract with mock and manual behavior. It is not yet bounty-complete. The next
+decisive milestone is connecting this contract to a real operator workbench or
+managed provider path and generating a pilot proof pack.

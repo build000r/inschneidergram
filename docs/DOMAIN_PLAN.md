@@ -19,6 +19,11 @@ delivery/reply evidence without operating Instagram automation themselves.
 - Webhook delivery
 - Follow-up rule
 - Suppression / duplicate key
+- Creator approval
+- Message approval
+- Operator workbench item
+- Operator evidence
+- Audit entry
 - Pilot evidence report
 
 ## Current Slice
@@ -29,26 +34,44 @@ The current implementation covers:
 - message/template validation
 - target normalization
 - duplicate prevention inside a campaign
+- persisted suppression records across campaigns
+- idempotent campaign creation
+- JSON-backed local campaign storage
 - safe per-sender scheduling defaults
 - provider event ingestion
 - campaign status summaries
 - webhook payload signing helpers
+- creator approval/rejection state
+- first-touch message approval/rejection state
+- operator claim, send, skip, and block evidence
+- audit entries for approval and operator state changes
 
 ## Acceptance Criteria
 
 1. `POST /campaigns` accepts the bounty-shaped payload and returns a campaign id.
-2. Duplicate profile inputs are skipped with an inspectable status.
+2. Duplicate profile inputs and previously suppressed handles are skipped with
+   an inspectable status.
 3. Invalid profile inputs are blocked before scheduling.
 4. Safe sending defaults assign targets across senders and schedule delays.
 5. Provider events update delivery/reply status idempotently.
-6. Tests prove the API contract and domain rules.
+6. Creator/copy approval gates operator work before send evidence can be logged.
+7. Operator workbench items can be claimed, sent, skipped, or blocked with
+   evidence.
+8. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
 ### Persistent Campaign Store
 
-Replace in-memory storage with durable SQLite/Postgres storage, idempotency
-keys, and migration checks.
+Harden the JSON-backed store into durable SQLite/Postgres storage with migration
+checks. The current slice already persists campaigns, events, idempotency keys,
+and suppression records locally.
+
+### Approval Store and API
+
+Persist approval workbenches and expose routes for candidate decisions, copy
+decisions, operator claims, and evidence capture. The domain module is currently
+pure TypeScript and ready to be wired to storage/API surfaces.
 
 ### Managed Delivery Adapter
 
