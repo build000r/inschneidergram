@@ -37,6 +37,76 @@ describe("campaign domain", () => {
     expect(campaign.targets[2]?.status).toBe("skipped_duplicate");
   });
 
+  it("refuses unhealthy senders and reports sender health", () => {
+    const campaign = createCampaign(
+      {
+        targets: ["@one_creator", "@two_creator"],
+        message: "Hey - open to an affiliate partnership?",
+        campaign: "sender_health_pilot",
+        settings: {
+          senderPool: ["sender-a", "sender-b"],
+          dailyLimitPerSender: 35,
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "cooldown",
+              dailyLimit: 10,
+              cooldownUntil: "2026-05-30T02:00:00.000Z",
+              warmupNote: "cooling after warning",
+              riskEvents: [
+                {
+                  kind: "warning",
+                  at: "2026-05-30T00:30:00.000Z",
+                  note: "Temporary send warning"
+                }
+              ]
+            },
+            {
+              id: "sender-b",
+              status: "reconnect_required",
+              dailyLimit: 10,
+              riskEvents: [
+                {
+                  kind: "reconnect_required",
+                  at: "2026-05-30T00:45:00.000Z",
+                  note: "Provider session expired"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      new Date("2026-05-30T01:00:00.000Z")
+    );
+
+    expect(campaign.status).toBe("failed");
+    expect(campaign.summary).toMatchObject({
+      scheduled: 0,
+      blockedPolicy: 2
+    });
+    expect(campaign.targets.map((target) => target.error)).toEqual([
+      "No healthy sender account available",
+      "No healthy sender account available"
+    ]);
+    expect(campaign.senderHealth).toMatchObject({
+      total: 2,
+      available: 0,
+      blocked: 2,
+      accounts: [
+        {
+          id: "sender-a",
+          available: false,
+          blockers: ["cooldown_until:2026-05-30T02:00:00.000Z"]
+        },
+        {
+          id: "sender-b",
+          available: false,
+          blockers: ["reconnect_required"]
+        }
+      ]
+    });
+  });
+
   it("records delivery and reply events idempotently", () => {
     const campaign = createCampaign({
       targets: ["@one_creator"],

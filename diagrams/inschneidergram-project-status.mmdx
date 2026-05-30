@@ -17,9 +17,9 @@ flowchart LR
   api["GREEN API control plane MVP"]
   store["GREEN Durable local store + idempotency"]
   delivery["YELLOW Adapter contract only"]
-  ops["RED Sender operations missing"]
+  ops["YELLOW Sender health model only"]
   beads["YELLOW Beads planning active"]
-  next["Next: sender ops + webhook proof"]
+  next["Next: execution routing + webhook proof"]
   bounty --> api
   api --> store
   bounty --> delivery
@@ -30,7 +30,7 @@ flowchart LR
   class api green
   class store green
   class delivery yellow
-  class ops red
+  class ops yellow
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -59,7 +59,7 @@ flowchart TD
   store["DONE GREEN Persistent store + suppression"]
   approval["DONE GREEN Approval workbench domain"]
   adapter["PARTIAL YELLOW Delivery adapter contract"]
-  sender["PLANNED RED Sender operations"]
+  sender["PARTIAL YELLOW Sender health model"]
   webhooks["PLANNED YELLOW Outgoing webhooks"]
   pilot["FUTURE RED Graphed pilot"]
   api --> store
@@ -73,7 +73,7 @@ flowchart TD
   class store green
   class approval green
   class adapter yellow
-  class sender red
+  class sender yellow
   class webhooks yellow
   class pilot red
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -115,7 +115,7 @@ stateDiagram-v2
 flowchart LR
   repo["GREEN This repo: API, store, approvals, status model"]
   provider["YELLOW Adapter contract; real delivery unproven"]
-  ops["RED Ops: sender accounts, warm-up, incidents"]
+  ops["RED Ops: real sender accounts and recovery"]
   graphed["GRAY Graphed systems"]
   repo --> provider
   provider --> ops
@@ -173,8 +173,8 @@ flowchart LR
 ```mermaid
 flowchart TD
   now["Current: API, durable store, approvals, adapter contract"]
-  first["Next: sender health and execution routing"]
-  second["Then: webhooks and proof pack"]
+  first["Next: execution routing and webhooks"]
+  second["Then: proof pack"]
   third["Then: real Graphed pilot"]
   now --> first --> second --> third
 ```
@@ -206,6 +206,7 @@ erDiagram
     string id
     string status
     int dailyLimit
+    string cooldownUntil
   }
   PROVIDER_EVENT {
     string eventId

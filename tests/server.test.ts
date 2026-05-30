@@ -143,4 +143,58 @@ describe("API", () => {
 
     await app.close();
   });
+
+  it("returns sender health when account state blocks scheduling", async () => {
+    const app = await buildServer();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["instagram_profile_1"],
+        message: "Hey - loved your content.",
+        campaign: "sender-health",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "locked",
+              dailyLimit: 5,
+              riskEvents: [
+                {
+                  kind: "lockout",
+                  at: "2026-05-30T00:00:00.000Z",
+                  note: "Login checkpoint"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({
+      status: "failed",
+      summary: {
+        blockedPolicy: 1
+      },
+      senderHealth: {
+        total: 1,
+        available: 0,
+        blocked: 1,
+        accounts: [
+          {
+            id: "sender-a",
+            status: "locked",
+            available: false,
+            blockers: ["locked"]
+          }
+        ]
+      }
+    });
+
+    await app.close();
+  });
 });

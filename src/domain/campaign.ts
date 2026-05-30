@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { normalizeInstagramHandle } from "./handles.js";
+import {
+  availableSenderAccounts,
+  buildSenderInventory,
+  senderAccountSchema,
+  summarizeSenderInventory,
+  type SenderAccount,
+  type SenderInventoryHealth
+} from "./sender.js";
 
 export const targetEventSchema = z.object({
   target: z.string().min(1),
@@ -23,6 +31,7 @@ const defaultCampaignSettings = {
   minDelaySeconds: number;
   maxDelaySeconds: number;
   senderPool: string[];
+  senderAccounts?: SenderAccount[];
   dryRun: boolean;
   followUps: Array<{ delayHours: number; message: string }>;
 };
@@ -33,6 +42,7 @@ const campaignSettingsSchema = z
     minDelaySeconds: z.number().int().min(10).max(86400).default(90),
     maxDelaySeconds: z.number().int().min(10).max(86400).default(420),
     senderPool: z.array(z.string().min(1)).min(1).default(["unassigned"]),
+    senderAccounts: z.array(senderAccountSchema).max(100).optional(),
     webhookUrl: z.string().url().optional(),
     dryRun: z.boolean().default(true),
     followUps: z
@@ -125,6 +135,7 @@ export interface Campaign {
   updatedAt: string;
   targets: CampaignTarget[];
   summary: CampaignSummary;
+  senderHealth: SenderInventoryHealth;
 }
 
 export interface CampaignSummary {
@@ -145,7 +156,12 @@ export function createCampaign(
   const parsed = createCampaignSchema.parse(input);
   const nowIso = now.toISOString();
   const message = parsed.message ?? parsed.template?.body ?? "";
-  const targets = buildTargets(parsed, now);
+  const senderInventory = buildSenderInventory(
+    parsed.settings.senderPool,
+    parsed.settings.dailyLimitPerSender,
+    parsed.settings.senderAccounts
+  );
+  const targets = buildTargets(parsed, senderInventory, now);
 
   return summarizeCampaign({
     id: `camp_${randomUUID()}`,
@@ -158,6 +174,7 @@ export function createCampaign(
       minDelaySeconds: parsed.settings.minDelaySeconds,
       maxDelaySeconds: parsed.settings.maxDelaySeconds,
       senderPool: parsed.settings.senderPool,
+      senderAccounts: senderInventory,
       dryRun: parsed.settings.dryRun,
       followUps: parsed.settings.followUps,
       webhookUrl: parsed.settings.webhookUrl
@@ -166,7 +183,8 @@ export function createCampaign(
     createdAt: nowIso,
     updatedAt: nowIso,
     targets,
-    summary: emptySummary()
+    summary: emptySummary(),
+    senderHealth: summarizeSenderInventory(senderInventory, now)
   });
 }
 
@@ -222,10 +240,12 @@ export function recordTargetEvent(
 
 function buildTargets(
   input: CreateCampaignInput,
+  senderInventory: SenderAccount[],
   now: Date
 ): CampaignTarget[] {
   const seen = new Set<string>();
   const senderSlots = new Map<string, number>();
+  const availableSenders = availableSenderAccounts(senderInventory, now);
   const spacingSeconds = Math.round(
     (input.settings.minDelaySeconds + input.settings.maxDelaySeconds) / 2
   );
@@ -259,28 +279,40 @@ function buildTargets(
     }
 
     seen.add(handle);
-    const sender = chooseSender(input.settings.senderPool, seen.size - 1);
-    const senderSlot = senderSlots.get(sender) ?? 0;
-    senderSlots.set(sender, senderSlot + 1);
+    if (availableSenders.length === 0) {
+      return {
+        raw,
+        handle,
+        status: "blocked_policy",
+        sender: null,
+        scheduledAt: null,
+        error: "No healthy sender account available",
+        events: []
+      };
+    }
+
+    const sender = chooseSender(availableSenders, seen.size - 1);
+    const senderSlot = senderSlots.get(sender.id) ?? 0;
+    senderSlots.set(sender.id, senderSlot + 1);
 
     return {
       raw,
       handle,
       status: "scheduled",
-      sender,
+      sender: sender.id,
       scheduledAt: scheduleAt(
         now,
         senderSlot,
         spacingSeconds,
-        input.settings.dailyLimitPerSender
+        sender.dailyLimit
       ),
       events: []
     };
   });
 }
 
-function chooseSender(senderPool: string[], targetIndex: number): string {
-  return senderPool[targetIndex % senderPool.length] ?? "unassigned";
+function chooseSender(senderPool: SenderAccount[], targetIndex: number): SenderAccount {
+  return senderPool[targetIndex % senderPool.length] ?? senderPool[0];
 }
 
 function scheduleAt(

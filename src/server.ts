@@ -32,6 +32,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         campaignId: campaign.id,
         status: campaign.status,
         summary: campaign.summary,
+        senderHealth: campaign.senderHealth,
         targets: campaign.targets
       };
       return reply.code(202).send(response);
@@ -68,7 +69,8 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       return {
         campaignId: updated.id,
         status: updated.status,
-        summary: updated.summary
+        summary: updated.summary,
+        senderHealth: updated.senderHealth
       };
     } catch (error) {
       return sendDomainError(reply, error);

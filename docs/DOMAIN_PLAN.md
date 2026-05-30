@@ -14,6 +14,8 @@ delivery/reply evidence without operating Instagram automation themselves.
 - Campaign
 - Target
 - Sender account
+- Sender health
+- Sender risk event
 - Delivery attempt
 - Provider event
 - Webhook delivery
@@ -45,6 +47,9 @@ The current implementation covers:
 - first-touch message approval/rejection state
 - operator claim, send, skip, and block evidence
 - audit entries for approval and operator state changes
+- sender account limits, cooldowns, lockouts, reconnect-required state, warm-up
+  notes, and risk events
+- scheduler refusal when no healthy sender is available
 
 ## Acceptance Criteria
 
@@ -57,7 +62,9 @@ The current implementation covers:
 6. Creator/copy approval gates operator work before send evidence can be logged.
 7. Operator workbench items can be claimed, sent, skipped, or blocked with
    evidence.
-8. Tests prove the API contract and domain rules.
+8. Unhealthy senders are refused before scheduling and reported in campaign
+   status.
+9. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -81,8 +88,10 @@ rate-limit, sender, and incident state.
 
 ### Sender Account Operations
 
-Add account inventory, warm-up state, daily budget, lockout detection, recovery
-notes, and per-account risk scoring.
+Connect real account operations to the current sender-health model: account
+inventory, warm-up state, daily budget, cooldowns, lockout detection, recovery
+notes, reconnect-required state, and per-account risk scoring now have a domain
+shape and scheduler behavior.
 
 ### Webhook Delivery
 

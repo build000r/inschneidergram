@@ -29,7 +29,8 @@ This repo currently contains the first API/control-plane slice:
 | Webhook signing helper | Working MVP | `src/domain/webhook.ts` |
 | Persistent local campaign store | Working MVP | `JsonFileCampaignStore`, idempotency/suppression tests |
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
-| Managed sender infrastructure | Not implemented | next product slice |
+| Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
+| Managed sender infrastructure | Partial | health model exists; real account operations next |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Not yet | needs live delivery adapter, ops runbook, observability |
 
@@ -56,6 +57,15 @@ curl -s http://127.0.0.1:3107/campaigns \
     "campaign": "client_creator_outreach_may_2026",
     "settings": {
       "senderPool": ["sender-a", "sender-b"],
+      "senderAccounts": [
+        {
+          "id": "sender-a",
+          "status": "healthy",
+          "dailyLimit": 35,
+          "warmupNote": "ready for low-volume pilot",
+          "riskEvents": []
+        }
+      ],
       "dailyLimitPerSender": 35,
       "minDelaySeconds": 90,
       "maxDelaySeconds": 420,
@@ -112,6 +122,8 @@ target schedule. Repeating the same request with the same `Idempotency-Key`
 returns the original campaign instead of scheduling duplicate outreach. New
 campaigns also consult the persisted suppression records created by earlier
 campaigns, so previously scheduled handles are returned as `skipped_duplicate`.
+Responses include `senderHealth`; locked, cooling-down, or reconnect-required
+senders are blocked from scheduling and surfaced as account-health blockers.
 
 ## Architecture
 
@@ -156,8 +168,8 @@ owns that operational risk.
 ## Roadmap to Bounty Pilot
 
 1. Wire the managed delivery adapter contract into the campaign execution path.
-2. Add sender account inventory, warm-up state, and health scoring.
-3. Add signed outgoing webhooks with retry and dead-letter state.
+2. Add signed outgoing webhooks with retry and dead-letter state.
+3. Connect real sender account operations to the sender health model.
 4. Run a controlled pilot with a small vetted creator list.
 5. Publish reliability evidence: delivery counts, reply counts, duplicate
    prevention, blocked sends, and incident log.
