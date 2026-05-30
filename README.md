@@ -86,6 +86,9 @@ pilot-intake validation/rehearsal, managed-provider bridge rehearsal, mock-demo,
 MMDX preflight, and MMDX publish dry-run checks without requiring Instagram
 credentials.
 
+For the grounded adversarial stop condition on repo-side work, see
+[`docs/WIKI_DUEL_BOUNTY_READINESS.md`](docs/WIKI_DUEL_BOUNTY_READINESS.md).
+
 By default, the built server persists campaigns to `.data/campaigns.json`.
 Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
 Startup config is read from `HOST`, `PORT`, `INSCHNEIDERGRAM_PROVIDER`,

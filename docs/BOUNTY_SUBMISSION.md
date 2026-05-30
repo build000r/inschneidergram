@@ -49,6 +49,7 @@ Expected result: `Local bounty proof passed.`
 | Can Graphed receive status? | signed runtime webhooks, replayable dead letters, proof-pack API |
 | Can a managed provider connect? | `npm run pilot:provider-bridge`, `examples/managed-provider-bridge.example.json` |
 | Is the repo honest about platform risk? | [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md), [BUILD_VS_CLONE.md](BUILD_VS_CLONE.md), adapter `officialColdDmCompliance: "not_claimed"` |
+| Is there any repo-side work left before live proof? | [WIKI_DUEL_BOUNTY_READINESS.md](WIKI_DUEL_BOUNTY_READINESS.md) |
 
 ## Pilot Ask
 
