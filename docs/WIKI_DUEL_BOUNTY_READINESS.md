@@ -104,10 +104,11 @@ proof-dossier provenance refresh:
   `18e157adaf1c61d1a61fd19180e75c47c4740498f5c9f0aa8ba2e5baa7edd95d`.
 - Manual pilot demo and mock proof-pack demo passed.
 - Project-status MMDX preflight passed with 10 charts.
-- MMDX dry-run passed for
+- After the bounty acceptance matrix was added to the status stack, MMDX
+  preflight passed again with 10 charts and dry-run passed for
   `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`
   with source hash
-  `ad74fa5a202e1b3ffed1d0ddb7b69df4986516570803caef800e8ed44a991dbc`.
+  `9dead052e536fbb4cbd6658dcb010d28f065d863ee3b8a374fe4092f6ef9bbf7`.
 
 ## External Next Actions
 

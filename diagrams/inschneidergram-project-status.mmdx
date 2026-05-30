@@ -42,6 +42,7 @@ flowchart LR
   serviceSmoke["GREEN Service smoke for provider + manual + dashboard paths"]
   apiAuth["GREEN Strong API/webhook secret deployment gate"]
   evaluatorPacket["GREEN Bounty submission packet + one-command local proof"]
+  acceptanceMatrix["GREEN Bounty acceptance evidence matrix"]
   intakeKit["GREEN Live pilot intake kit + schema-backed validation/API rehearsal + non-expiring local examples"]
   providerBridge["GREEN Evidence-bearing managed-provider bridge rehearsal"]
   statusLink["YELLOW Public Buildooor short link blocked: refresh SPAPS auth then run status:mmdx:publish"]
@@ -98,6 +99,7 @@ flowchart LR
   intakeKit --> evaluatorPacket
   providerBridge --> evaluatorPacket
   proofPacket --> evaluatorPacket
+  evaluatorPacket --> acceptanceMatrix
   apiAuth --> webhookGuard
   riskReconcile --> readiness
   riskReconcile --> proof
@@ -125,6 +127,7 @@ flowchart LR
   providerContract --> beads
   statusLink --> beads
   evaluatorPacket --> beads
+  acceptanceMatrix --> beads
   intakeKit --> beads
   providerBridge --> beads
   beads --> next
@@ -155,6 +158,7 @@ flowchart LR
   class serviceSmoke green
   class apiAuth green
   class evaluatorPacket green
+  class acceptanceMatrix green
   class intakeKit green
   class providerBridge green
   class statusLink yellow
@@ -427,6 +431,7 @@ flowchart TD
   sourceDoc["GREEN source evidence doc separates public sources from operator-provided bounty interpretation"]
   proofDoc["GREEN current local proof dossier refreshed"]
   evaluatorProof["GREEN npm run proof:bounty-local wraps local evaluator gates"]
+  acceptanceMatrix["GREEN bounty acceptance matrix maps requirements to evidence and blockers"]
   intakeValidation["GREEN npm run pilot:intake:validate checks live pilot campaign/sender/auth/webhook inputs and renews only bundled example auth windows"]
   intakeRehearsal["GREEN npm run pilot:intake:rehearse creates sender/campaign/approval/manual queue state"]
   providerBridgeProof["GREEN npm run pilot:provider-bridge creates provider handoff and proof from evidence-bearing provider outcomes"]
@@ -440,7 +445,8 @@ flowchart TD
   smoke --> sourceDoc
   sourceDoc --> proofDoc
   proofDoc --> evaluatorProof
-  evaluatorProof --> intakeValidation
+  evaluatorProof --> acceptanceMatrix
+  acceptanceMatrix --> intakeValidation
   intakeValidation --> intakeRehearsal
   intakeRehearsal --> providerBridgeProof
   providerBridgeProof --> proofPacket
@@ -454,6 +460,7 @@ flowchart TD
   class sourceDoc green
   class proofDoc green
   class evaluatorProof green
+  class acceptanceMatrix green
   class intakeValidation green
   class intakeRehearsal green
   class providerBridgeProof green

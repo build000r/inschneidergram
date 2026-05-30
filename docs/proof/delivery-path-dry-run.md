@@ -1,6 +1,8 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T17:09:07Z
+Generated from latest full proof run: 2026-05-30T17:09:07Z
+MMDX payload refreshed after acceptance-matrix status update:
+2026-05-30T17:26:01Z
 
 Validation run base:
 `fb86c37cc7bb81e7b29f11f9ba7718446433ac3b`, the public closeout commit after
@@ -8,9 +10,12 @@ canonical proof-packet export, stable MMDX slug evidence, manual-rehearsal
 timeout stabilization, Beads sync, push, and public remote verification.
 
 Validation target: current working tree after the public closeout commit plus
-this proof-dossier provenance refresh. No product/runtime source changed since
-the public closeout commit. `npm run proof:bounty-local` was rerun against this
-tree and passed.
+proof-dossier, acceptance-matrix, and status-stack documentation refreshes. No
+product/runtime source changed since the public closeout commit.
+`npm run proof:bounty-local` was rerun after the proof-dossier provenance
+refresh and passed. After the acceptance matrix updated the status stack,
+`npm run status:mmdx:preflight` and `npm run status:mmdx:dry-run` were rerun
+and passed with the current MMDX source hash below.
 
 Runtime:
 
@@ -49,7 +54,7 @@ delivery or completed Graphed outreach.
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `ad74fa5a202e1b3ffed1d0ddb7b69df4986516570803caef800e8ed44a991dbc` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `9dead052e536fbb4cbd6658dcb010d28f065d863ee3b8a374fe4092f6ef9bbf7` |
 
 ## Live Pilot Intake Validation
 

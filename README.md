@@ -710,6 +710,7 @@ a pilot that completes meaningful creator outreach.
 
 - [Vision](docs/VISION.md)
 - [Bounty requirements](docs/BOUNTY_REQUIREMENTS.md)
+- [Bounty acceptance evidence matrix](docs/BOUNTY_ACCEPTANCE_MATRIX.md)
 - [Bounty submission packet](docs/BOUNTY_SUBMISSION.md)
 - [Build-vs-clone analysis](docs/BUILD_VS_CLONE.md)
 - [Source evidence](docs/SOURCE_EVIDENCE.md)
