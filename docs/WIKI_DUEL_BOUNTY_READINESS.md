@@ -44,13 +44,14 @@ The reviewed surfaces were `README.md`, `docs/BOUNTY_SUBMISSION.md`,
 | --- | ---: | ---: | --- |
 | Advocate Boyle | 72% | 96% | No hard blocker; asked for exact current-HEAD proof dossier |
 | Skeptic Leibniz | 72% | 86% | No hard blocker; asked for canonical proof-packet export |
-| Verifier Darwin | 94% before commit/report closeout | 97% after commit/report closeout | No code-side blocker; asked to refresh this report, close Beads, commit, and push |
+| Verifier Darwin | 94% before commit/report closeout | 97% after commit/report closeout | No code-side blocker; requested closeout, now completed in the public repo |
 
-Consensus: the repo is conditionally bounty-ready once the proof-packet batch is
-committed and pushed. It is not yet bounty-complete because decisive evidence
-is external: real sender/provider operation, real Graphed creator targets,
-fresh launch authorization for the private pilot, live delivery/reply evidence,
-and public Buildooor MMDX publication.
+Consensus: the current public repo is conditionally bounty-ready after the
+proof-packet batch, Beads sync, commit, push, and public remote verification.
+It is not yet bounty-complete because decisive evidence is external: real
+sender/provider operation, real Graphed creator targets, fresh launch
+authorization for the private pilot, live delivery/reply evidence, and public
+Buildooor MMDX publication.
 
 ## Strongest Affirmative Case
 
@@ -128,11 +129,11 @@ That critique produced the current hardening patch:
 
 ## Repo Work Decision
 
-No code-side blocker remains in the current tree. The final repo-side closeout
-for this loop is procedural: close the proof-packet/report Beads, sync Beads,
-commit the proof-packet batch, push `main`, and verify the public remote now
-contains the work. After that, the next material confidence increase comes from
-external live pilot evidence, not another local feature.
+No code-side blocker remains in the current tree. The proof-packet/report
+closeout is complete: the relevant Beads were closed and synced, `main` was
+committed and pushed, and the public remote now contains the work. The next
+material confidence increase comes from external live pilot evidence and a
+fresh authenticated Buildooor MMDX publish, not another local feature.
 
 ## Deferred Wiki Updates
 
