@@ -59,7 +59,7 @@ This repo currently contains the API/control-plane MVP:
 | Managed provider execution contract | Working MVP | `adapter.kind=managed_provider` accepts one evidence-bearing provider outcome per approved target |
 | Execution readiness enforcement | Working MVP | executions return 409 until approval/sender gates pass |
 | Managed service smoke path | Working MVP | `npm run smoke:service`, `/health` store check, Dockerfile |
-| Latest proof export | Working MVP | `GET /campaigns/:id/proof-pack`, refreshed by late provider replies/failures |
+| Latest proof export | Working MVP | `GET /campaigns/:id/proof-pack` plus canonical `GET /campaigns/:id/proof-packet`, refreshed by late provider replies/failures |
 | Service secret enforcement | Working MVP | production or non-loopback startup requires strong API/webhook secrets |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
 | Pilot readiness | Partial | needs verified delivery operations and live pilot evidence |
@@ -353,6 +353,20 @@ metrics, renewal recommendation, and the proof-pack Markdown so a buyer or
 operator can review the pilot result without walking raw execution records.
 Late provider replies and failures recorded through `POST /campaigns/:id/events`
 are folded into the latest execution proof before this export is returned.
+It also embeds a `proofPacket` object for replay-grade review.
+
+Export only the canonical replay packet and its deterministic hash:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/proof-packet
+```
+
+The proof packet is a redacted `proof-packet/v1` stable-JSON payload. It
+includes campaign targets, readiness gates, launch authorization, execution
+intents, delivery attempts, webhook attempts, manual/provider evidence
+references, the follow-up plan, source URLs, and a `canonicalSha256` over the
+canonical body. It does not embed credentials, webhook secret material, or
+private binary/screenshots.
 
 Inspect follow-up work derived from the latest execution evidence:
 
@@ -557,13 +571,20 @@ replayable runtime dead letters separately from persisted proof metrics, so a
 restarted process does not imply old proof dead letters are still replayable.
 
 `GET /campaigns/:id/proof-pack` exports the latest proof record with readiness
-context, source URLs, metrics, renewal recommendation, and Markdown. It returns
-`404 proof_pack_not_found` when the campaign has not produced execution proof
-yet, including the current readiness report so the next action is still clear.
-The export also includes `followUpPlan` and `source.followUpsUrl` so a buyer or
-operator can see the next planned touches without discovering execution ids.
-Provider events recorded after the execution refresh the latest proof record
-before this response is generated.
+context, source URLs, metrics, renewal recommendation, Markdown, and the
+embedded canonical proof packet. It returns `404 proof_pack_not_found` when the
+campaign has not produced execution proof yet, including the current readiness
+report so the next action is still clear. The export also includes
+`followUpPlan`, `source.followUpsUrl`, and `source.proofPacketUrl` so a buyer or
+operator can see the next planned touches and replay packet without discovering
+execution ids. Provider events recorded after the execution refresh the latest
+proof record before this response is generated.
+
+`GET /campaigns/:id/proof-packet` returns just the canonical replay packet. It
+uses stable key ordering for `canonicalSha256` and includes redacted execution,
+webhook, authorization, evidence-reference, follow-up, and source-url context.
+It returns `404 proof_packet_not_found` with readiness when no execution proof
+exists yet.
 
 `GET /campaigns/:id/follow-ups` derives the current follow-up plan from
 `settings.followUps` and the latest execution evidence. It suppresses follow-up

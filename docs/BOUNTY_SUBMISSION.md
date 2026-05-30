@@ -10,6 +10,8 @@ creator outreach pilot. It can accept a campaign, preserve creator provenance,
 enforce approval/sender/authorization gates, create execution records, expose
 operator queues and dashboard state, record manual or provider-reported
 delivery evidence, dispatch signed runtime callbacks, and generate proof packs.
+Each proof pack now includes a canonical redacted proof packet that can be
+exported separately with a deterministic SHA-256.
 
 It is not yet claiming live Instagram delivery or official cold-DM compliance.
 Those require the external pilot inputs below.
@@ -50,8 +52,8 @@ they must carry current real approval evidence and expiry.
 | Can Graphed avoid hosting browser automation? | [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md), selected operator-run managed manual path |
 | Are creators vetted before send evidence? | strict target provenance, approval workbench, readiness gates |
 | Is sender risk modeled? | sender inventory, risk events, cooldown/lockout/reconnect states |
-| Are outcomes auditable? | execution records, manual queue/evidence, provider events, proof packs |
-| Can Graphed receive status? | signed runtime webhooks, replayable dead letters, proof-pack API |
+| Are outcomes auditable? | execution records, manual queue/evidence, provider events, proof packs, canonical proof packets |
+| Can Graphed receive status? | signed runtime webhooks, replayable dead letters, proof-pack and proof-packet APIs |
 | Can a managed provider connect? | `npm run pilot:provider-bridge`, evidence-bearing provider outcomes in `examples/managed-provider-bridge.example.json` |
 | Is the repo honest about platform risk? | [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md), [BUILD_VS_CLONE.md](BUILD_VS_CLONE.md), adapter `officialColdDmCompliance: "not_claimed"` |
 | Is there any repo-side work left before live proof? | [WIKI_DUEL_BOUNTY_READINESS.md](WIKI_DUEL_BOUNTY_READINESS.md) |
@@ -96,7 +98,8 @@ replace the fixture once Graphed supplies provider access and authorization.
 
 After those inputs exist, run the pilot through the flow in
 [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md), then publish the live
-`GET /campaigns/:id/proof-pack` output.
+`GET /campaigns/:id/proof-pack` output plus the matching
+`GET /campaigns/:id/proof-packet` canonical hash.
 
 ## Current External Blockers
 

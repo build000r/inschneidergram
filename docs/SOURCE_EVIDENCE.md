@@ -45,6 +45,8 @@ the local requirements doc as independently verified.
 
 - `docs/proof/delivery-path-dry-run.md` records current local validation and
   explicitly excludes live Instagram delivery claims.
+- `GET /campaigns/:id/proof-packet` exports the canonical redacted replay
+  packet for execution proof, including deterministic SHA-256 provenance.
 - `diagrams/inschneidergram-project-status.mmdx` is the repo-local status stack.
   Its public Buildooor short link is still blocked by `inschneidergram-j8b.7`.
 - Beads issue `inschneidergram-j8b.3` covers live pilot evidence, and

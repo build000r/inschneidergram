@@ -53,6 +53,7 @@ export interface PilotIntakeApiRehearsalResult {
     execution: string;
     manualQueue: string;
     proofPack: string;
+    proofPacket: string;
     dashboard: string;
   };
   nextActions: string[];
@@ -218,6 +219,7 @@ function summarizeRehearsal(input: RehearsalSummaryInput): PilotIntakeApiRehears
       execution: `/campaigns/${input.campaignId}/executions/${input.executionId}`,
       manualQueue: `/campaigns/${input.campaignId}/executions/${input.executionId}/manual-queue`,
       proofPack: `/campaigns/${input.campaignId}/proof-pack`,
+      proofPacket: `/campaigns/${input.campaignId}/proof-packet`,
       dashboard: "/operator/dashboard"
     },
     nextActions: actionLabelsField(input.handoff, "nextActions")

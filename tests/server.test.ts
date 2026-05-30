@@ -2046,6 +2046,7 @@ describe("API", () => {
       },
       proofContract: {
         proofPackUrl: "/campaigns/{campaignId}/proof-pack",
+        proofPacketUrl: "/campaigns/{campaignId}/proof-packet",
         requiredMetrics: expect.arrayContaining([
           "contactedTargets",
           "replies",
@@ -2151,7 +2152,8 @@ describe("API", () => {
       source: {
         readinessUrl: `/campaigns/${campaignId}/readiness`,
         approvalWorkbenchUrl: `/campaigns/${campaignId}/approval-workbench`,
-        proofPackUrl: `/campaigns/${campaignId}/proof-pack`
+        proofPackUrl: `/campaigns/${campaignId}/proof-pack`,
+        proofPacketUrl: `/campaigns/${campaignId}/proof-packet`
       },
       contracts: {
         creatorInput: {
@@ -2300,6 +2302,12 @@ describe("API", () => {
           id: "proof_review",
           method: "GET",
           path: `/campaigns/${campaignId}/proof-pack`,
+          state: "available"
+        }),
+        expect.objectContaining({
+          id: "proof_packet_export",
+          method: "GET",
+          path: `/campaigns/${campaignId}/proof-packet`,
           state: "available"
         }),
         expect.objectContaining({
@@ -2656,6 +2664,7 @@ describe("API", () => {
           },
           source: expect.objectContaining({
             proofPackUrl: `/campaigns/${campaignId}/proof-pack`,
+            proofPacketUrl: `/campaigns/${campaignId}/proof-packet`,
             webhookDeadLettersUrl: "/webhooks/dead-letters"
           })
         })
@@ -2805,7 +2814,8 @@ describe("API", () => {
           proof: expect.objectContaining({
             latestExecutionId: executionId,
             renewalDecision: "iterate",
-            proofPackUrl: `/campaigns/${campaignId}/proof-pack`
+            proofPackUrl: `/campaigns/${campaignId}/proof-pack`,
+            proofPacketUrl: `/campaigns/${campaignId}/proof-packet`
           })
         })
       ])
@@ -3023,6 +3033,8 @@ describe("API", () => {
       source: {
         readinessUrl: `/campaigns/${campaignId}/readiness`,
         followUpsUrl: `/campaigns/${campaignId}/follow-ups`,
+        proofPackUrl: `/campaigns/${campaignId}/proof-pack`,
+        proofPacketUrl: `/campaigns/${campaignId}/proof-packet`,
         executionUrl: `/campaigns/${campaignId}/executions/${executionResponse.json().executionId}`,
         executionsUrl: `/campaigns/${campaignId}/executions`
       },
@@ -3044,6 +3056,76 @@ describe("API", () => {
       }
     });
     expect(proofExport.json().markdown).toContain("Decision: iterate");
+    expect(proofExport.json().proofPacket).toMatchObject({
+      version: "proof-packet/v1",
+      canonicalization: "stable-json-v1",
+      generatedAt: proofExport.json().proofPack.generatedAt,
+      campaign: {
+        id: campaignId,
+        targets: expect.arrayContaining([
+          expect.objectContaining({
+            handle: "provider_sent",
+            raw: "@provider_sent",
+            status: "sent",
+            events: expect.arrayContaining([
+              expect.objectContaining({
+                event: "sent"
+              })
+            ])
+          })
+        ])
+      },
+      execution: {
+        id: executionResponse.json().executionId,
+        deliveryAttempts: expect.arrayContaining([
+          expect.objectContaining({
+            adapterId: "provider_contract",
+            events: expect.arrayContaining([
+              expect.objectContaining({
+                type: "sent",
+                messageId: "provider_msg_1",
+                evidence: {
+                  providerRunId: "run_1"
+                }
+              })
+            ])
+          })
+        ]),
+        webhookDeliveries: expect.arrayContaining([
+          expect.objectContaining({
+            status: "delivered",
+            attempts: expect.arrayContaining([
+              expect.objectContaining({
+                success: true,
+                statusCode: 204
+              })
+            ])
+          })
+        ])
+      },
+      redaction: {
+        credentialMaterial: "not_stored_or_exported"
+      },
+      source: {
+        proofPacketUrl: `/campaigns/${campaignId}/proof-packet`
+      }
+    });
+    expect(proofExport.json().proofPacket.canonicalSha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const proofPacket = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/proof-packet`
+    });
+    expect(proofPacket.statusCode).toBe(200);
+    expect(proofPacket.json()).toEqual(proofExport.json().proofPacket);
+
+    const repeatedProofPacket = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/proof-packet`
+    });
+    expect(repeatedProofPacket.json().canonicalSha256).toBe(
+      proofPacket.json().canonicalSha256
+    );
 
     const followUps = await app.inject({
       method: "GET",
@@ -3425,6 +3507,23 @@ describe("API", () => {
     expect(proofExport.statusCode).toBe(404);
     expect(proofExport.json()).toMatchObject({
       error: "proof_pack_not_found",
+      campaignId,
+      readiness: {
+        status: "needs_approval",
+        readyForExecution: false,
+        counts: {
+          executions: 0
+        }
+      }
+    });
+
+    const proofPacket = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/proof-packet`
+    });
+    expect(proofPacket.statusCode).toBe(404);
+    expect(proofPacket.json()).toMatchObject({
+      error: "proof_packet_not_found",
       campaignId,
       readiness: {
         status: "needs_approval",
@@ -4671,6 +4770,18 @@ describe("API", () => {
       responses: {
         "404": {
           description: "Campaign or proof pack not found"
+        }
+      }
+    });
+    expect(openapi.paths["/campaigns/{id}/proof-packet"].get).toMatchObject({
+      summary: "Export a canonical replay packet with deterministic SHA-256",
+      responses: {
+        "200": {
+          description:
+            "Canonical proof packet returned with execution attempts, webhook attempts, evidence references, and stable SHA-256"
+        },
+        "404": {
+          description: "Campaign or proof packet not found"
         }
       }
     });

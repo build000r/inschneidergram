@@ -124,9 +124,11 @@ The current implementation covers:
   URLs, next API actions, creator/sender/evidence contracts, stop conditions,
   follow-up state, and proof context into one campaign-level operator surface
 - latest proof export route that returns the most recent proof pack, readiness,
-  metrics, renewal recommendation, source URLs, and Markdown from one
-  campaign-level API call, with late provider replies/failures folded into the
-  latest execution proof before export
+  metrics, renewal recommendation, source URLs, Markdown, and embedded
+  canonical proof packet from one campaign-level API call, with late provider
+  replies/failures folded into the latest execution proof before export
+- canonical proof-packet route that exports the redacted replay packet and
+  deterministic SHA-256 without requiring raw execution-id discovery
 - readiness and execution recheck current stored sender health for campaigns
   created from managed inventory
 - hardened OpenAPI contract for the no-credential pilot path, including path
@@ -338,10 +340,17 @@ metrics.
 
 `GET /campaigns/:id/proof-pack` is the buyer-facing proof export. It selects the
 latest execution, attaches readiness and source URLs, and returns metrics,
-renewal recommendation, and the Markdown report without requiring the caller to
-discover an execution id first. Provider replies or failures recorded after the
-execution refresh the latest stored proof pack before export, so the campaign
-level report does not lag behind provider callbacks.
+renewal recommendation, Markdown report, follow-up state, and embedded
+`proofPacket` without requiring the caller to discover an execution id first.
+Provider replies or failures recorded after the execution refresh the latest
+stored proof pack before export, so the campaign level report does not lag
+behind provider callbacks.
+
+`GET /campaigns/:id/proof-packet` is the evaluator replay export. It returns a
+stable `proof-packet/v1` JSON object with launch authorization, delivery
+attempts, webhook attempts, evidence references, readiness gates, follow-up
+plan, source URLs, and `canonicalSha256`; credentials, webhook secret material,
+and private binary proof are not embedded.
 
 `GET /campaigns/:id/follow-ups` is the operator follow-up plan. It uses the
 campaign's configured follow-up rules and latest execution evidence to expose
@@ -409,8 +418,9 @@ evidence without conflating those with campaign policy blocks or approval
 rejections.
 
 The API now exports the latest stored proof pack at campaign level for buyer or
-operator review. A live pilot still needs real provider/account inputs before
-that export can be treated as live Instagram evidence.
+operator review and the canonical proof packet for replay-grade audit. A live
+pilot still needs real provider/account inputs before that export can be
+treated as live Instagram evidence.
 
 ## Validation Commands
 

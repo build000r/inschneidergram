@@ -192,7 +192,11 @@ private or special-use addresses before the outbound request is made.
     surface: readiness state, manual evidence counts, reply-monitoring work,
     due follow-ups, sender-health blockers, runtime webhook dead letters,
     latest proof metrics, renewal decisions, and source URLs.
-19. Proof-pack generator produces the renewal report with operator skipped and
+19. Operator or buyer fetches `GET /campaigns/:id/proof-packet` when they need
+    the canonical redacted replay packet and deterministic SHA-256 over launch
+    authorization, delivery attempts, webhook attempts, evidence references,
+    follow-up plan, and source URLs.
+20. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
 
 ## Readiness Gates
@@ -227,6 +231,14 @@ the operator. It wraps the route map, profile-object creator schema, sender
 credential boundary, delivery-path options, launch-authorization template,
 proof metrics, validation commands, and stop conditions before any private
 creator list is sent to the service.
+
+`GET /campaigns/:id/proof-pack` is the buyer-facing summary export after an
+execution. It includes the latest proof metrics, Markdown report,
+readiness/follow-up context, and an embedded `proofPacket`.
+`GET /campaigns/:id/proof-packet` returns only the canonical replay packet with
+`canonicalSha256`. The packet keeps credential and webhook secret material out
+of the export while preserving references to authorization, delivery evidence,
+webhook attempts, and source routes.
 
 `GET /campaigns/:id/pilot-handoff` is the campaign-level handoff document for
 operators and evaluators. It wraps readiness with next API actions, source

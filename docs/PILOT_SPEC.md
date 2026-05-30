@@ -114,6 +114,7 @@ default proof pack should include:
 - opt-outs or complaints
 - sender warnings or restrictions
 - operator time and incident notes
+- embedded `proofPacket` summary with canonical SHA-256
 
 ## Buyer Confidence Gates
 
@@ -127,6 +128,7 @@ default proof pack should include:
 | Reply loop | replies can be captured, triaged, and exported |
 | Pilot economics | qualified replies and cost/time per qualified reply are visible |
 | Proof pack | final report is sufficient for renewal/adoption decision |
+| Proof packet | canonical redacted replay packet exports launch authorization, delivery attempts, webhook attempts, evidence references, source URLs, and deterministic SHA-256 |
 
 ## Non-Goals
 

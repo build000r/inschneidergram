@@ -125,7 +125,8 @@ After validation passes:
 6. Record manual evidence through
    `POST /campaigns/:id/executions/:executionId/manual-events`.
 7. Replay webhook dead letters before publishing
-   `GET /campaigns/:id/proof-pack`.
+   `GET /campaigns/:id/proof-pack` and the matching canonical
+   `GET /campaigns/:id/proof-packet` hash.
 
 ## Sensitive Boundary
 

@@ -120,6 +120,11 @@ export interface ManagedProviderBridgeRehearsalResult {
     webhookDelivered: number;
     webhookDeadLetters: number;
   };
+  proofPacket: {
+    version: string;
+    canonicalSha256: string;
+    sourceUrl: string;
+  };
   readiness: {
     status: string;
     readyForEvidenceReview: boolean;
@@ -179,6 +184,7 @@ export async function runManagedProviderBridgeRehearsal(
     });
     const executionId = stringField(execution, "executionId");
     const proofPack = recordField(execution, "proofPack");
+    const proofPacket = await injectJson(app, "GET", `/campaigns/${campaignId}/proof-packet`);
     const readiness = await injectJson(app, "GET", `/campaigns/${campaignId}/readiness`);
 
     return {
@@ -189,6 +195,7 @@ export async function runManagedProviderBridgeRehearsal(
       outcomeCount: fixture.outcomes.length,
       bridgeRequest: handoff,
       proofMetrics: proofMetrics(proofPack),
+      proofPacket: proofPacketSummary(proofPacket),
       readiness: {
         status: stringField(readiness, "status"),
         readyForEvidenceReview: booleanField(readiness, "readyForEvidenceReview"),
@@ -241,6 +248,21 @@ function proofMetrics(proofPack: Record<string, unknown>): ManagedProviderBridge
     senderWarnings: numberField(metrics, "senderWarnings"),
     webhookDelivered: numberField(metrics, "webhookDelivered"),
     webhookDeadLetters: numberField(metrics, "webhookDeadLetters")
+  };
+}
+
+function proofPacketSummary(
+  proofPacket: Record<string, unknown>
+): ManagedProviderBridgeRehearsalResult["proofPacket"] {
+  const source = recordField(proofPacket, "source");
+  const canonicalSha256 = stringField(proofPacket, "canonicalSha256");
+  if (!/^[a-f0-9]{64}$/.test(canonicalSha256)) {
+    throw new Error(`Invalid proof packet hash: ${canonicalSha256}`);
+  }
+  return {
+    version: stringField(proofPacket, "version"),
+    canonicalSha256,
+    sourceUrl: stringField(source, "proofPacketUrl")
   };
 }
 

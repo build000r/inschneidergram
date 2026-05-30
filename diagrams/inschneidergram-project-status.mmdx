@@ -26,6 +26,7 @@ flowchart LR
   beads["YELLOW Beads planning active"]
   proof["GREEN Proof pack generator"]
   proofExport["GREEN Latest proof export API"]
+  proofPacket["GREEN Canonical proof-packet API + stable SHA-256"]
   proofFreshness["GREEN Late provider proof + follow-up refresh"]
   webhookRuntime["GREEN Runtime webhook callbacks for provider/execution/manual evidence + replay"]
   webhookGuard["GREEN Webhook destination guard"]
@@ -62,6 +63,7 @@ flowchart LR
   creatorIntake --> readiness
   followUps --> proofExport
   proof --> proofExport
+  proofExport --> proofPacket
   providerContract --> proofFreshness
   proofFreshness --> proofExport
   proofFreshness --> followUps
@@ -72,6 +74,7 @@ flowchart LR
   runner --> webhookRuntime
   runner --> readiness
   proofExport --> operatorDashboard
+  proofPacket --> operatorDashboard
   followUps --> operatorDashboard
   ops --> operatorDashboard
   webhookRuntime --> operatorDashboard
@@ -94,6 +97,7 @@ flowchart LR
   apiAuth --> evaluatorPacket
   intakeKit --> evaluatorPacket
   providerBridge --> evaluatorPacket
+  proofPacket --> evaluatorPacket
   apiAuth --> webhookGuard
   riskReconcile --> readiness
   riskReconcile --> proof
@@ -106,6 +110,7 @@ flowchart LR
   riskReconcile --> beads
   proof --> beads
   proofExport --> beads
+  proofPacket --> beads
   proofFreshness --> beads
   operatorDashboard --> beads
   webhookRuntime --> beads
@@ -134,6 +139,7 @@ flowchart LR
   class riskReconcile green
   class proof green
   class proofExport green
+  class proofPacket green
   class proofFreshness green
   class webhookRuntime green
   class webhookGuard green
@@ -182,6 +188,7 @@ gantt
   GREEN Execution readiness + pending-manual-evidence enforcement :done, 2026-05-30, 1d
   GREEN Service smoke for provider + manual + dashboard paths :done, 2026-05-30, 1d
   GREEN Latest proof export API :done, 2026-05-30, 1d
+  GREEN Canonical proof-packet API + stable SHA-256 :done, 2026-05-30, 1d
   GREEN Late provider proof + follow-up refresh :done, 2026-05-30, 1d
   GREEN Operator dashboard status API :done, 2026-05-30, 1d
   GREEN Strong API/webhook secret deployment gate :done, 2026-05-30, 1d
@@ -214,6 +221,7 @@ flowchart TD
   webhookGuard["DONE GREEN Webhook destination guard"]
   proof["DONE GREEN Proof pack generator"]
   proofExport["DONE GREEN Latest proof export API"]
+  proofPacket["DONE GREEN Canonical proof-packet API + stable SHA-256"]
   proofFreshness["DONE GREEN Late provider proof + follow-up refresh"]
   runner["DONE GREEN API execution + atomic manual queue"]
   operatorDashboard["DONE GREEN Operator dashboard status API"]
@@ -251,6 +259,7 @@ flowchart TD
   riskReconcile --> readiness
   riskReconcile --> proof
   proof --> proofExport
+  proofExport --> proofPacket
   followUps --> proofExport
   providerContract --> proofFreshness
   proofFreshness --> proofExport
@@ -258,6 +267,7 @@ flowchart TD
   proof --> runner
   runner --> readiness
   proofExport --> operatorDashboard
+  proofPacket --> operatorDashboard
   followUps --> operatorDashboard
   sender --> operatorDashboard
   webhooks --> operatorDashboard
@@ -279,12 +289,14 @@ flowchart TD
   apiAuth --> evaluatorPacket
   intakeKit --> evaluatorPacket
   providerBridge --> evaluatorPacket
+  proofPacket --> evaluatorPacket
   apiAuth --> webhookGuard
   webhookGuard --> statusLink
   evaluatorPacket --> statusLink
   intakeKit --> pilot
   providerBridge --> pilot
   proofExport --> pilot
+  proofPacket --> pilot
   launchPacket --> pilot
   runner --> pilot
   readiness --> pilot
@@ -305,6 +317,7 @@ flowchart TD
   class webhookGuard green
   class proof green
   class proofExport green
+  class proofPacket green
   class proofFreshness green
   class runner green
   class operatorDashboard green
@@ -355,6 +368,7 @@ sequenceDiagram
   P-->>I: late reply/failure provider event refreshes latest proof + follow-ups
   G->>I: GET /webhooks/dead-letters and replay if needed
   G->>I: GET /campaigns/:id/proof-pack for latest buyer-facing report
+  G->>I: GET /campaigns/:id/proof-packet for canonical replay packet + SHA-256
   G->>I: GET /campaigns/:id/follow-ups for due or pending follow-up work
   G->>I: GET /operator/dashboard for cross-campaign status and urgent actions
   G->>I: GET /operator/manual-queue for pending operator work
@@ -384,7 +398,7 @@ stateDiagram-v2
 ## chart architecture-boundary Architecture Boundary
 ```mermaid
 flowchart LR
-  repo["GREEN This repo: API, store, approvals, sender inventory, status/proof export model"]
+  repo["GREEN This repo: API, store, approvals, sender inventory, status/proof export/proof-packet model"]
   runtime["GREEN Runtime config, API key gate, webhook guard, health, smoke, Docker"]
   provider["GREEN Evidence-bearing managed-provider outcome contract"]
   ops["YELLOW Real sender credentials, provider ops, and recovery"]
@@ -416,6 +430,7 @@ flowchart TD
   intakeValidation["GREEN npm run pilot:intake:validate checks live pilot campaign/sender/auth/webhook inputs and renews only bundled example auth windows"]
   intakeRehearsal["GREEN npm run pilot:intake:rehearse creates sender/campaign/approval/manual queue state"]
   providerBridgeProof["GREEN npm run pilot:provider-bridge creates provider handoff and proof from evidence-bearing provider outcomes"]
+  proofPacket["GREEN proof-packet export carries redacted replay data and canonical SHA-256"]
   mmdx["GREEN MMDX preflight passed"]
   statusLink["YELLOW Public Buildooor short link not live-verified; status:mmdx scripts ready, SPAPS auth refresh required"]
   live["YELLOW no live Instagram delivery proof yet; covered by inschneidergram-j8b"]
@@ -428,7 +443,8 @@ flowchart TD
   evaluatorProof --> intakeValidation
   intakeValidation --> intakeRehearsal
   intakeRehearsal --> providerBridgeProof
-  providerBridgeProof --> mmdx
+  providerBridgeProof --> proofPacket
+  proofPacket --> mmdx
   mmdx --> statusLink
   statusLink --> live
   live --> pilot
@@ -441,6 +457,7 @@ flowchart TD
   class intakeValidation green
   class intakeRehearsal green
   class providerBridgeProof green
+  class proofPacket green
   class mmdx green
   class statusLink yellow
   class live yellow
@@ -470,7 +487,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, evidence-bearing managed-provider outcome contract, managed-provider bridge rehearsal, execution readiness, fresh evidence-backed launch authorization, runtime renewal for bundled example authorization windows, pending-manual-evidence enforcement, latest proof export, late provider proof/follow-up refresh, pre-campaign launch packet, live pilot intake validation/rehearsal, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics, bounty submission packet, one-command local proof"]
+  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, evidence-bearing managed-provider outcome contract, managed-provider bridge rehearsal, execution readiness, fresh evidence-backed launch authorization, runtime renewal for bundled example authorization windows, pending-manual-evidence enforcement, latest proof export, canonical proof-packet export with stable SHA-256, late provider proof/follow-up refresh, pre-campaign launch packet, live pilot intake validation/rehearsal, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics, bounty submission packet, one-command local proof"]
   link["Blocked next: refresh Buildooor SPAPS auth and run npm run status:mmdx:publish (inschneidergram-j8b.7)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]

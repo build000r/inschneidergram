@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
@@ -326,6 +326,32 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     }
 
     return report;
+  });
+
+  app.get("/campaigns/:id/proof-packet", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    const report = await buildLatestProofPackReport(store, campaign);
+    if (!report) {
+      const campaignForReadiness = await withCurrentSenderInventorySnapshot(store, campaign);
+      return reply.code(404).send({
+        error: "proof_packet_not_found",
+        message: "No execution proof record exists for this campaign yet.",
+        campaignId: id,
+        readiness: buildPilotReadinessReport({
+          campaign: campaignForReadiness,
+          approvalWorkbench: await store.getApprovalWorkbench(id),
+          executions: []
+        })
+      });
+    }
+
+    return report.proofPacket;
   });
 
   app.get("/campaigns/:id/follow-ups", async (request, reply) => {
@@ -1071,6 +1097,19 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           responses: {
             "200": { description: "Latest proof pack report returned" },
             "404": { description: "Campaign or proof pack not found" }
+          }
+        }
+      },
+      "/campaigns/{id}/proof-packet": {
+        parameters: openApiPathParameters("id"),
+        get: {
+          summary: "Export a canonical replay packet with deterministic SHA-256",
+          responses: {
+            "200": {
+              description:
+                "Canonical proof packet returned with execution attempts, webhook attempts, evidence references, and stable SHA-256"
+            },
+            "404": { description: "Campaign or proof packet not found" }
           }
         }
       },
@@ -2279,9 +2318,10 @@ function openApiPilotLaunchPacketSchema() {
       },
       proofContract: {
         type: "object",
-        required: ["proofPackUrl", "handoffUrl", "followUpsUrl", "requiredMetrics"],
+        required: ["proofPackUrl", "proofPacketUrl", "handoffUrl", "followUpsUrl", "requiredMetrics"],
         properties: {
           proofPackUrl: { type: "string" },
+          proofPacketUrl: { type: "string" },
           handoffUrl: { type: "string" },
           followUpsUrl: { type: "string" },
           requiredMetrics: { type: "array", items: { type: "string" } }
@@ -2780,6 +2820,19 @@ async function buildLatestProofPackReport(
     approvalWorkbench: await store.getApprovalWorkbench(campaign.id),
     executions
   });
+  const followUpPlan = buildFollowUpPlan({
+    campaign: campaignForReadiness,
+    executions,
+    generatedAt: latestExecution.proofPack.generatedAt
+  });
+  const source = proofSourceUrls(campaign.id, latestExecution.id);
+  const proofPacket = buildProofPacket({
+    campaign: campaignForReadiness,
+    latestExecution,
+    readiness,
+    followUpPlan,
+    source
+  });
 
   return {
     campaignId: campaign.id,
@@ -2800,22 +2853,119 @@ async function buildLatestProofPackReport(
     },
     launchAuthorization: latestExecution.launchAuthorization ?? null,
     proofPack: latestExecution.proofPack,
+    proofPacket,
     metrics: latestExecution.proofPack.metrics,
     renewalRecommendation: latestExecution.proofPack.renewalRecommendation,
-    followUpPlan: buildFollowUpPlan({
-      campaign: campaignForReadiness,
-      executions
-    }),
+    followUpPlan,
     markdown: latestExecution.proofPack.markdown,
     nextActions: readiness.nextActions,
     externalInputs: readiness.externalInputs,
-    source: {
-      readinessUrl: `/campaigns/${campaign.id}/readiness`,
-      followUpsUrl: `/campaigns/${campaign.id}/follow-ups`,
-      executionUrl: `/campaigns/${campaign.id}/executions/${latestExecution.id}`,
-      executionsUrl: `/campaigns/${campaign.id}/executions`
-    }
+    source
   };
+}
+
+function proofSourceUrls(campaignId: string, executionId: string) {
+  return {
+    readinessUrl: `/campaigns/${campaignId}/readiness`,
+    followUpsUrl: `/campaigns/${campaignId}/follow-ups`,
+    proofPackUrl: `/campaigns/${campaignId}/proof-pack`,
+    proofPacketUrl: `/campaigns/${campaignId}/proof-packet`,
+    executionUrl: `/campaigns/${campaignId}/executions/${executionId}`,
+    executionsUrl: `/campaigns/${campaignId}/executions`
+  };
+}
+
+function buildProofPacket(input: {
+  campaign: Campaign;
+  latestExecution: CampaignExecutionRecord;
+  readiness: ReturnType<typeof buildPilotReadinessReport>;
+  followUpPlan: ReturnType<typeof buildFollowUpPlan>;
+  source: ReturnType<typeof proofSourceUrls>;
+}) {
+  const body = {
+    version: "proof-packet/v1",
+    canonicalization: "stable-json-v1",
+    generatedAt: input.latestExecution.proofPack.generatedAt,
+    redaction: {
+      credentialMaterial: "not_stored_or_exported",
+      evidencePolicy:
+        "Evidence fields are references, ids, URLs, or operator/provider pointers; private screenshots and sender credentials are not embedded.",
+      webhookSecretMaterial: "not_exported"
+    },
+    campaign: {
+      id: input.campaign.id,
+      name: input.campaign.campaign,
+      status: input.campaign.status,
+      summary: input.campaign.summary,
+      metadata: input.campaign.metadata,
+      senderHealth: input.campaign.senderHealth,
+      targets: input.campaign.targets.map((target) => ({
+        raw: target.raw,
+        handle: target.handle,
+        status: target.status,
+        sender: target.sender,
+        scheduledAt: target.scheduledAt,
+        messageId: target.messageId,
+        error: target.error,
+        profile: target.profile,
+        events: target.events
+      }))
+    },
+    readiness: {
+      status: input.readiness.status,
+      readyForExecution: input.readiness.readyForExecution,
+      readyForEvidenceReview: input.readiness.readyForEvidenceReview,
+      externalInputs: input.readiness.externalInputs,
+      nextActions: input.readiness.nextActions,
+      counts: input.readiness.counts,
+      gates: input.readiness.gates
+    },
+    execution: {
+      id: input.latestExecution.id,
+      createdAt: input.latestExecution.createdAt,
+      adapterRiskPosture: input.latestExecution.adapterRiskPosture,
+      launchAuthorization: input.latestExecution.launchAuthorization ?? null,
+      intents: input.latestExecution.intents,
+      deliveryAttempts: input.latestExecution.deliveryAttempts,
+      webhookDeliveries: input.latestExecution.webhookDeliveries,
+      approvalWorkbench: input.latestExecution.approvalWorkbench ?? null,
+      replyAssessments: input.latestExecution.replyAssessments ?? [],
+      incidents: input.latestExecution.incidents ?? []
+    },
+    followUpPlan: input.followUpPlan,
+    proofPack: input.latestExecution.proofPack,
+    source: input.source
+  };
+
+  return {
+    ...body,
+    canonicalSha256: sha256CanonicalJson(body)
+  };
+}
+
+function sha256CanonicalJson(value: unknown): string {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === undefined) {
+    return "null";
+  }
+
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  }
+
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .filter((key) => record[key] !== undefined)
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+    .join(",")}}`;
 }
 
 async function buildPilotHandoffPacket(
@@ -2897,6 +3047,7 @@ function pilotHandoffSourceUrls(campaignId: string, executionId?: string) {
     executionsUrl: `/campaigns/${campaignId}/executions`,
     manualQueueUrl: `/operator/manual-queue?campaignId=${campaignId}`,
     proofPackUrl: `/campaigns/${campaignId}/proof-pack`,
+    proofPacketUrl: `/campaigns/${campaignId}/proof-packet`,
     followUpsUrl: `/campaigns/${campaignId}/follow-ups`,
     webhookDeadLettersUrl: "/webhooks/dead-letters",
     senderInventoryUrl: "/senders",
@@ -3047,6 +3198,13 @@ function pilotHandoffActions(input: {
         path: `/campaigns/${input.campaign.id}/proof-pack`
       },
       {
+        id: "proof_packet_export",
+        label: "Export the canonical proof replay packet",
+        state: "available",
+        method: "GET",
+        path: `/campaigns/${input.campaign.id}/proof-packet`
+      },
+      {
         id: "follow_up_review",
         label: "Inspect due or pending follow-up work",
         state: "available",
@@ -3156,6 +3314,7 @@ function providerExecutionContract() {
 function proofCriteriaContract() {
   return {
     proofPackUrl: "/campaigns/{campaignId}/proof-pack",
+    proofPacketUrl: "/campaigns/{campaignId}/proof-packet",
     requiredMetrics: [
       "sourcedTargets",
       "acceptedTargets",
@@ -3322,7 +3481,8 @@ async function buildOperatorDashboard(
             latestExecutionId: latestExecution.id,
             metrics: latestExecution.proofPack.metrics,
             renewalDecision: latestExecution.proofPack.renewalRecommendation.decision,
-            proofPackUrl: `/campaigns/${campaignForReadiness.id}/proof-pack`
+            proofPackUrl: `/campaigns/${campaignForReadiness.id}/proof-pack`,
+            proofPacketUrl: `/campaigns/${campaignForReadiness.id}/proof-packet`
           }
         : null,
       source: pilotHandoffSourceUrls(campaignForReadiness.id, latestExecution?.id)

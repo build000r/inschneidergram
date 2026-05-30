@@ -97,8 +97,10 @@ Docker packaging for a `/data/campaigns.json` runtime store.
 
 The proof-export ergonomics slice now exists at `GET /campaigns/:id/proof-pack`:
 buyers/operators can retrieve the latest execution proof pack, readiness
-context, source URLs, metrics, renewal recommendation, and Markdown from one
-campaign-level API call.
+context, source URLs, metrics, renewal recommendation, Markdown, and embedded
+canonical proof packet from one campaign-level API call. `GET
+/campaigns/:id/proof-packet` exposes the redacted replay packet directly with a
+deterministic SHA-256 over the stable canonical body.
 
 The pre-campaign launch packet now exists at `GET /pilot-launch-packet`:
 Graphed can see the private-input checklist, creator profile schema, sender

@@ -46,6 +46,17 @@ interface ReadinessResponse {
   };
 }
 
+interface ProofPacketResponse {
+  version: string;
+  canonicalSha256: string;
+  execution: {
+    id: string;
+  };
+  source: {
+    proofPacketUrl: string;
+  };
+}
+
 interface ManualQueueResponse {
   counts: {
     total: number;
@@ -264,6 +275,20 @@ async function main(): Promise<void> {
     if (proofExport.readiness.status !== "evidence_ready") {
       throw new Error(`Expected proof export readiness evidence_ready, got ${proofExport.readiness.status}`);
     }
+    const proofPacket = await protectedFetch<ProofPacketResponse>(
+      `/campaigns/${campaign.campaignId}/proof-packet`
+    );
+    if (proofPacket.version !== "proof-packet/v1") {
+      throw new Error(`Unexpected proof packet version: ${proofPacket.version}`);
+    }
+    if (proofPacket.execution.id !== execution.executionId) {
+      throw new Error(
+        `Expected proof packet to use ${execution.executionId}, got ${proofPacket.execution.id}`
+      );
+    }
+    if (!/^[a-f0-9]{64}$/.test(proofPacket.canonicalSha256)) {
+      throw new Error(`Invalid proof packet hash: ${proofPacket.canonicalSha256}`);
+    }
     const manualServicePath = await runManualServicePath(protectedFetch);
     const dashboard = await protectedFetch<OperatorDashboardResponse>("/operator/dashboard");
     if (dashboard.counts.campaigns !== 2 || dashboard.counts.readyForEvidenceReview !== 2) {
@@ -296,6 +321,7 @@ async function main(): Promise<void> {
           contactedTargets: execution.proofPack.metrics.contactedTargets,
           sentMessages: execution.proofPack.metrics.sentMessages,
           proofExportContactedTargets: proofExport.metrics.contactedTargets,
+          proofPacketHash: proofPacket.canonicalSha256,
           manualServicePath,
           operatorDashboard: {
             campaigns: dashboard.counts.campaigns,

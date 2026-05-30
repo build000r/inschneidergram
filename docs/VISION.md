@@ -113,7 +113,9 @@ checklist, creator schema, sender boundary, delivery-path options,
 launch-authorization template, proof criteria, stop conditions, sample payload,
 and validation commands. After a campaign exists, they can fetch
 `GET /campaigns/:id/proof-pack` to review the latest readiness-linked proof
-pack without knowing the internal execution id, and
+pack and embedded proof packet without knowing the internal execution id,
+`GET /campaigns/:id/proof-packet` to export the canonical redacted replay
+packet with deterministic SHA-256, and
 `GET /campaigns/:id/pilot-handoff` turns readiness into a campaign-level
 operator packet with missing inputs, next API actions, evidence contracts, proof
 URLs, and stop conditions. `GET /operator/dashboard` rolls campaign readiness,

@@ -38,6 +38,7 @@ export interface PilotLaunchPacket {
   }>;
   proofContract: {
     proofPackUrl: string;
+    proofPacketUrl: string;
     handoffUrl: string;
     followUpsUrl: string;
     requiredMetrics: string[];
@@ -86,6 +87,7 @@ export function buildPilotLaunchPacket(now = new Date()): PilotLaunchPacket {
       operatorManualQueue: "/operator/manual-queue",
       manualEvidence: "/campaigns/{campaignId}/executions/{executionId}/manual-events",
       proofPack: "/campaigns/{campaignId}/proof-pack",
+      proofPacket: "/campaigns/{campaignId}/proof-packet",
       followUps: "/campaigns/{campaignId}/follow-ups",
       webhookDeadLetters: "/webhooks/dead-letters"
     },
@@ -169,6 +171,7 @@ export function buildPilotLaunchPacket(now = new Date()): PilotLaunchPacket {
     ],
     proofContract: {
       proofPackUrl: "/campaigns/{campaignId}/proof-pack",
+      proofPacketUrl: "/campaigns/{campaignId}/proof-packet",
       handoffUrl: "/campaigns/{campaignId}/pilot-handoff",
       followUpsUrl: "/campaigns/{campaignId}/follow-ups",
       requiredMetrics: [
@@ -241,6 +244,13 @@ export function buildPilotLaunchPacket(now = new Date()): PilotLaunchPacket {
         path: "/campaigns/{campaignId}/proof-pack",
         state: "available_after_campaign",
         purpose: "Review buyer-facing pilot metrics and renewal recommendation."
+      },
+      {
+        id: "export_proof_packet",
+        method: "GET",
+        path: "/campaigns/{campaignId}/proof-packet",
+        state: "available_after_campaign",
+        purpose: "Export the canonical redacted replay packet and deterministic SHA-256."
       }
     ],
     sampleCampaignRequest: {

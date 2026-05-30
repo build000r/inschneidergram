@@ -1,13 +1,13 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T15:11:28Z
+Generated: 2026-05-30T16:13:53Z
 
-Validation run base: `7f5c740` plus the current managed-provider evidence
-hardening patch.
+Validation run base: `7e3bb08d59bda4b3da487c7e58687053cb83d19e` plus the
+current canonical proof-packet export patch.
 
-Validation target: current working tree after the managed-provider evidence
-contract hardening slice. `npm run proof:bounty-local` was rerun against this
-tree and passed.
+Validation target: current working tree after the canonical proof-packet export,
+launch/handoff/dashboard contract update, docs refresh, and status-stack
+refresh. `npm run proof:bounty-local` was rerun against this tree and passed.
 
 Runtime:
 
@@ -40,13 +40,13 @@ delivery or completed Graphed outreach.
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exited 0 |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
 | `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender and runtime-renewed, evidence-backed example authorization |
-| `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, and manual queue state up to `awaiting_manual_evidence`; private authorization files remain strict |
-| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, and reached `evidence_ready` through managed-provider execution |
-| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths and verified the operator dashboard |
+| `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, manual queue, proof-pack URL, and proof-packet URL state up to `awaiting_manual_evidence`; private authorization files remain strict |
+| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, reached `evidence_ready`, and exported proof-packet hash `e98d220b93465081f1f1a36a5255f6805c5bbe3fe56395df48ea57692ed38c2d` |
+| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths, verified the operator dashboard, and exported proof-packet hash `dfee0dc73f966194d520c57be0e9da8ce8b1c04e377360291a28f28118bdaa53` |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `0de8cd5b00930cd7e80dd40d19e5c2de359f9dc376059dcd9d33a80c5768ce65` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `9fae1fb7c46773a3e620b229933e1566dc70ad63414ac89a702f1ac1546b94c2` |
 
 ## Live Pilot Intake Validation
 
@@ -108,6 +108,10 @@ Machine summary from the proof run:
     "manualQueuePending": 3,
     "senderBlocked": 0,
     "deadLetters": 0
+  },
+  "sourceUrls": {
+    "proofPack": "/campaigns/<campaign-id>/proof-pack",
+    "proofPacket": "/campaigns/<campaign-id>/proof-packet"
   }
 }
 ```
@@ -155,6 +159,11 @@ Machine summary from the proof run:
     "webhookDelivered": 4,
     "webhookDeadLetters": 0
   },
+  "proofPacket": {
+    "version": "proof-packet/v1",
+    "canonicalSha256": "e98d220b93465081f1f1a36a5255f6805c5bbe3fe56395df48ea57692ed38c2d",
+    "sourceUrl": "/campaigns/<campaign-id>/proof-packet"
+  },
   "readiness": {
     "status": "evidence_ready",
     "readyForEvidenceReview": true,
@@ -187,11 +196,12 @@ Machine-local temp store paths are omitted from this proof doc.
     }
   },
   "apiAuth": "enabled",
-  "openApiPathCount": 28,
+  "openApiPathCount": 29,
   "launchPacketInputs": 6,
   "contactedTargets": 1,
   "sentMessages": 1,
   "proofExportContactedTargets": 1,
+  "proofPacketHash": "dfee0dc73f966194d520c57be0e9da8ce8b1c04e377360291a28f28118bdaa53",
   "manualServicePath": {
     "readiness": "evidence_ready",
     "queueDone": 2,
@@ -218,7 +228,7 @@ What this proves:
 
 - `/health` and the JSON store are service-checkable.
 - API-key protection is active for non-public routes in the smoke path.
-- `/openapi.json` exposes 28 documented paths.
+- `/openapi.json` exposes 29 documented paths.
 - `GET /pilot-launch-packet` exposes the pre-campaign private-input checklist.
 - `npm run pilot:intake:validate` exercises the private-input file contract
   before campaign creation.
@@ -227,6 +237,8 @@ What this proves:
 - `GET /operator/dashboard` aggregates readiness, manual queue, sender health,
   runtime dead-letter, proof, and urgent-action status under API key auth.
 - Provider-reported execution can produce a proof export and readiness state.
+- Provider-reported execution can produce a canonical proof-packet export with
+  a deterministic SHA-256.
 - The selected manual path works over the compiled service with API key auth,
   the JSON store, manual queue, timestamped manual evidence, webhook records,
   and proof export.
@@ -407,6 +419,9 @@ authorization.
   prevalidated DNS addresses for the outbound request.
 - Provider-event webhook delivery records are appended back into the latest
   execution proof pack.
+- Proof exports include a redacted canonical proof packet, and
+  `GET /campaigns/:id/proof-packet` returns the same replay packet with
+  `canonicalSha256`.
 - Renewal is blocked to `iterate` when sender warnings, delivery failures, or
   webhook dead letters exist.
 - The project-status MMDX stack parses successfully with 10 charts.
