@@ -54,7 +54,8 @@ import { buildPilotReadinessReport } from "./domain/readiness.js";
 import {
   createSenderAccount,
   summarizeSenderInventory,
-  type SenderAccount
+  type SenderAccount,
+  type SenderRiskEventInput
 } from "./domain/sender.js";
 import { signWebhookPayload } from "./domain/webhook.js";
 
@@ -653,16 +654,23 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         return reply.code(404).send({ error: "execution_not_found" });
       }
 
+      const reconciledResult = await reconcileManualRestrictionSenderRisk({
+        store,
+        campaignId: id,
+        executionId,
+        evidenceResult: result
+      });
+
       return {
-        campaignId: result.campaign.id,
-        executionId: result.execution.id,
-        status: result.campaign.status,
-        summary: result.campaign.summary,
-        senderHealth: result.campaign.senderHealth,
-        event: result.event,
-        webhookDelivery: result.webhookDelivery,
-        execution: result.execution,
-        proofPack: result.execution.proofPack
+        campaignId: reconciledResult.campaign.id,
+        executionId: reconciledResult.execution.id,
+        status: reconciledResult.campaign.status,
+        summary: reconciledResult.campaign.summary,
+        senderHealth: reconciledResult.campaign.senderHealth,
+        event: reconciledResult.event,
+        webhookDelivery: reconciledResult.webhookDelivery,
+        execution: reconciledResult.execution,
+        proofPack: reconciledResult.execution.proofPack
       };
     } catch (error) {
       return sendDomainError(reply, error);
@@ -2179,6 +2187,12 @@ class NotFoundError extends Error {}
 class ConflictError extends Error {}
 
 type ManualQueueStatus = "pending_initial_evidence" | "reply_monitoring" | "done";
+type ManualEvidenceResult = {
+  campaign: Campaign;
+  execution: CampaignExecutionRecord;
+  event: DeliveryAttempt["events"][number];
+  webhookDelivery: Awaited<ReturnType<OutgoingWebhookDispatcher["dispatch"]>> | null;
+};
 
 async function buildLatestProofPackReport(
   store: CampaignStore,
@@ -2438,12 +2452,7 @@ async function recordManualEvidence(input: {
   execution: CampaignExecutionRecord;
   request: ManualEvidenceRequest;
   webhookSecret: string;
-}): Promise<{
-  campaign: Campaign;
-  execution: CampaignExecutionRecord;
-  event: DeliveryAttempt["events"][number];
-  webhookDelivery: Awaited<ReturnType<OutgoingWebhookDispatcher["dispatch"]>> | null;
-}> {
+}): Promise<ManualEvidenceResult> {
   if (input.execution.adapterRiskPosture?.kind !== "manual") {
     throw new ConflictError("Manual evidence can only be recorded for manual executions");
   }
@@ -2522,6 +2531,81 @@ async function recordManualEvidence(input: {
     },
     event,
     webhookDelivery
+  };
+}
+
+async function reconcileManualRestrictionSenderRisk(input: {
+  store: CampaignStore;
+  campaignId: string;
+  executionId: string;
+  evidenceResult: ManualEvidenceResult;
+}): Promise<ManualEvidenceResult> {
+  if (input.evidenceResult.event.type !== "restricted") {
+    return input.evidenceResult;
+  }
+
+  const attempt = input.evidenceResult.execution.deliveryAttempts.find((candidate) =>
+    candidate.events.some((event) => event.id === input.evidenceResult.event.id)
+  );
+  if (!attempt) {
+    return input.evidenceResult;
+  }
+
+  const senderRisk = senderRiskInputForManualRestriction(attempt, input.evidenceResult.event);
+  const updatedSender = await input.store.appendSenderRiskEvent(
+    attempt.intent.senderAccountId,
+    senderRisk
+  );
+  if (!updatedSender) {
+    return input.evidenceResult;
+  }
+
+  const senderAccounts = await currentSenderAccountsForCampaign(
+    input.store,
+    input.evidenceResult.campaign
+  );
+  const updated = await input.store.updateCampaignExecution(
+    input.campaignId,
+    input.executionId,
+    async (currentCampaign, currentExecution) => {
+      const campaign = senderAccounts
+        ? withSenderInventorySnapshot(currentCampaign, senderAccounts)
+        : currentCampaign;
+      const execution = {
+        ...currentExecution,
+        proofPack: generatePilotProofPack({
+          campaign,
+          approvalWorkbench: currentExecution.approvalWorkbench,
+          deliveryAttempts: currentExecution.deliveryAttempts,
+          webhookDeliveries: currentExecution.webhookDeliveries,
+          replyAssessments: currentExecution.replyAssessments,
+          incidents: currentExecution.incidents
+        })
+      };
+
+      return {
+        campaign,
+        execution,
+        result: {
+          ...input.evidenceResult,
+          campaign,
+          execution
+        }
+      };
+    }
+  );
+
+  return updated ?? input.evidenceResult;
+}
+
+function senderRiskInputForManualRestriction(
+  attempt: DeliveryAttempt,
+  event: DeliveryAttempt["events"][number]
+): SenderRiskEventInput {
+  return {
+    kind: "restriction",
+    at: event.occurredAt,
+    note: `Manual restriction evidence for ${attempt.intent.targetHandle}: ${event.reason ?? "restriction recorded"}`
   };
 }
 
@@ -2899,6 +2983,13 @@ async function withCurrentSenderInventorySnapshot(
     return campaign;
   }
 
+  return withSenderInventorySnapshot(campaign, senderAccounts);
+}
+
+function withSenderInventorySnapshot(
+  campaign: Campaign,
+  senderAccounts: SenderAccount[]
+): Campaign {
   return {
     ...campaign,
     settings: {

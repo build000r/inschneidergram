@@ -60,6 +60,9 @@ The current implementation covers:
 - non-secret managed sender inventory API with JSON persistence
 - sender risk-event append route that updates account state and preserves audit
   history
+- manual `restricted` evidence reconciliation that appends a managed sender
+  restriction risk event, refreshes proof metrics, and blocks later execution
+  while the sender is cooling down
 - campaign creation can use stored sender inventory when inline sender accounts
   are absent and rejects unknown managed sender ids
 - scheduler refusal when no healthy sender is available
@@ -159,27 +162,29 @@ The current implementation covers:
     works before real sender/list inputs are available.
 22. Managed sender accounts can be registered, fetched, listed, health-checked,
     and updated through risk events.
-23. Campaign creation uses stored sender inventory when inline sender accounts
+23. Manual restriction evidence updates managed sender risk state, proof
+    sender-warning metrics, readiness, and subsequent execution gates.
+24. Campaign creation uses stored sender inventory when inline sender accounts
     are absent and rejects unknown managed sender ids.
-24. Operators can list pending and completed manual delivery work with stable
+25. Operators can list pending and completed manual delivery work with stable
     intent ids and required evidence fields.
-25. Managed-provider executions require explicit outcomes for all approved
+26. Managed-provider executions require explicit outcomes for all approved
     executable targets and reject duplicate, missing, or unknown outcome
     targets.
-26. Executions cannot create proof records while approval readiness gates still
+27. Executions cannot create proof records while approval readiness gates still
     fail.
-27. Buyers/operators can export the latest proof pack and readiness context
+28. Buyers/operators can export the latest proof pack and readiness context
     without knowing which execution id to inspect.
-28. The built service can be smoke-tested through real HTTP with an isolated
+29. The built service can be smoke-tested through real HTTP with an isolated
     JSON store.
-29. Public service deployments can require `X-API-Key` or bearer credentials
+30. Public service deployments can require `X-API-Key` or bearer credentials
     without breaking local default-open demos.
-30. Provider event ingestion and non-simulated executions dispatch signed
+31. Provider event ingestion and non-simulated executions dispatch signed
     webhook callbacks through the runtime sender.
-31. Operators can inspect and replay dead-lettered callback deliveries.
-32. Network-exposed deployments reject unsafe webhook destinations before
+32. Operators can inspect and replay dead-lettered callback deliveries.
+33. Network-exposed deployments reject unsafe webhook destinations before
     storing campaigns and before dispatching legacy callback records.
-33. Tests prove the API contract and domain rules.
+34. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -272,6 +277,11 @@ health, appends risk events, and uses that stored inventory for campaign
 scheduling when inline sender accounts are absent. Real account credentials,
 session recovery, provider liveness, and automated cooldown detection remain
 outside the repo and must be connected before a live pilot.
+
+Manual restricted evidence now reconciles into the same managed sender risk
+model when the sender came from stored inventory. That keeps proof-pack sender
+warning counts and readiness/execution gates aligned with operator stop
+conditions.
 
 ### Webhook Delivery
 

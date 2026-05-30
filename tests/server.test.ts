@@ -2998,6 +2998,154 @@ describe("API", () => {
     await app.close();
   });
 
+  it("reconciles manual restriction evidence into managed sender risk state", async () => {
+    const app = await buildServer({ webhookSecret: "manual-risk-secret" });
+
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-a",
+      payload: {
+        status: "healthy",
+        dailyLimit: 20,
+        warmupNote: "pilot sender"
+      }
+    });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@restricted_manual_creator", "@still_pending_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "manual-restriction-risk-pilot",
+        settings: {
+          senderPool: ["sender-a"],
+          webhookUrl: "https://example.com/webhooks/inschneidergram"
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@restricted_manual_creator", "@still_pending_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    const executionResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" }
+      }
+    });
+    const executionId = executionResponse.json().executionId;
+
+    const restrictedEvidence = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        eventId: "manual-restricted-1",
+        target: "@restricted_manual_creator",
+        type: "restricted",
+        reason: "Instagram warned the operator to slow down",
+        evidence: {
+          operatorId: "op_1",
+          screenshotUrl: "s3://proof/manual-restricted.png",
+          restrictionSource: "instagram-warning"
+        }
+      }
+    });
+    expect(restrictedEvidence.statusCode).toBe(200);
+    expect(restrictedEvidence.json()).toMatchObject({
+      senderHealth: {
+        accounts: [
+          expect.objectContaining({
+            id: "sender-a",
+            status: "cooldown",
+            available: false,
+            blockers: ["cooldown"],
+            riskEvents: [
+              expect.objectContaining({
+                kind: "restriction",
+                note: "Manual restriction evidence for restricted_manual_creator: Instagram warned the operator to slow down"
+              })
+            ]
+          })
+        ]
+      },
+      proofPack: {
+        metrics: {
+          deliveryFailures: 1,
+          senderWarnings: 1
+        }
+      }
+    });
+
+    const sender = await app.inject({
+      method: "GET",
+      url: "/senders/sender-a"
+    });
+    expect(sender.json()).toMatchObject({
+      senderAccount: {
+        status: "cooldown",
+        riskEvents: [
+          expect.objectContaining({
+            kind: "restriction"
+          })
+        ]
+      },
+      senderHealth: {
+        accounts: [
+          expect.objectContaining({
+            available: false,
+            blockers: ["cooldown"]
+          })
+        ]
+      }
+    });
+
+    const readiness = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/readiness`
+    });
+    expect(readiness.json()).toMatchObject({
+      status: "blocked",
+      readyForExecution: false,
+      gates: expect.arrayContaining([
+        expect.objectContaining({
+          id: "sender_health",
+          status: "fail"
+        })
+      ]),
+      externalInputs: expect.arrayContaining(["healthy sender account or managed provider"])
+    });
+
+    const proofExport = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/proof-pack`
+    });
+    expect(proofExport.json()).toMatchObject({
+      metrics: {
+        senderWarnings: 1
+      }
+    });
+
+    const secondExecution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" }
+      }
+    });
+    expect(secondExecution.statusCode).toBe(409);
+    expect(secondExecution.json().message).toContain("Sender health");
+
+    await app.close();
+  });
+
   it("documents the execution workflow in OpenAPI", async () => {
     const app = await buildServer();
 

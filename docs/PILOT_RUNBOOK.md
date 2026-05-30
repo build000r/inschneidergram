@@ -171,6 +171,13 @@ Manual evidence writes update the campaign and execution proof record together
 inside the store. That makes the queue/evidence loop safe for a small pilot with
 more than one operator submitting evidence at the same time.
 
+When manual evidence records a `restricted` event for a sender from managed
+inventory, the API also appends a sender `restriction` risk event, moves the
+sender into cooldown, refreshes sender-warning proof metrics, and makes later
+readiness/execution checks block on sender health. If the sender is not in the
+managed inventory, the operator must still record the risk event explicitly
+with `POST /senders/:id/risk-events` before continuing.
+
 ## Follow-up Plan
 
 The follow-up plan is an operator planning surface, not an automatic sender.

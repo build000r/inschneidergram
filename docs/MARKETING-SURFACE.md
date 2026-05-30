@@ -12,6 +12,7 @@
 | "Delivery and reply reporting" | Partly true | Provider events and non-simulated executions can dispatch signed callbacks; live provider integration still pending. |
 | "API-key protected service" | True for MVP scope | Optional `INSCHNEIDERGRAM_API_KEY` protects non-public routes; smoke runs with auth enabled. |
 | "Guarded callback delivery" | True for MVP scope | Webhook URLs must be public HTTPS destinations; local/private/special-use hosts are blocked and production allowlists are supported. |
+| "Sender-risk-aware manual evidence" | True for MVP scope | Manual restriction evidence for managed senders writes back into sender risk state, proof metrics, and readiness/execution gates. |
 | "Production-ready" | Not yet | Requires stronger persistence, monitoring, real adapter operations, and pilot evidence. |
 
 ## Approved Current Copy

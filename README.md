@@ -35,6 +35,7 @@ This repo currently contains the first API/control-plane slice:
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
 | Managed sender inventory | Working MVP | `GET/PUT /senders`, risk events, JSON persistence |
+| Sender-risk reconciliation | Working MVP | manual restriction evidence updates managed sender risk state |
 | Approval workbench API | Working MVP | `POST /campaigns/:id/approval-workbench` |
 | Operator workbench state | Working MVP | claim, skip, block routes before execution |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
@@ -470,6 +471,10 @@ manual work projection for one execution. Manual executions can be updated with
 validates required operator evidence, updates campaign status, appends webhook
 delivery records, and refreshes the stored proof pack under one store-level
 mutation so small multi-operator pilots do not lose concurrent evidence writes.
+When a manual `restricted` event references a sender from managed inventory, the
+route also appends a sender `restriction` risk event, moves that sender into
+cooldown, refreshes proof metrics with the sender warning, and makes later
+readiness/execution checks respect the account-health blocker.
 It does not claim live Instagram delivery.
 
 `GET /webhooks/dead-letters` lists callback deliveries that exhausted retry or
