@@ -41,8 +41,9 @@ This repo currently contains the first API/control-plane slice:
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
 | Operator manual delivery queue | Working MVP | `GET /operator/manual-queue` |
 | Manual evidence recording | Working MVP | atomic campaign/execution update via `manual-events` |
+| Managed provider execution contract | Working MVP | `adapter.kind=managed_provider` accepts provider-reported outcomes |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
-| Pilot readiness | Partial | needs real delivery adapter and live pilot evidence |
+| Pilot readiness | Partial | needs verified delivery operations and live pilot evidence |
 
 ## Quick Start
 
@@ -74,10 +75,10 @@ curl -s http://127.0.0.1:3107/openapi.json
 
 The OpenAPI document includes the no-credential pilot flow: managed sender
 inventory, campaign creation, approval workbench, readiness, manual-safe
-execution, operator manual queue, manual evidence, proof records, health, and
-webhook signature preview. Templated routes document path parameters, and
-manual evidence schemas are split by event type so operators can see the
-required proof fields before a run.
+execution, provider-reported managed execution, operator manual queue, manual
+evidence, proof records, health, and webhook signature preview. Templated
+routes document path parameters, and manual evidence schemas are split by event
+type so operators can see the required proof fields before a run.
 
 Register a non-secret sender account before scheduling a managed campaign:
 
@@ -190,6 +191,34 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions \
   }'
 ```
 
+Run a managed-provider contract execution with provider-reported outcomes:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions \
+  -H 'content-type: application/json' \
+  -d '{
+    "adapter": {
+      "kind": "managed_provider",
+      "id": "provider-contract",
+      "accountRiskOwner": "provider",
+      "notes": ["Provider-reported outcome contract; not a live-delivery claim."],
+      "outcomes": [
+        {
+          "target": "instagram_profile_1",
+          "outcome": "accepted",
+          "events": [
+            {
+              "type": "sent",
+              "messageId": "provider_msg_1",
+              "evidence": { "providerRunId": "run_123" }
+            }
+          ]
+        }
+      ]
+    }
+  }'
+```
+
 List pending manual delivery work for operators:
 
 ```bash
@@ -280,10 +309,13 @@ has proof ready for review.
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It builds an
 approval workbench from the stored campaign, rechecks current managed sender
 health for assigned approved targets, routes approved targets through a safe
-`mock` or `manual` adapter, records campaign events, simulates signed webhook
-delivery records, and returns the proof-pack metrics plus Markdown, including
-explicit operator skipped/blocked counts from workbench evidence. It also
-persists an execution proof record that can be listed with
+`mock`, `manual`, or `managed_provider` adapter, records campaign events,
+simulates signed webhook delivery records, and returns the proof-pack metrics
+plus Markdown, including explicit operator skipped/blocked counts from
+workbench evidence. The managed-provider adapter requires an explicit outcome
+for every approved executable target and treats events as provider-reported
+evidence, not as a claim that this repo performs live Instagram delivery. It
+also persists an execution proof record that can be listed with
 `GET /campaigns/:id/executions` or fetched with
 `GET /campaigns/:id/executions/:executionId`. Operators do not have to inspect
 the raw execution record to know what to do next:
@@ -316,9 +348,10 @@ Safe scheduler -> sender assignment -> provider adapter
 Provider delivery events -> campaign status -> webhook/API response
 ```
 
-The current implementation ships the left side of this system plus a non-secret
-managed sender inventory. The next slice must turn the provider adapter into a
-real managed delivery operation.
+The current implementation ships the left side of this system, a non-secret
+managed sender inventory, and a managed-provider outcome contract. The next
+slice must connect that contract to a real provider or owned delivery
+operation.
 
 ## Why Not Just Use the Official Instagram API?
 
@@ -341,7 +374,7 @@ owns that operational risk.
 
 ## Roadmap to Bounty Pilot
 
-1. Connect a real managed sender/provider path to the execution runner.
+1. Connect verified provider/account operations to the managed-provider contract.
 2. Bring a verified sender account and vetted creator list into a controlled pilot.
 3. Run the pilot with explicit permission and low sender limits.
 4. Publish live reliability evidence using the proof-pack generator.
@@ -349,9 +382,10 @@ owns that operational risk.
 ## Limitations
 
 This is not yet a working Instagram sending product. The current repo is the
-API and scheduling control plane needed to make that product auditable. Winning
-the bounty still requires a real managed delivery adapter, live sender account
-operations, and a pilot that completes meaningful creator outreach.
+API and scheduling control plane needed to make that product auditable, plus a
+provider-reported execution contract for managed operations. Winning the bounty
+still requires verified delivery operations, live sender account handling, and
+a pilot that completes meaningful creator outreach.
 
 ## Documentation
 

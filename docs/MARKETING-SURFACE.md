@@ -4,10 +4,10 @@
 
 | Claim | Status | Evidence required before public use |
 | --- | --- | --- |
-| "Start Instagram creator outreach with one API call" | Partly true | API exists; live delivery adapter still required. |
+| "Start Instagram creator outreach with one API call" | Partly true | API exists; verified delivery operations still required. |
 | "Managed, not a script" | Aspirational | Need sender operations, incident handling, and real pilot. |
 | "Duplicate-safe campaigns" | True for MVP scope | Domain tests cover duplicate prevention inside a campaign. |
-| "Delivery and reply reporting" | Partly true | Event model exists; provider integration and webhook delivery pending. |
+| "Delivery and reply reporting" | Partly true | Event model plus mock, manual, and provider-reported execution paths exist; live provider integration still pending. |
 | "Production-ready" | Not yet | Requires persistence, monitoring, adapter, runbook, pilot evidence. |
 
 ## Approved Current Copy

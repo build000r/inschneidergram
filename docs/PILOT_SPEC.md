@@ -110,5 +110,5 @@ webhook delivery records, sender health, reply assessments, and incidents into
 metrics plus a Markdown renewal report. Campaign policy blocks stay separate
 from operator skipped/blocked targets so the renewal report shows manual triage
 decisions without counting approval rejections as operator blocks. It is still
-sample-fixture proof until a live Graphed pilot runs through the managed
-delivery path.
+sample-fixture or provider-reported contract proof until a live Graphed pilot
+runs through a verified managed delivery path.

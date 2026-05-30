@@ -1041,6 +1041,298 @@ describe("API", () => {
     await app.close();
   });
 
+  it("executes approved targets through managed provider outcomes", async () => {
+    const app = await buildServer({ webhookSecret: "provider-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@provider_sent", "@provider_reply", "@provider_restricted"],
+        message: "Open to an affiliate pilot?",
+        campaign: "managed-provider-pilot",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/inschneidergram",
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@provider_sent", "@provider_reply", "@provider_restricted"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+
+    const executionResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "managed_provider",
+          id: "provider_contract",
+          accountRiskOwner: "provider",
+          notes: ["Provider-reported contract test, not live Instagram delivery."],
+          outcomes: [
+            {
+              target: "@provider_sent",
+              outcome: "accepted",
+              events: [
+                {
+                  type: "sent",
+                  messageId: "provider_msg_1",
+                  evidence: { providerRunId: "run_1" }
+                }
+              ]
+            },
+            {
+              target: "@provider_reply",
+              outcome: "accepted",
+              events: [
+                {
+                  type: "sent",
+                  messageId: "provider_msg_2",
+                  evidence: { providerRunId: "run_1" }
+                },
+                {
+                  type: "replied",
+                  messageId: "provider_msg_2",
+                  replyText: "Interested - send details",
+                  evidence: { providerRunId: "run_1", providerReplyId: "reply_1" }
+                }
+              ]
+            },
+            {
+              target: "@provider_restricted",
+              outcome: "rejected",
+              events: [
+                {
+                  type: "restricted",
+                  reason: "Provider reported sender cooldown",
+                  evidence: { providerRunId: "run_1", providerAttemptId: "attempt_3" }
+                }
+              ]
+            }
+          ]
+        },
+        replyAssessments: [
+          {
+            targetHandle: "@provider_reply",
+            disposition: "interested",
+            qualified: true,
+            replyText: "Interested - send details"
+          }
+        ]
+      }
+    });
+
+    expect(executionResponse.statusCode).toBe(200);
+    expect(executionResponse.json()).toMatchObject({
+      status: "running",
+      summary: {
+        sent: 1,
+        replied: 1,
+        failed: 1
+      },
+      adapterRiskPosture: {
+        kind: "managed_provider",
+        officialColdDmCompliance: "not_claimed",
+        accountRiskOwner: "provider",
+        posture: "provider_operated"
+      },
+      proofPack: {
+        metrics: {
+          contactedTargets: 2,
+          sentMessages: 2,
+          replies: 1,
+          interestedReplies: 1,
+          deliveryFailures: 1,
+          webhookDelivered: 4
+        }
+      }
+    });
+    expect(
+      executionResponse
+        .json()
+        .deliveryAttempts.map((attempt: { adapterId: string; events: Array<{ type: string }> }) => [
+          attempt.adapterId,
+          attempt.events.map((event) => event.type)
+        ])
+    ).toEqual([
+      ["provider_contract", ["sent"]],
+      ["provider_contract", ["sent", "replied"]],
+      ["provider_contract", ["restricted"]]
+    ]);
+
+    const storedExecution = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions/${executionResponse.json().executionId}`
+    });
+    expect(storedExecution.json()).toMatchObject({
+      adapterRiskPosture: {
+        kind: "managed_provider"
+      },
+      proofPack: {
+        metrics: {
+          contactedTargets: 2,
+          interestedReplies: 1
+        }
+      }
+    });
+
+    const readiness = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/readiness`
+    });
+    expect(readiness.json()).toMatchObject({
+      status: "evidence_ready",
+      readyForEvidenceReview: true,
+      counts: {
+        executions: 1,
+        pendingManualEvidence: 0,
+        contactedTargets: 2,
+        interestedReplies: 1
+      }
+    });
+
+    await app.close();
+  });
+
+  it("rejects incomplete managed provider outcome contracts", async () => {
+    const app = await buildServer();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@provider_one", "@provider_two"],
+        message: "Open to an affiliate pilot?",
+        campaign: "provider-contract-validation",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@provider_one", "@provider_two"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+
+    const basePayload = {
+      adapter: {
+        kind: "managed_provider",
+        outcomes: [
+          {
+            target: "@provider_one",
+            outcome: "accepted",
+            events: [{ type: "sent", messageId: "provider_msg_1" }]
+          }
+        ]
+      }
+    };
+
+    const missing = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: basePayload
+    });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json().message).toBe("Missing managed provider outcome target(s): provider_two");
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "managed_provider",
+          outcomes: [
+            ...basePayload.adapter.outcomes,
+            ...basePayload.adapter.outcomes
+          ]
+        }
+      }
+    });
+    expect(duplicate.statusCode).toBe(400);
+    expect(duplicate.json().message).toBe("Duplicate managed provider outcome target(s): provider_one");
+
+    const unknown = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "managed_provider",
+          outcomes: [
+            ...basePayload.adapter.outcomes,
+            {
+              target: "@provider_two",
+              outcome: "accepted",
+              events: [{ type: "sent", messageId: "provider_msg_2" }]
+            },
+            {
+              target: "@provider_three",
+              outcome: "accepted",
+              events: [{ type: "sent", messageId: "provider_msg_3" }]
+            }
+          ]
+        }
+      }
+    });
+    expect(unknown.statusCode).toBe(400);
+    expect(unknown.json().message).toBe("Unknown managed provider outcome target(s): provider_three");
+
+    const invalidEvent = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "managed_provider",
+          outcomes: [
+            {
+              target: "@provider_one",
+              outcome: "accepted",
+              events: [{ type: "clicked" }]
+            },
+            {
+              target: "@provider_two",
+              outcome: "accepted",
+              events: [{ type: "sent", messageId: "provider_msg_2" }]
+            }
+          ]
+        }
+      }
+    });
+    expect(invalidEvent.statusCode).toBe(400);
+    expect(invalidEvent.json().error).toBe("invalid_request");
+
+    await app.close();
+  });
+
   it("records concurrent manual evidence without losing execution events", async () => {
     const dir = await mkdtemp(join(tmpdir(), "inschneidergram-manual-evidence-"));
     const app = await buildServer({
@@ -1742,8 +2034,9 @@ describe("API", () => {
     ).toMatchObject({
       summary: "Mark one claimed creator candidate skipped or blocked"
     });
-    expect(openapi.paths["/campaigns/{id}/executions"].post).toMatchObject({
-      summary: "Execute approved campaign targets through a mock or manual-safe adapter",
+    const executionPost = openapi.paths["/campaigns/{id}/executions"].post;
+    expect(executionPost).toMatchObject({
+      summary: "Execute approved campaign targets through a mock, manual-safe, or managed-provider adapter",
       requestBody: {
         content: {
           "application/json": {
@@ -1763,6 +2056,40 @@ describe("API", () => {
         }
       }
     });
+    const adapterCases =
+      executionPost.requestBody.content["application/json"].schema.properties.adapter.oneOf;
+    expect(adapterCases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          required: ["kind", "outcomes"],
+          properties: expect.objectContaining({
+            kind: { const: "managed_provider" },
+            accountRiskOwner: expect.objectContaining({
+              enum: ["operator", "provider"]
+            }),
+            outcomes: expect.objectContaining({
+              minItems: 1,
+              items: expect.objectContaining({
+                required: ["target", "outcome", "events"],
+                properties: expect.objectContaining({
+                  outcome: expect.objectContaining({ enum: ["accepted", "rejected"] }),
+                  events: expect.objectContaining({
+                    minItems: 1,
+                    items: expect.objectContaining({
+                      properties: expect.objectContaining({
+                        type: expect.objectContaining({
+                          enum: ["sent", "failed", "restricted", "replied"]
+                        })
+                      })
+                    })
+                  })
+                })
+              })
+            })
+          })
+        })
+      ])
+    );
     expect(openapi.paths["/campaigns/{id}/executions/{executionId}"].get).toMatchObject({
       summary: "Get one persisted execution proof record"
     });

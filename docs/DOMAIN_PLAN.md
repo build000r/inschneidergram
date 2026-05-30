@@ -73,6 +73,9 @@ The current implementation covers:
   campaign state, appends webhook delivery records, and refreshes proof packs
 - store-level campaign/execution mutation for manual evidence so concurrent
   operator submissions do not overwrite each other
+- managed-provider execution contract that accepts explicit provider-reported
+  outcomes for every approved executable target and records sent, replied,
+  failed, or restricted events into campaign status, webhooks, and proof packs
 - pilot launch readiness report that turns campaign, approval, sender,
   execution, and proof state into pass/fail/warn gates plus next actions
 - readiness and execution recheck current stored sender health for campaigns
@@ -122,7 +125,10 @@ The current implementation covers:
     are absent and rejects unknown managed sender ids.
 22. Operators can list pending and completed manual delivery work with stable
     intent ids and required evidence fields.
-23. Tests prove the API contract and domain rules.
+23. Managed-provider executions require explicit outcomes for all approved
+    executable targets and reject duplicate, missing, or unknown outcome
+    targets.
+24. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -145,10 +151,16 @@ execution `manual-events` API.
 ### Managed Delivery Adapter
 
 Define and implement the adapter that can actually send or queue Instagram
-outreach through an owned managed operation. The adapter must expose health,
-rate-limit, sender, and incident state. The first live-pilot path is documented
-in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md): operator-run managed manual delivery
-with private sender inventory and explicit evidence capture.
+outreach through an owned managed operation. The domain and API now expose a
+managed-provider contract surface: callers provide provider-reported outcomes,
+account risk ownership, and delivery events, and the execution runner records
+those events into status, webhooks, and proof packs without claiming official
+cold-DM compliance. A live provider still must expose health, rate-limit,
+sender, and incident state before this becomes real delivery.
+
+The first live-pilot path is documented in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md):
+operator-run managed manual delivery with private sender inventory and explicit
+evidence capture.
 
 ### Pilot Launch Readiness
 
@@ -165,9 +177,9 @@ Connect the current runner to persistent stores and API routes. The domain
 runner already creates approved send intents, routes through an injected
 adapter, records delivery/reply/restricted/failed events, dispatches outgoing
 webhooks, and feeds the proof-pack generator. The API now exposes a safe
-`POST /campaigns/:id/executions` workflow for mock/manual pilot dry runs and
-persists execution proof records for later inspection. Manual execution records
-can be updated through
+`POST /campaigns/:id/executions` workflow for mock, manual, and
+provider-reported managed-provider runs, then persists execution proof records
+for later inspection. Manual execution records can be updated through
 `POST /campaigns/:id/executions/:executionId/manual-events`, which turns
 operator evidence into campaign events, webhook records, and refreshed proof
 metrics.

@@ -17,7 +17,8 @@ flowchart LR
   api["GREEN API control plane MVP"]
   store["GREEN Durable local store + idempotency"]
   approvalApi["GREEN Persisted approval + operator state API"]
-  delivery["YELLOW Adapter contract only"]
+  providerContract["GREEN Managed-provider contract surface"]
+  delivery["YELLOW Real provider/account operations open in inschneidergram-j8b"]
   ops["GREEN Managed sender inventory + risk events"]
   beads["YELLOW Beads planning active"]
   proof["GREEN Proof pack generator"]
@@ -29,7 +30,9 @@ flowchart LR
   bounty --> api
   api --> store
   api --> approvalApi
-  bounty --> delivery
+  bounty --> providerContract
+  api --> providerContract
+  providerContract --> delivery
   bounty --> ops
   api --> proof
   approvalApi --> runner
@@ -44,10 +47,12 @@ flowchart LR
   readiness --> beads
   contract --> beads
   rehearsal --> beads
+  providerContract --> beads
   beads --> next
   class api green
   class store green
   class approvalApi green
+  class providerContract green
   class delivery yellow
   class ops green
   class proof green
@@ -74,13 +79,14 @@ gantt
   GREEN Pilot readiness report :done, 2026-05-30, 1d
   GREEN Hardened OpenAPI contract :done, 2026-05-30, 1d
   GREEN Manual pilot rehearsal :done, 2026-05-30, 1d
+  GREEN Managed-provider contract surface :done, 2026-05-30, 1d
   GREEN Managed sender inventory + risk events :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API execution + atomic manual queue :done, 2026-05-30, 1d
-  YELLOW Live pilot preparation :active, 2026-05-31, 2d
+  YELLOW Real provider/account operations in inschneidergram-j8b :active, 2026-05-31, 5d
+  YELLOW Live pilot preparation in inschneidergram-j8b :active, 2026-06-04, 2d
   section RED Unproven
-  RED Real delivery adapter :crit, 2026-06-01, 5d
-  RED Pilot evidence :crit, 2026-06-06, 4d
+  RED Live delivery evidence not captured yet :crit, 2026-06-06, 3d
 ```
 
 ## chart epic-map Epic Dependency Map
@@ -89,7 +95,8 @@ flowchart TD
   api["DONE GREEN API contract"]
   store["DONE GREEN Persistent store + suppression"]
   approval["DONE GREEN Approval + operator workbench API/domain"]
-  adapter["PARTIAL YELLOW Delivery adapter contract"]
+  providerContract["DONE GREEN Managed-provider contract surface"]
+  adapter["PLANNED YELLOW Real provider/account operations"]
   sender["DONE GREEN Managed sender inventory + health"]
   webhooks["DONE GREEN Outgoing webhook retry domain"]
   proof["DONE GREEN Proof pack generator"]
@@ -97,10 +104,11 @@ flowchart TD
   readiness["DONE GREEN Pilot readiness report"]
   contract["DONE GREEN OpenAPI pilot contract"]
   rehearsal["DONE GREEN Manual pilot rehearsal"]
-  pilot["FUTURE RED Graphed pilot"]
+  pilot["FUTURE YELLOW Graphed pilot covered by inschneidergram-j8b"]
   api --> store
   api --> approval
-  api --> adapter
+  api --> providerContract
+  providerContract --> adapter
   store --> webhooks
   webhooks --> proof
   approval --> proof
@@ -117,6 +125,7 @@ flowchart TD
   class api green
   class store green
   class approval green
+  class providerContract green
   class adapter yellow
   class sender green
   class webhooks green
@@ -125,7 +134,7 @@ flowchart TD
   class readiness green
   class contract green
   class rehearsal green
-  class pilot red
+  class pilot yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
   classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
@@ -145,11 +154,11 @@ sequenceDiagram
   I->>I: persist creator and copy approvals
   G->>I: claim, skip, or block approved candidates
   G->>I: POST /campaigns/:id/executions
-  I->>I: stored approval + operator state gates, safe adapter, proof pack
+  I->>I: stored approval + operator state gates, safe or provider-reported adapter, proof pack
   G->>I: GET /operator/manual-queue for pending operator work
   G->>I: POST /manual-events for operator evidence when manual
   G->>I: npm run demo:manual-pilot rehearses the full manual path
-  I->>P: hand off approved send intent when adapter is real
+  I->>P: accept provider outcomes now and hand off when ops are real
   P->>C: Instagram DM
   C-->>P: reply
   P-->>I: provider event
@@ -172,14 +181,14 @@ stateDiagram-v2
 ```mermaid
 flowchart LR
   repo["GREEN This repo: API, store, approvals, sender inventory, status model"]
-  provider["YELLOW Adapter contract; real delivery unproven"]
-  ops["YELLOW Ops: real sender credentials and recovery"]
+  provider["GREEN Managed-provider outcome contract"]
+  ops["YELLOW Real sender credentials, provider ops, and recovery"]
   graphed["GRAY Graphed systems"]
   repo --> provider
   provider --> ops
   graphed --> repo
   class repo green
-  class provider yellow
+  class provider green
   class ops yellow
   class graphed gray
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -191,20 +200,20 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/atomic-evidence/execution/operator-proof/readiness/openapi/manual-rehearsal/domain"]
+  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution/operator-proof/readiness/openapi/manual-rehearsal/domain"]
   typecheck["GREEN typecheck green"]
-  mmdx["YELLOW MMDX preflight required"]
-  live["RED no live Instagram delivery proof"]
-  pilot["RED no Graphed pilot evidence"]
+  mmdx["GREEN MMDX preflight passed"]
+  live["YELLOW no live Instagram delivery proof yet; covered by inschneidergram-j8b"]
+  pilot["YELLOW no Graphed pilot evidence yet; covered by inschneidergram-j8b"]
   tests --> typecheck
   typecheck --> mmdx
   mmdx --> live
   live --> pilot
   class tests green
   class typecheck green
-  class mmdx yellow
-  class live red
-  class pilot red
+  class mmdx green
+  class live yellow
+  class pilot yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
   classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
@@ -214,13 +223,13 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/atomic-evidence/proof/openapi/rehearsal claims"]
-  beads["GREEN Beads closed for current scaffold"]
+  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/proof/openapi/rehearsal claims"]
+  beads["YELLOW Beads keep live ops and pilot gap open"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
   class docs green
   class code green
-  class beads green
+  class beads yellow
   class bounty red
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -230,8 +239,8 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, sender inventory, approval/operator API, operator manual queue, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
-  first["Next: real delivery/provider operations"]
+  now["Current: API, durable store, sender inventory, approval/operator API, operator manual queue, managed-provider outcome contract, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
+  first["Next: verified provider/account operations"]
   second["Then: live Graphed pilot"]
   third["Then: deployment hardening"]
   now --> first --> second --> third
@@ -307,5 +316,6 @@ erDiagram
     datetime executedAt
     string proofPack
     string manualEvents
+    string providerOutcomes
   }
 ```

@@ -14,6 +14,7 @@ import {
 } from "./domain/approval.js";
 import { createCampaign, recordTargetEvent, type Campaign } from "./domain/campaign.js";
 import {
+  createManagedProviderDeliveryAdapter,
   createManualDeliveryAdapter,
   createMockDeliveryAdapter,
   recordManualDeliveryEvent,
@@ -436,6 +437,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         executionRequest,
         await store.getApprovalWorkbench(id)
       );
+      validateManagedProviderOutcomes(campaignForExecution, workbench, executionRequest);
       assertCurrentSenderAvailability(campaignForExecution, workbench);
       const dispatcher = executionRequest.simulateWebhooks
         ? new OutgoingWebhookDispatcher({
@@ -972,7 +974,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           }
         },
         post: {
-          summary: "Execute approved campaign targets through a mock or manual-safe adapter",
+          summary: "Execute approved campaign targets through a mock, manual-safe, or managed-provider adapter",
           requestBody: {
             required: false,
             content: {
@@ -1021,6 +1023,60 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                           required: ["kind"],
                           properties: {
                             kind: { const: "manual" }
+                          }
+                        },
+                        {
+                          type: "object",
+                          required: ["kind", "outcomes"],
+                          properties: {
+                            kind: { const: "managed_provider" },
+                            id: { type: "string" },
+                            accountRiskOwner: {
+                              type: "string",
+                              enum: ["operator", "provider"]
+                            },
+                            requiresHumanEvidence: { type: "boolean" },
+                            notes: {
+                              type: "array",
+                              items: { type: "string" }
+                            },
+                            outcomes: {
+                              type: "array",
+                              minItems: 1,
+                              items: {
+                                type: "object",
+                                required: ["target", "outcome", "events"],
+                                properties: {
+                                  target: { type: "string" },
+                                  outcome: {
+                                    type: "string",
+                                    enum: ["accepted", "rejected"]
+                                  },
+                                  events: {
+                                    type: "array",
+                                    minItems: 1,
+                                    items: {
+                                      type: "object",
+                                      required: ["type"],
+                                      properties: {
+                                        type: {
+                                          type: "string",
+                                          enum: ["sent", "failed", "restricted", "replied"]
+                                        },
+                                        occurredAt: { type: "string", format: "date-time" },
+                                        messageId: { type: "string" },
+                                        reason: { type: "string" },
+                                        replyText: { type: "string" },
+                                        evidence: {
+                                          type: "object",
+                                          additionalProperties: { type: "string" }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           }
                         }
                       ]
@@ -1359,6 +1415,33 @@ const executionRequestSchema = z.object({
       }),
       z.object({
         kind: z.literal("manual")
+      }),
+      z.object({
+        kind: z.literal("managed_provider"),
+        id: z.string().min(1).max(120).default("managed_provider_delivery"),
+        accountRiskOwner: z.enum(["operator", "provider"]).default("provider"),
+        requiresHumanEvidence: z.boolean().default(false),
+        notes: z.array(z.string().min(1).max(1000)).default([]),
+        outcomes: z
+          .array(
+            z.object({
+              target: z.string().min(1),
+              outcome: z.enum(["accepted", "rejected"]),
+              events: z
+                .array(
+                  z.object({
+                    type: z.enum(["sent", "failed", "restricted", "replied"]),
+                    occurredAt: z.string().datetime().optional(),
+                    messageId: z.string().min(1).optional(),
+                    reason: z.string().min(1).optional(),
+                    replyText: z.string().min(1).optional(),
+                    evidence: z.record(z.string(), z.string()).default({})
+                  })
+                )
+                .min(1)
+            })
+          )
+          .min(1)
       })
     ])
     .default({ kind: "mock", restrictedTargets: [], failingTargets: [], replyTargets: [] }),
@@ -2033,9 +2116,94 @@ function hasInlineApprovalOverrides(request: ExecutionRequest): boolean {
   );
 }
 
+function validateManagedProviderOutcomes(
+  campaign: Campaign,
+  workbench: ApprovalWorkbench,
+  request: ExecutionRequest
+): void {
+  if (request.adapter.kind !== "managed_provider") {
+    return;
+  }
+
+  const expectedTargets = campaign.targets
+    .filter(
+      (target) =>
+        target.status === "scheduled" &&
+        target.handle &&
+        isApprovedExecutionTarget(workbench, target.handle)
+    )
+    .map((target) => target.handle as string);
+  const expected = new Set(expectedTargets);
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  const provided = new Set<string>();
+
+  for (const outcome of request.adapter.outcomes) {
+    const handle = normalizeHandle(outcome.target);
+    if (seen.has(handle)) {
+      duplicates.add(handle);
+    }
+    seen.add(handle);
+    provided.add(handle);
+  }
+
+  if (duplicates.size > 0) {
+    throw new Error(`Duplicate managed provider outcome target(s): ${[...duplicates].join(", ")}`);
+  }
+
+  const unknown = [...provided].filter((handle) => !expected.has(handle));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown managed provider outcome target(s): ${unknown.join(", ")}`);
+  }
+
+  const missing = expectedTargets.filter((handle) => !provided.has(handle));
+  if (missing.length > 0) {
+    throw new Error(`Missing managed provider outcome target(s): ${missing.join(", ")}`);
+  }
+}
+
 function buildDeliveryAdapter(request: ExecutionRequest) {
   if (request.adapter.kind === "manual") {
     return createManualDeliveryAdapter();
+  }
+
+  if (request.adapter.kind === "managed_provider") {
+    const outcomesByTarget = new Map(
+      request.adapter.outcomes.map((outcome) => [normalizeHandle(outcome.target), outcome])
+    );
+
+    return createManagedProviderDeliveryAdapter({
+      id: request.adapter.id,
+      accountRiskOwner: request.adapter.accountRiskOwner,
+      requiresHumanEvidence: request.adapter.requiresHumanEvidence,
+      notes:
+        request.adapter.notes.length > 0
+          ? request.adapter.notes
+          : [
+              "Managed provider execution uses operator-supplied provider outcomes.",
+              "This API contract does not claim official cold-DM compliance or live Instagram delivery."
+            ],
+      deliver(intent) {
+        const outcome = outcomesByTarget.get(intent.targetHandle);
+        if (!outcome) {
+          return {
+            outcome: "rejected",
+            events: [
+              {
+                type: "failed",
+                reason: "No managed provider outcome supplied for target",
+                evidence: { targetHandle: intent.targetHandle }
+              }
+            ]
+          };
+        }
+
+        return {
+          outcome: outcome.outcome,
+          events: outcome.events
+        };
+      }
+    });
   }
 
   return createMockDeliveryAdapter({

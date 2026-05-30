@@ -22,9 +22,11 @@ sender account and records evidence back into the system.
 
 ## Deferred Path
 
-The managed-provider adapter remains the expansion path after the first pilot.
-It should only be activated when the provider/account owner can produce the
-same evidence contract: sent, failed, restricted, replied, account-health
+The managed-provider adapter is now an API contract surface, but it remains an
+expansion path until a provider/account owner can actually operate the sender
+path. Use `adapter.kind=managed_provider` only when every approved executable
+target has an explicit provider-reported outcome and the provider can produce
+the same evidence contract: sent, failed, restricted, replied, account-health
 events, webhook delivery, and proof-pack records.
 
 ## Sender Accounts
@@ -76,8 +78,8 @@ curl -s http://127.0.0.1:3107/senders/sender-a/risk-events \
    campaign is ready to execute or to see the remaining external inputs.
 6. Execution runner rechecks current sender health, then creates `SendIntent`
    records only for approved creators that remain queued or claimed.
-7. Delivery adapter returns sent, failed, restricted, replied, or
-   `needs_manual_evidence`.
+7. Delivery adapter returns sent, failed, restricted, replied, or, for the
+   manual-safe adapter, `needs_manual_evidence`.
 8. Operator checks `GET /operator/manual-queue` or
    `GET /campaigns/:id/executions/:executionId/manual-queue` to see stable
    intent ids, target handles, sender accounts, messages, allowed manual
@@ -170,11 +172,11 @@ suppression behavior without claiming a live Instagram send.
 
 The local OpenAPI contract is available at `/openapi.json`. Use it as the
 operator contract for the credential-free pilot path: campaign creation,
-approval, readiness, sender inventory, manual-safe execution, operator manual
-queue, manual evidence, execution proof records, `/health`, and
-`/webhooks/preview`. Manual evidence schemas are event-specific, so sent,
-failed, restricted, and replied events list the required evidence fields
-separately.
+approval, readiness, sender inventory, manual-safe execution,
+provider-reported managed execution, operator manual queue, manual evidence,
+execution proof records, `/health`, and `/webhooks/preview`. Manual evidence
+schemas are event-specific, so sent, failed, restricted, and replied events
+list the required evidence fields separately.
 
 For a repeatable local proof-pack demo, run:
 
