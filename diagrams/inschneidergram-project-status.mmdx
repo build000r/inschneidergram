@@ -20,7 +20,7 @@ flowchart LR
   ops["YELLOW Sender health model only"]
   beads["YELLOW Beads planning active"]
   proof["GREEN Proof pack generator"]
-  runner["GREEN Execution runner"]
+  runner["GREEN API-callable execution runner"]
   next["Next: real sender ops + live pilot"]
   bounty --> api
   api --> store
@@ -55,7 +55,7 @@ gantt
   GREEN Durable store and approvals :done, 2026-05-30, 1d
   GREEN Proof pack generator :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
-  GREEN Execution runner :done, 2026-05-30, 1d
+  GREEN API-callable execution runner :done, 2026-05-30, 1d
   YELLOW Live pilot preparation :active, 2026-05-30, 2d
   section RED Unproven
   RED Real delivery adapter :crit, 2026-06-01, 5d
@@ -72,7 +72,7 @@ flowchart TD
   sender["PARTIAL YELLOW Sender health model"]
   webhooks["DONE GREEN Outgoing webhook retry domain"]
   proof["DONE GREEN Proof pack generator"]
-  runner["DONE GREEN Execution runner"]
+  runner["DONE GREEN API execution route"]
   pilot["FUTURE RED Graphed pilot"]
   api --> store
   api --> approval
@@ -107,8 +107,9 @@ sequenceDiagram
   participant C as Creator
   G->>I: POST /campaigns
   I->>I: validate, normalize, suppress, schedule
-  I->>I: approval and operator evidence gates
-  I->>P: hand off approved send intent
+  G->>I: POST /campaigns/:id/executions
+  I->>I: approval gates, safe adapter, proof pack
+  I->>P: hand off approved send intent when adapter is real
   P->>C: Instagram DM
   C-->>P: reply
   P-->>I: provider event
@@ -173,7 +174,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/proof claims"]
+  code["GREEN Code matches API/store/execution/proof claims"]
   beads["GREEN Beads closed for current scaffold"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -189,10 +190,10 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, approvals, webhooks, proof, runner"]
+  now["Current: API, durable store, approvals, webhooks, proof, execution route"]
   first["Next: real sender operations"]
   second["Then: live Graphed pilot"]
-  third["Then: real Graphed pilot"]
+  third["Then: deployment hardening"]
   now --> first --> second --> third
 ```
 

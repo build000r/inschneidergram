@@ -56,6 +56,7 @@ The current implementation covers:
   renewal recommendation
 - execution runner that connects approval, delivery adapter events, outgoing
   webhooks, and proof-pack generation
+- API pilot-demo execution route for safe mock/manual runs
 
 ## Acceptance Criteria
 
@@ -74,7 +75,9 @@ The current implementation covers:
 10. A sample pilot fixture generates proof metrics and a Markdown report.
 11. Approved campaign execution routes send intents through an injected adapter,
     records events, sends webhooks, and returns proof.
-12. Tests prove the API contract and domain rules.
+12. `POST /campaigns/:id/executions` exposes the safe execution/proof workflow
+    without claiming live Instagram delivery.
+13. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -103,7 +106,8 @@ with private sender inventory and explicit evidence capture.
 Connect the current runner to persistent stores and API routes. The domain
 runner already creates approved send intents, routes through an injected
 adapter, records delivery/reply/restricted/failed events, dispatches outgoing
-webhooks, and feeds the proof-pack generator.
+webhooks, and feeds the proof-pack generator. The API now exposes a safe
+`POST /campaigns/:id/executions` workflow for mock/manual pilot dry runs.
 
 ### Sender Account Operations
 

@@ -31,7 +31,7 @@ This repo currently contains the first API/control-plane slice:
 | Persistent local campaign store | Working MVP | `JsonFileCampaignStore`, idempotency/suppression tests |
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
-| Execution runner | Working MVP | approval to adapter to webhooks to proof pack |
+| Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Managed sender infrastructure | Partial | health model exists; real account operations next |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, renewal decision |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
@@ -90,6 +90,28 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/events \
   }'
 ```
 
+Run a safe execution dry-run:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions \
+  -H 'content-type: application/json' \
+  -d '{
+    "adapter": {
+      "kind": "mock",
+      "replyTargets": ["instagram_profile_2"],
+      "failingTargets": []
+    },
+    "replyAssessments": [
+      {
+        "targetHandle": "instagram_profile_2",
+        "disposition": "interested",
+        "qualified": true,
+        "replyText": "Interested - send details"
+      }
+    ]
+  }'
+```
+
 ## API Shape
 
 `POST /campaigns`
@@ -127,6 +149,12 @@ campaigns also consult the persisted suppression records created by earlier
 campaigns, so previously scheduled handles are returned as `skipped_duplicate`.
 Responses include `senderHealth`; locked, cooling-down, or reconnect-required
 senders are blocked from scheduling and surfaced as account-health blockers.
+
+`POST /campaigns/:id/executions` is the pilot-demo workflow. It builds an
+approval workbench from the stored campaign, routes approved targets through a
+safe `mock` or `manual` adapter, records campaign events, simulates signed
+webhook delivery records, and returns the proof-pack metrics plus Markdown. It
+does not claim live Instagram delivery.
 
 ## Architecture
 
@@ -170,11 +198,10 @@ owns that operational risk.
 
 ## Roadmap to Bounty Pilot
 
-1. Wire the managed delivery adapter contract into the campaign execution path.
-2. Connect real sender account operations to the sender health model.
-3. Connect real sender account operations to the execution runner.
-4. Run a controlled pilot with a small vetted creator list.
-5. Publish live reliability evidence using the proof-pack generator.
+1. Connect real sender account operations to the sender health model.
+2. Connect a real managed sender/provider path to the execution runner.
+3. Run a controlled pilot with a small vetted creator list.
+4. Publish live reliability evidence using the proof-pack generator.
 
 ## Limitations
 

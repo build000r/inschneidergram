@@ -197,4 +197,140 @@ describe("API", () => {
 
     await app.close();
   });
+
+  it("executes an approved mock pilot and returns proof pack evidence", async () => {
+    const app = await buildServer({ webhookSecret: "execution-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@creator_one", "@creator_two", "@creator_three"],
+        message: "Open to an affiliate pilot?",
+        campaign: "api-execution-pilot",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/inschneidergram",
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const executionResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "mock",
+          replyTargets: ["@creator_two"],
+          failingTargets: ["@creator_three"]
+        },
+        replyAssessments: [
+          {
+            targetHandle: "creator_two",
+            disposition: "interested",
+            qualified: true,
+            replyText: "Interested - send details"
+          }
+        ],
+        incidents: [
+          {
+            kind: "manual_note",
+            severity: "info",
+            at: "2026-05-30T01:30:00.000Z",
+            note: "API execution dry run"
+          }
+        ]
+      }
+    });
+
+    expect(executionResponse.statusCode).toBe(200);
+    expect(executionResponse.json()).toMatchObject({
+      status: "running",
+      summary: {
+        sent: 1,
+        replied: 1,
+        failed: 1
+      },
+      adapterRiskPosture: {
+        kind: "mock",
+        officialColdDmCompliance: "not_claimed"
+      },
+      proofPack: {
+        metrics: {
+          approvedTargets: 3,
+          contactedTargets: 2,
+          interestedReplies: 1,
+          webhookDelivered: 4
+        },
+        renewalRecommendation: {
+          decision: "renew"
+        }
+      }
+    });
+    expect(executionResponse.json().deliveryAttempts).toHaveLength(3);
+    expect(executionResponse.json().webhookDeliveries).toHaveLength(4);
+    expect(executionResponse.json().proofPack.markdown).toContain("Decision: renew");
+
+    const stored = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}`
+    });
+    expect(stored.json().summary).toMatchObject({
+      replied: 1,
+      failed: 1
+    });
+
+    await app.close();
+  });
+
+  it("supports manual-safe execution without claiming live Instagram delivery", async () => {
+    const app = await buildServer();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@creator_one"],
+        message: "Open to an affiliate pilot?",
+        campaign: "manual-safe-pilot"
+      }
+    });
+
+    const executionResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${createResponse.json().campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "manual"
+        }
+      }
+    });
+
+    expect(executionResponse.statusCode).toBe(200);
+    expect(executionResponse.json()).toMatchObject({
+      adapterRiskPosture: {
+        kind: "manual",
+        officialColdDmCompliance: "not_claimed",
+        requiresHumanEvidence: true
+      },
+      proofPack: {
+        metrics: {
+          contactedTargets: 0,
+          sentMessages: 0
+        },
+        renewalRecommendation: {
+          decision: "iterate"
+        }
+      }
+    });
+
+    await app.close();
+  });
 });
