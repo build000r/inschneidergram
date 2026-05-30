@@ -1202,6 +1202,105 @@ describe("API", () => {
     await app.close();
   });
 
+  it("uses the runtime webhook sender for manual evidence by default", async () => {
+    const webhookRequests: OutgoingWebhookRequest[] = [];
+    const app = await buildServer({
+      webhookSecret: "runtime-manual-secret",
+      webhookAllowedHosts: ["example.com"],
+      async webhookSender(request) {
+        webhookRequests.push(request);
+        return { statusCode: 204 };
+      }
+    });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@runtime_manual_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "runtime-manual-webhook",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/runtime-manual",
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@runtime_manual_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    const execution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" }
+      }
+    });
+    const executionId = execution.json().executionId;
+
+    const sentEvidence = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        eventId: "runtime-manual-sent-1",
+        target: "@runtime_manual_creator",
+        type: "sent",
+        messageId: "runtime_manual_msg_1",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/runtime_manual_creator",
+          screenshotUrl: "s3://proof/runtime-manual-sent.png"
+        }
+      }
+    });
+
+    expect(sentEvidence.statusCode).toBe(200);
+    expect(sentEvidence.json()).toMatchObject({
+      webhookDelivery: {
+        status: "delivered",
+        attempts: [expect.objectContaining({ statusCode: 204 })]
+      },
+      proofPack: {
+        metrics: {
+          webhookDelivered: 1,
+          webhookDeadLetters: 0
+        }
+      }
+    });
+    expect(webhookRequests).toHaveLength(1);
+    expect(webhookRequests[0]).toMatchObject({
+      url: "https://example.com/webhooks/runtime-manual",
+      payload: {
+        id: "runtime-manual-sent-1",
+        type: "target.sent",
+        target: {
+          handle: "runtime_manual_creator",
+          status: "sent"
+        }
+      },
+      headers: {
+        "x-inschneidergram-event-type": "target.sent"
+      }
+    });
+
+    await app.close();
+  });
+
   it("persists approval workbench decisions and executes stored approvals", async () => {
     const app = await buildServer({ webhookSecret: "approval-secret" });
     const createResponse = await app.inject({
@@ -1572,6 +1671,16 @@ describe("API", () => {
       },
       externalInputs: expect.arrayContaining(["operator delivery evidence"])
     });
+    const duplicateManualExecution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" }
+      }
+    });
+    expect(duplicateManualExecution.statusCode).toBe(409);
+    expect(duplicateManualExecution.json().message).toContain("awaiting_manual_evidence");
+    expect(duplicateManualExecution.json().message).toContain("Manual evidence");
 
     await app.inject({
       method: "POST",
@@ -1583,6 +1692,7 @@ describe("API", () => {
         target: "@ready_creator",
         type: "sent",
         messageId: "manual_msg_1",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "op_1",
           conversationUrl: "https://instagram.com/direct/t/ready_creator",
@@ -1599,6 +1709,7 @@ describe("API", () => {
         type: "replied",
         messageId: "manual_msg_1",
         replyText: "Interested - send details",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "op_1",
           conversationUrl: "https://instagram.com/direct/t/ready_creator",
@@ -1730,6 +1841,7 @@ describe("API", () => {
         target: "@queue_creator_one",
         type: "sent",
         messageId: "manual_msg_1",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "op_1",
           conversationUrl: "https://instagram.com/direct/t/queue_creator_one",
@@ -1777,6 +1889,7 @@ describe("API", () => {
         type: "replied",
         messageId: "manual_msg_1",
         replyText: "Interested - send details",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "op_1",
           conversationUrl: "https://instagram.com/direct/t/queue_creator_one",
@@ -1793,6 +1906,7 @@ describe("API", () => {
         target: "@queue_creator_two",
         type: "restricted",
         reason: "Manual queue restricted path",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "op_1",
           screenshotUrl: "s3://proof/queue-restricted.png",
@@ -2392,6 +2506,7 @@ describe("API", () => {
             target: "@atomic_creator_one",
             type: "sent",
             messageId: "manual_atomic_1",
+            simulateWebhookDelivery: true,
             evidence: {
               operatorId: "op_1",
               conversationUrl: "https://instagram.com/direct/t/atomic_creator_one",
@@ -2407,6 +2522,7 @@ describe("API", () => {
             target: "@atomic_creator_two",
             type: "restricted",
             reason: "Concurrent restriction evidence",
+            simulateWebhookDelivery: true,
             evidence: {
               operatorId: "op_2",
               screenshotUrl: "s3://proof/atomic-restricted.png",
@@ -2850,6 +2966,7 @@ describe("API", () => {
         target: "@manual_creator",
         type: "sent",
         messageId: "manual_msg_1",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "op_1",
           conversationUrl: "https://instagram.com/direct/t/manual_creator",
@@ -2886,6 +3003,7 @@ describe("API", () => {
         target: "@manual_creator",
         type: "sent",
         messageId: "manual_msg_1",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "op_1",
           conversationUrl: "https://instagram.com/direct/t/manual_creator",
@@ -2914,6 +3032,7 @@ describe("API", () => {
         type: "replied",
         messageId: "manual_msg_1",
         replyText: "Interested - send details",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "op_1",
           conversationUrl: "https://instagram.com/direct/t/manual_creator",
@@ -3051,6 +3170,7 @@ describe("API", () => {
         target: "@restricted_manual_creator",
         type: "restricted",
         reason: "Instagram warned the operator to slow down",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "op_1",
           screenshotUrl: "s3://proof/manual-restricted.png",
@@ -3465,7 +3585,11 @@ describe("API", () => {
         in: "header"
       })
     );
-    expect(operation.description).toContain("simulated");
+    expect(operation.description).toContain("runtime webhook sender");
+    expect(byType.sent.properties.simulateWebhookDelivery).toMatchObject({
+      type: "boolean",
+      default: false
+    });
     expect(byType.sent.required).toEqual(expect.arrayContaining(["type", "evidence", "messageId"]));
     expect(byType.sent.anyOf).toEqual([{ required: ["intentId"] }, { required: ["target"] }]);
     expect(byType.sent.properties.evidence.required).toEqual(

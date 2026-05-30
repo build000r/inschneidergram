@@ -44,6 +44,11 @@ stored sender inventory so post-creation lockouts or cooldowns block launch.
 Manual `restricted` evidence for managed senders writes back into that sender
 risk inventory, so follow-on readiness and execution checks see the cooldown
 without relying on a separate operator step.
+The credential-free manual rehearsal exercises this with two managed senders
+and strict creator-provenance intake: both demo targets carry source and fit
+rationale, one restricted sender cools down, one sender remains healthy, and
+the proof pack records a sender warning while staying ready for evidence
+review.
 For strict pilot intake, set `settings.requireTargetProvenance=true`; readiness
 then requires every accepted creator target to carry both `source` and
 `fitReason`.

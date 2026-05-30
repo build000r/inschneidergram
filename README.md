@@ -91,9 +91,11 @@ delivery, simulated signed webhook delivery records, and no live Instagram
 sending.
 
 `npm run demo:manual-pilot` runs the credential-free operator rehearsal path
-through the public API surface: campaign creation, approval, readiness,
-manual-safe execution, sent/replied/restricted evidence, simulated webhook
-records, and final proof-pack renewal output.
+through the public API surface: managed sender registration, strict
+creator-provenance intake, campaign creation from stored sender ids, approval,
+readiness, manual-safe execution, sent/replied/restricted evidence, sender-risk
+cooldown reconciliation, simulated webhook records, and final proof-pack renewal
+output.
 
 Inspect the local API contract:
 
@@ -466,11 +468,19 @@ the raw execution record to know what to do next:
 `status=reply_monitoring`, `status=done`, and `status=all` expose sent-but-not-replied
 and terminal attempts. The campaign-scoped execution view
 `GET /campaigns/:id/executions/:executionId/manual-queue` returns the same
-manual work projection for one execution. Manual executions can be updated with
+manual work projection for one execution. A campaign with pending manual
+evidence cannot start another execution until that operator evidence is
+complete, preventing duplicate manual queues for the same approved creators.
+Manual executions can be updated with
 `POST /campaigns/:id/executions/:executionId/manual-events`; that route
 validates required operator evidence, updates campaign status, appends webhook
 delivery records, and refreshes the stored proof pack under one store-level
 mutation so small multi-operator pilots do not lose concurrent evidence writes.
+Manual evidence dispatches signed callbacks through the same runtime guarded
+webhook sender by default. Local rehearsals must opt into simulated callback
+records with `simulateWebhookDelivery=true`, so proof packs do not report
+delivered callbacks unless a real sender or an explicit simulation handled the
+event.
 When a manual `restricted` event references a sender from managed inventory, the
 route also appends a sender `restriction` risk event, moves that sender into
 cooldown, refreshes proof metrics with the sender warning, and makes later

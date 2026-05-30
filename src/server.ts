@@ -636,12 +636,17 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       const evidenceRequest = manualEvidenceRequestSchema.parse(
         withManualEventId(request.body, request.headers["idempotency-key"])
       );
+      const manualWebhookDispatcher = webhookDispatcherForManualEvidence(
+        evidenceRequest,
+        webhookSecret,
+        runtimeWebhookDispatcher
+      );
       const result = await store.updateCampaignExecution(id, executionId, async (currentCampaign, currentExecution) => {
         const evidenceResult = await recordManualEvidence({
           campaign: currentCampaign,
           execution: currentExecution,
           request: evidenceRequest,
-          webhookSecret
+          webhookDispatcher: manualWebhookDispatcher
         });
         return {
           campaign: evidenceResult.campaign,
@@ -1349,7 +1354,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         post: {
           summary: "Record manual evidence for one execution intent",
           description:
-            "Records operator evidence for a manual-safe execution. Webhook delivery in this route is simulated by the API process until a live dispatcher is configured.",
+            "Records operator evidence for a manual-safe execution. By default this dispatches signed callbacks through the runtime webhook sender; set simulateWebhookDelivery=true only for local proof rehearsals.",
           parameters: [openApiIdempotencyHeader()],
           requestBody: {
             required: true,
@@ -1955,11 +1960,17 @@ function openApiManualEvidenceCase(
           note: { type: "string" }
         }
       },
+      simulateWebhookDelivery: {
+        type: "boolean",
+        default: false,
+        description:
+          "When true, bypasses the runtime webhook sender and records a local simulated delivery. Use only for local/manual proof rehearsals."
+      },
       simulatedWebhookStatusCode: {
         type: "integer",
         minimum: 100,
         maximum: 599,
-        description: "Simulated webhook status code used by local/manual pilot proof flows."
+        description: "Status code returned by the local simulated delivery when simulateWebhookDelivery is true."
       }
     }
   };
@@ -2154,6 +2165,7 @@ const manualEvidenceRequestSchema = z
         note: z.string().min(1).optional()
       })
       .optional(),
+    simulateWebhookDelivery: z.boolean().default(false),
     simulatedWebhookStatusCode: z.number().int().min(100).max(599).default(204)
   })
   .superRefine((value, ctx) => {
@@ -2451,7 +2463,7 @@ async function recordManualEvidence(input: {
   campaign: Campaign;
   execution: CampaignExecutionRecord;
   request: ManualEvidenceRequest;
-  webhookSecret: string;
+  webhookDispatcher: OutgoingWebhookDispatcher;
 }): Promise<ManualEvidenceResult> {
   if (input.execution.adapterRiskPosture?.kind !== "manual") {
     throw new ConflictError("Manual evidence can only be recorded for manual executions");
@@ -2498,12 +2510,11 @@ async function recordManualEvidence(input: {
     receivedAt: event.occurredAt
   });
 
-  const webhookDelivery = await dispatchSimulatedWebhook({
+  const webhookDelivery = await dispatchManualEvidenceWebhook(
+    input.webhookDispatcher,
     campaign,
-    targetHandle: attempt.intent.targetHandle,
-    webhookSecret: input.webhookSecret,
-    statusCode: input.request.simulatedWebhookStatusCode
-  });
+    attempt.intent.targetHandle
+  );
   const webhookDeliveries = webhookDelivery
     ? [...input.execution.webhookDeliveries, webhookDelivery]
     : [...input.execution.webhookDeliveries];
@@ -2674,28 +2685,38 @@ function campaignEventForManualEvidence(type: DeliveryEventType): "sent" | "repl
   return "sent";
 }
 
-async function dispatchSimulatedWebhook(input: {
-  campaign: Campaign;
-  targetHandle: string;
-  webhookSecret: string;
-  statusCode: number;
-}): Promise<Awaited<ReturnType<OutgoingWebhookDispatcher["dispatch"]>> | null> {
-  const target = input.campaign.targets.find((candidate) => candidate.handle === input.targetHandle);
+function webhookDispatcherForManualEvidence(
+  request: ManualEvidenceRequest,
+  webhookSecret: string,
+  runtimeWebhookDispatcher: OutgoingWebhookDispatcher
+): OutgoingWebhookDispatcher {
+  if (!request.simulateWebhookDelivery) {
+    return runtimeWebhookDispatcher;
+  }
+
+  return new OutgoingWebhookDispatcher({
+    secret: webhookSecret,
+    sender: async () => ({
+      statusCode: request.simulatedWebhookStatusCode
+    })
+  });
+}
+
+async function dispatchManualEvidenceWebhook(
+  dispatcher: OutgoingWebhookDispatcher,
+  campaign: Campaign,
+  targetHandle: string
+): Promise<Awaited<ReturnType<OutgoingWebhookDispatcher["dispatch"]>> | null> {
+  const target = campaign.targets.find((candidate) => candidate.handle === targetHandle);
   if (!target) {
     return null;
   }
 
-  const job = createTargetWebhookJob(input.campaign, target);
+  const job = createTargetWebhookJob(campaign, target);
   if (!job) {
     return null;
   }
 
-  const dispatcher = new OutgoingWebhookDispatcher({
-    secret: input.webhookSecret,
-    sender: async () => ({
-      statusCode: input.statusCode
-    })
-  });
   return dispatcher.dispatch(job);
 }
 
@@ -2845,12 +2866,12 @@ function assertExecutionReadiness(
     approvalWorkbench: workbench,
     executions
   });
-  if (readiness.readyForExecution) {
+  if (readiness.readyForExecution && readiness.counts.pendingManualEvidence === 0) {
     return;
   }
 
   const failingGates = readiness.gates
-    .filter((gate) => gate.status === "fail")
+    .filter((gate) => gate.status !== "pass")
     .map((gate) => gate.label);
   const nextAction = readiness.nextActions[0];
   throw new ConflictError(

@@ -1,6 +1,6 @@
 # Delivery Path Dry-Run Evidence
 
-Generated: 2026-05-30T01:23:51Z
+Baseline generated: 2026-05-30T01:23:51Z
 
 Commit at dry run: `2083d62`
 
@@ -79,7 +79,69 @@ Campaign response summary:
 
 - No live Instagram DM was sent.
 - No Graphed creator list was contacted.
-- No sender-account restriction/recovery flow has been exercised.
+
+## Current Manual Rehearsal Evidence
+
+`npm run demo:manual-pilot` now exercises the stronger managed sender and
+strict provenance path:
+
+- registers two stored sender accounts through `PUT /senders/:id`
+- creates the campaign from profile-object targets with `source`, `fitReason`,
+  tags, profile URLs, and `settings.requireTargetProvenance=true`
+- schedules from `senderPool` ids without inline sender credentials
+- records sent, replied, and restricted manual evidence
+- reconciles the restricted evidence into one managed sender risk event
+- leaves one sender healthy and one sender in cooldown
+- reports `vettedTargets: 2` and `senderWarnings: 1` in the proof pack while
+  final readiness remains `evidence_ready`
+
+Last verified: 2026-05-30T06:29:13Z on the public demo command. The demo uses
+explicit `simulateWebhookDelivery=true` payloads so the local proof can count
+simulated callbacks without claiming a runtime Graphed receiver was contacted.
+
+```json
+{
+  "openApiPathCount": 25,
+  "finalMetrics": {
+    "sourcedTargets": 2,
+    "acceptedTargets": 2,
+    "vettedTargets": 2,
+    "contactedTargets": 1,
+    "sentMessages": 1,
+    "replies": 1,
+    "interestedReplies": 1,
+    "deliveryFailures": 1,
+    "senderWarnings": 1,
+    "webhookDelivered": 3,
+    "webhookDeadLetters": 0
+  },
+  "provenanceSummary": {
+    "requireTargetProvenance": true,
+    "sourcedTargets": 2,
+    "acceptedTargets": 2,
+    "vettedTargets": 2,
+    "externalInputs": []
+  },
+  "senderRiskSummary": {
+    "total": 2,
+    "available": 1,
+    "blocked": 1,
+    "restrictedSender": {
+      "id": "sender-b",
+      "status": "cooldown",
+      "available": false,
+      "blockers": ["cooldown"],
+      "riskEvents": [
+        {
+          "kind": "restriction",
+          "note": "Manual restriction evidence for manual_demo_creator_two: Manual rehearsal restricted path"
+        }
+      ]
+    }
+  },
+  "renewalDecision": "renew"
+}
+```
 
 ## Next Required Evidence
 

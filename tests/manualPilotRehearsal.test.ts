@@ -21,6 +21,9 @@ describe("manual pilot rehearsal", () => {
     expect(result.openApiPaths).toEqual(
       expect.arrayContaining([
         "/health",
+        "/senders",
+        "/senders/{id}",
+        "/senders/{id}/risk-events",
         "/operator/manual-queue",
         "/campaigns",
         "/campaigns/{id}/readiness",
@@ -45,6 +48,13 @@ describe("manual pilot rehearsal", () => {
       readyForExecution: true,
       readyForEvidenceReview: true,
       pendingManualEvidence: 0
+    });
+    expect(result.provenanceSummary).toEqual({
+      requireTargetProvenance: true,
+      sourcedTargets: 2,
+      acceptedTargets: 2,
+      vettedTargets: 2,
+      externalInputs: []
     });
     expect(result.manualQueueTimeline).toEqual([
       {
@@ -77,22 +87,45 @@ describe("manual pilot rehearsal", () => {
       requiresHumanEvidence: true
     });
     expect(result.finalMetrics).toMatchObject({
+      sourcedTargets: 2,
+      acceptedTargets: 2,
+      vettedTargets: 2,
       contactedTargets: 1,
       sentMessages: 1,
       replies: 1,
       interestedReplies: 1,
       deliveryFailures: 1,
+      senderWarnings: 1,
       webhookDelivered: 3,
       webhookDeadLetters: 0
+    });
+    expect(result.senderRiskSummary).toMatchObject({
+      total: 2,
+      available: 1,
+      blocked: 1,
+      restrictedSender: {
+        id: "sender-b",
+        status: "cooldown",
+        available: false,
+        blockers: ["cooldown"],
+        riskEvents: [
+          expect.objectContaining({
+            kind: "restriction",
+            note: "Manual restriction evidence for manual_demo_creator_two: Manual rehearsal restricted path"
+          })
+        ]
+      }
     });
     expect(result.repeatedSentWebhookDelivery).toBeNull();
     expect(result.executionListCount).toBe(1);
     expect(result.persistedExecutionMetrics).toMatchObject({
       contactedTargets: 1,
       interestedReplies: 1,
-      deliveryFailures: 1
+      deliveryFailures: 1,
+      senderWarnings: 1
     });
     expect(result.renewalDecision).toBe("renew");
+    expect(result.proofMarkdown).toContain("| Vetted targets | 2 |");
     expect(result.proofMarkdown).toContain("Decision: renew");
   });
 });

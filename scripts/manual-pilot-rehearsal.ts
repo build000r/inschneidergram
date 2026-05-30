@@ -34,13 +34,39 @@ export interface ManualPilotRehearsalResult {
     items: number;
   }>;
   finalMetrics: {
+    sourcedTargets: number;
+    acceptedTargets: number;
+    vettedTargets: number;
     contactedTargets: number;
     sentMessages: number;
     replies: number;
     interestedReplies: number;
     deliveryFailures: number;
+    senderWarnings: number;
     webhookDelivered: number;
     webhookDeadLetters: number;
+  };
+  provenanceSummary: {
+    requireTargetProvenance: boolean;
+    sourcedTargets: number;
+    acceptedTargets: number;
+    vettedTargets: number;
+    externalInputs: string[];
+  };
+  senderRiskSummary: {
+    total: number;
+    available: number;
+    blocked: number;
+    restrictedSender: {
+      id: string;
+      status: string;
+      available: boolean;
+      blockers: string[];
+      riskEvents: Array<{
+        kind: string;
+        note: string;
+      }>;
+    } | null;
   };
   repeatedSentWebhookDelivery: unknown;
   executionListCount: number;
@@ -48,6 +74,7 @@ export interface ManualPilotRehearsalResult {
     contactedTargets: number;
     interestedReplies: number;
     deliveryFailures: number;
+    senderWarnings: number;
   };
   renewalDecision: string;
   proofMarkdown: string;
@@ -60,8 +87,39 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
     const health = await injectJson(app, "GET", "/health");
     const openapi = await injectJson(app, "GET", "/openapi.json");
     const openApiPaths = Object.keys(openapi.paths);
+    await injectJson(app, "PUT", "/senders/sender-a", {
+      status: "healthy",
+      dailyLimit: 10,
+      warmupNote: "manual rehearsal primary sender; no live Instagram delivery"
+    });
+    await injectJson(app, "PUT", "/senders/sender-b", {
+      status: "healthy",
+      dailyLimit: 10,
+      warmupNote: "manual rehearsal backup sender; no live Instagram delivery"
+    });
     const campaign = await injectJson(app, "POST", "/campaigns", {
-      targets: ["@manual_demo_creator_one", "@manual_demo_creator_two"],
+      targets: [
+        {
+          target: "@manual_demo_creator_one",
+          profileUrl: "https://www.instagram.com/manual_demo_creator_one/",
+          displayName: "Manual Demo Creator One",
+          source: "graphed-demo-sheet:row-1",
+          fitReason: "Audience overlaps a low-volume affiliate pilot",
+          tags: ["creator", "affiliate", "demo"],
+          followerCount: 18_500,
+          engagementRate: 4.8
+        },
+        {
+          target: "@manual_demo_creator_two",
+          profileUrl: "https://www.instagram.com/manual_demo_creator_two/",
+          displayName: "Manual Demo Creator Two",
+          source: "graphed-demo-sheet:row-2",
+          fitReason: "Content niche matches the campaign offer",
+          tags: ["creator", "fitness", "demo"],
+          followerCount: 24_200,
+          engagementRate: 3.9
+        }
+      ],
       message: "Open to a short affiliate pilot with Graphed?",
       campaign: "manual_pilot_rehearsal",
       metadata: {
@@ -70,18 +128,10 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
       },
       settings: {
         webhookUrl: "https://example.com/webhooks/inschneidergram",
-        senderPool: ["sender-a"],
-        senderAccounts: [
-          {
-            id: "sender-a",
-            status: "healthy",
-            dailyLimit: 10,
-            warmupNote: "manual rehearsal sender; no live Instagram delivery",
-            riskEvents: []
-          }
-        ],
+        senderPool: ["sender-a", "sender-b"],
         minDelaySeconds: 90,
-        maxDelaySeconds: 420
+        maxDelaySeconds: 420,
+        requireTargetProvenance: true
       }
     });
 
@@ -137,6 +187,7 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
       target: "@manual_demo_creator_one",
       type: "sent",
       messageId: "manual_msg_1",
+      simulateWebhookDelivery: true,
       evidence: {
         operatorId: "demo-operator",
         conversationUrl: "https://instagram.com/direct/t/manual_demo_creator_one",
@@ -177,6 +228,7 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
         type: "replied",
         messageId: "manual_msg_1",
         replyText: "Interested - send the brief",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "demo-operator",
           conversationUrl: "https://instagram.com/direct/t/manual_demo_creator_one",
@@ -199,6 +251,7 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
         target: "@manual_demo_creator_two",
         type: "restricted",
         reason: "Manual rehearsal restricted path",
+        simulateWebhookDelivery: true,
         evidence: {
           operatorId: "demo-operator",
           screenshotUrl: "s3://proof/manual-rehearsal-restricted.png",
@@ -224,6 +277,10 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
       "GET",
       `/campaigns/${campaign.campaignId}/executions/${execution.executionId}`
     );
+    const senderInventory = await injectJson(app, "GET", "/senders");
+    const restrictedSender = senderInventory.senderHealth.accounts.find(
+      (account: any) => account.id === "sender-b"
+    );
 
     return {
       campaignId: campaign.campaignId,
@@ -235,20 +292,49 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
       readinessTimeline,
       manualQueueTimeline,
       finalMetrics: {
+        sourcedTargets: finalEvidence.proofPack.metrics.sourcedTargets,
+        acceptedTargets: finalEvidence.proofPack.metrics.acceptedTargets,
+        vettedTargets: finalEvidence.proofPack.metrics.vettedTargets,
         contactedTargets: finalEvidence.proofPack.metrics.contactedTargets,
         sentMessages: finalEvidence.proofPack.metrics.sentMessages,
         replies: finalEvidence.proofPack.metrics.replies,
         interestedReplies: finalEvidence.proofPack.metrics.interestedReplies,
         deliveryFailures: finalEvidence.proofPack.metrics.deliveryFailures,
+        senderWarnings: finalEvidence.proofPack.metrics.senderWarnings,
         webhookDelivered: finalEvidence.proofPack.metrics.webhookDelivered,
         webhookDeadLetters: finalEvidence.proofPack.metrics.webhookDeadLetters
+      },
+      provenanceSummary: {
+        requireTargetProvenance: true,
+        sourcedTargets: finalReadiness.counts.sourcedTargets,
+        acceptedTargets: finalReadiness.counts.acceptedTargets,
+        vettedTargets: finalReadiness.counts.vettedTargets,
+        externalInputs: finalReadiness.externalInputs
+      },
+      senderRiskSummary: {
+        total: senderInventory.senderHealth.total,
+        available: senderInventory.senderHealth.available,
+        blocked: senderInventory.senderHealth.blocked,
+        restrictedSender: restrictedSender
+          ? {
+              id: restrictedSender.id,
+              status: restrictedSender.status,
+              available: restrictedSender.available,
+              blockers: restrictedSender.blockers,
+              riskEvents: restrictedSender.riskEvents.map((event: any) => ({
+                kind: event.kind,
+                note: event.note
+              }))
+            }
+          : null
       },
       repeatedSentWebhookDelivery: repeatedSent.webhookDelivery,
       executionListCount: executionList.executions.length,
       persistedExecutionMetrics: {
         contactedTargets: persistedExecution.proofPack.metrics.contactedTargets,
         interestedReplies: persistedExecution.proofPack.metrics.interestedReplies,
-        deliveryFailures: persistedExecution.proofPack.metrics.deliveryFailures
+        deliveryFailures: persistedExecution.proofPack.metrics.deliveryFailures,
+        senderWarnings: persistedExecution.proofPack.metrics.senderWarnings
       },
       renewalDecision: finalEvidence.proofPack.renewalRecommendation.decision,
       proofMarkdown: finalEvidence.proofPack.markdown
@@ -260,7 +346,7 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
 
 async function injectJson(
   app: FastifyInstance,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT",
   url: string,
   payload?: Record<string, unknown>,
   headers: Record<string, string> = {}
@@ -331,6 +417,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         adapterRiskPosture: result.adapterRiskPosture,
         manualQueueTimeline: result.manualQueueTimeline,
         finalMetrics: result.finalMetrics,
+        provenanceSummary: result.provenanceSummary,
+        senderRiskSummary: result.senderRiskSummary,
         executionListCount: result.executionListCount,
         renewalDecision: result.renewalDecision
       },

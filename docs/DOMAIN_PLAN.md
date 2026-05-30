@@ -54,6 +54,8 @@ The current implementation covers:
 - operator claim, send, skip, and block evidence
 - execution guard that excludes skipped, blocked, or already-sent workbench
   candidates from new send intents
+- execution guard that refuses another run while manual evidence is pending
+  from the latest manual execution
 - audit entries for approval and operator state changes
 - sender account limits, cooldowns, lockouts, reconnect-required state, warm-up
   notes, and risk events
@@ -111,8 +113,9 @@ The current implementation covers:
   params, idempotency headers, campaign settings, manual evidence cases, health,
   and webhook signature preview
 - one-command manual pilot rehearsal that drives the public API through
-  readiness, manual execution, sent/replied/restricted evidence, and proof-pack
-  renewal output without credentials
+  managed sender registration, strict creator-provenance intake, readiness,
+  manual execution, sent/replied/restricted evidence, sender-risk cooldown
+  reconciliation, and proof-pack renewal output without credentials
 - runtime configuration validation for host, port, provider, store path, and
   webhook secret
 - `/health` reports JSON store readiness instead of only process liveness
@@ -158,8 +161,9 @@ The current implementation covers:
     sequence, message, sender, target, and preserved creator provenance.
 20. OpenAPI documents the runtime pilot contract closely enough for a local
     operator to run the no-credential manual flow without guessing schemas.
-21. A one-command manual rehearsal proves the operator-run pilot path still
-    works before real sender/list inputs are available.
+21. A one-command manual rehearsal proves the operator-run pilot path,
+    strict creator-provenance gate, and managed sender-risk reconciliation
+    still work before real sender/list inputs are available.
 22. Managed sender accounts can be registered, fetched, listed, health-checked,
     and updated through risk events.
 23. Manual restriction evidence updates managed sender risk state, proof
@@ -173,18 +177,20 @@ The current implementation covers:
     targets.
 27. Executions cannot create proof records while approval readiness gates still
     fail.
-28. Buyers/operators can export the latest proof pack and readiness context
+28. Executions cannot create duplicate manual queues while pending manual
+    evidence remains unresolved.
+29. Buyers/operators can export the latest proof pack and readiness context
     without knowing which execution id to inspect.
-29. The built service can be smoke-tested through real HTTP with an isolated
+30. The built service can be smoke-tested through real HTTP with an isolated
     JSON store.
-30. Public service deployments can require `X-API-Key` or bearer credentials
+31. Public service deployments can require `X-API-Key` or bearer credentials
     without breaking local default-open demos.
-31. Provider event ingestion and non-simulated executions dispatch signed
-    webhook callbacks through the runtime sender.
-32. Operators can inspect and replay dead-lettered callback deliveries.
-33. Network-exposed deployments reject unsafe webhook destinations before
+32. Provider event ingestion, non-simulated executions, and manual evidence
+    dispatch signed webhook callbacks through the runtime sender by default.
+33. Operators can inspect and replay dead-lettered callback deliveries.
+34. Network-exposed deployments reject unsafe webhook destinations before
     storing campaigns and before dispatching legacy callback records.
-34. Tests prove the API contract and domain rules.
+35. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -285,9 +291,12 @@ conditions.
 
 ### Webhook Delivery
 
-The current outgoing webhook dispatcher is wired into provider event writes and
-non-simulated executions. Signed payloads, retries, backoff, dead-letter state,
-dead-letter listing, and replay tooling now exist with injected sender tests.
+The current outgoing webhook dispatcher is wired into provider event writes,
+non-simulated executions, and manual evidence by default. Manual rehearsal
+simulation is explicit through `simulateWebhookDelivery=true`; otherwise proof
+packs count real runtime webhook delivery or dead-letter records. Signed
+payloads, retries, backoff, dead-letter state, dead-letter listing, and replay
+tooling now exist with injected sender tests.
 Campaign creation still does not emit a `campaign.created` callback; the
 highest-value callback path for the Graphed pilot is delivery/reply event
 status. Callback URLs are now a deployment policy surface: public HTTPS is

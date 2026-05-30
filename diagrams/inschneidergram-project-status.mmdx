@@ -26,13 +26,13 @@ flowchart LR
   beads["YELLOW Beads planning active"]
   proof["GREEN Proof pack generator"]
   proofExport["GREEN Latest proof export API"]
-  webhookRuntime["GREEN Runtime webhook callbacks + replay"]
+  webhookRuntime["GREEN Runtime webhook callbacks for provider/execution/manual evidence + replay"]
   webhookGuard["GREEN Webhook destination guard"]
   runner["GREEN API execution + atomic manual queue"]
-  executionGate["GREEN Execution readiness enforcement"]
+  executionGate["GREEN Execution readiness + pending-manual-evidence enforcement"]
   readiness["GREEN Pilot readiness report"]
   contract["GREEN Hardened OpenAPI pilot contract"]
-  rehearsal["GREEN Manual pilot rehearsal"]
+  rehearsal["GREEN Manual pilot rehearsal + provenance/sender-risk proof"]
   serviceSmoke["GREEN Service smoke + Docker runtime"]
   apiAuth["GREEN Optional API key deployment gate"]
   statusLink["YELLOW Public Buildooor short link blocked by inschneidergram-j8b.7"]
@@ -127,15 +127,15 @@ gantt
   GREEN Proof pack generator :done, 2026-05-30, 1d
   GREEN Pilot readiness report :done, 2026-05-30, 1d
   GREEN Hardened OpenAPI contract :done, 2026-05-30, 1d
-  GREEN Manual pilot rehearsal :done, 2026-05-30, 1d
+  GREEN Manual pilot rehearsal + provenance/sender-risk proof :done, 2026-05-30, 1d
   GREEN Managed-provider contract surface :done, 2026-05-30, 1d
   GREEN Managed sender inventory + risk events :done, 2026-05-30, 1d
   GREEN Manual restriction risk reconciliation :done, 2026-05-30, 1d
-  GREEN Execution readiness enforcement :done, 2026-05-30, 1d
+  GREEN Execution readiness + pending-manual-evidence enforcement :done, 2026-05-30, 1d
   GREEN Service smoke + Docker runtime :done, 2026-05-30, 1d
   GREEN Latest proof export API :done, 2026-05-30, 1d
   GREEN Optional API key deployment gate :done, 2026-05-30, 1d
-  GREEN Runtime webhook callbacks + replay :done, 2026-05-30, 1d
+  GREEN Runtime webhook callbacks for provider/execution/manual evidence + replay :done, 2026-05-30, 1d
   GREEN Webhook destination guard :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API execution + atomic manual queue :done, 2026-05-30, 1d
@@ -158,15 +158,15 @@ flowchart TD
   adapter["PLANNED YELLOW Real provider/account operations"]
   sender["DONE GREEN Managed sender inventory + health"]
   riskReconcile["DONE GREEN Manual restriction risk reconciliation"]
-  webhooks["DONE GREEN Runtime webhooks + retry/replay"]
+  webhooks["DONE GREEN Runtime webhooks for provider/execution/manual evidence + retry/replay"]
   webhookGuard["DONE GREEN Webhook destination guard"]
   proof["DONE GREEN Proof pack generator"]
   proofExport["DONE GREEN Latest proof export API"]
   runner["DONE GREEN API execution + atomic manual queue"]
-  executionGate["DONE GREEN Execution readiness enforcement"]
+  executionGate["DONE GREEN Execution readiness + pending-manual-evidence enforcement"]
   readiness["DONE GREEN Pilot readiness report"]
   contract["DONE GREEN OpenAPI pilot contract"]
-  rehearsal["DONE GREEN Manual pilot rehearsal"]
+  rehearsal["DONE GREEN Manual pilot rehearsal + provenance/sender-risk proof"]
   serviceSmoke["DONE GREEN Service smoke + Docker runtime"]
   apiAuth["DONE GREEN Optional API key deployment gate"]
   statusLink["BLOCKED YELLOW Public MMDX short link inschneidergram-j8b.7"]
@@ -251,15 +251,16 @@ sequenceDiagram
   G->>I: claim, skip, or block approved candidates
   G->>I: GET /campaigns/:id/readiness
   G->>I: POST /campaigns/:id/executions
-  I->>I: enforce readiness, stored approval + operator state gates, safe or provider-reported adapter, proof pack
+  I->>I: enforce readiness, pending manual evidence, stored approval + operator state gates, safe or provider-reported adapter, proof pack
   I-->>G: signed callback on delivery or reply when webhookUrl passes policy
   G->>I: GET /webhooks/dead-letters and replay if needed
   G->>I: GET /campaigns/:id/proof-pack for latest buyer-facing report
   G->>I: GET /campaigns/:id/follow-ups for due or pending follow-up work
   G->>I: GET /operator/manual-queue for pending operator work
   G->>I: POST /manual-events for operator evidence when manual
+  I-->>G: runtime signed callback unless explicit local simulation is requested
   I->>I: reconcile manual restrictions into managed sender cooldown
-  G->>I: npm run demo:manual-pilot rehearses the full manual path
+  G->>I: npm run demo:manual-pilot rehearses strict provenance, sender risk, and manual proof
   I->>P: accept provider outcomes now and hand off when ops are real
   P->>C: Instagram DM
   C-->>P: reply
@@ -305,7 +306,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/senders/sender-risk-reconciliation/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/follow-ups/auth/runtime-webhooks/webhook-guard/creator-provenance/operator-proof/readiness/openapi/manual-rehearsal/runtime/domain"]
+  tests["GREEN npm test covers API/store/senders/sender-risk-reconciliation/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/pending-manual-evidence-gating/proof-export/follow-ups/auth/runtime-webhooks/manual-evidence-runtime-webhooks/webhook-guard/creator-provenance/operator-proof/readiness/openapi/provenance-sender-manual-rehearsal/runtime/domain"]
   typecheck["GREEN typecheck green"]
   smoke["GREEN npm run smoke:service passed with API key enabled"]
   mmdx["GREEN MMDX preflight passed"]
@@ -334,7 +335,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/senders/sender-risk-reconciliation/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/follow-ups/auth/runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/rehearsal claims"]
+  code["GREEN Code matches API/store/senders/sender-risk-reconciliation/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/pending-manual-evidence-gating/proof-export/follow-ups/auth/runtime-webhooks/manual-evidence-runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/provenance-sender-rehearsal claims"]
   beads["YELLOW Beads keep live ops and pilot gap open"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -350,7 +351,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, managed-provider outcome contract, execution readiness enforcement, latest proof export, optional API key gate, runtime webhook callbacks, webhook destination guard, service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
+  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, managed-provider outcome contract, execution readiness and pending-manual-evidence enforcement, latest proof export, optional API key gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics"]
   link["Blocked next: mint public Buildooor MMDX short link (inschneidergram-j8b.7)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]

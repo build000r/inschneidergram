@@ -167,9 +167,18 @@ latest manual execution per campaign. Use `status=reply_monitoring` for sent
 messages that can still receive reply evidence, `status=done` for terminal
 attempts, and `status=all` for an audit view.
 
+While a manual execution has pending initial evidence, later execution requests
+return a conflict instead of creating another manual queue. Finish or fail the
+current operator evidence before retrying execution.
+
 Manual evidence writes update the campaign and execution proof record together
 inside the store. That makes the queue/evidence loop safe for a small pilot with
 more than one operator submitting evidence at the same time.
+
+Manual evidence dispatches signed callbacks through the runtime guarded webhook
+sender by default. Use `simulateWebhookDelivery=true` only for local rehearsals
+and tests that intentionally record simulated callback delivery; live proof
+should either show runtime delivery attempts or dead-letter records.
 
 When manual evidence records a `restricted` event for a sender from managed
 inventory, the API also appends a sender `restriction` risk event, moves the
@@ -274,8 +283,10 @@ For a credential-free rehearsal of the managed manual pilot path, run:
 npm run demo:manual-pilot
 ```
 
-That command drives the API through campaign creation, approval workbench,
-readiness, manual-safe execution, sent/replied/restricted evidence, simulated
-webhook records, and final proof-pack renewal output. Use it as the local proof
-that the operator workflow is intact before substituting real sender accounts,
-real creator targets, and explicit permission to run outreach.
+That command drives the API through strict creator-provenance intake, campaign
+creation from managed sender ids, approval workbench, readiness, manual-safe
+execution, sent/replied/restricted evidence, managed sender cooldown
+reconciliation, simulated webhook records, and final proof-pack renewal output.
+Use it as the local proof that the operator workflow is intact before
+substituting real sender accounts, real creator targets, and explicit permission
+to run outreach.
