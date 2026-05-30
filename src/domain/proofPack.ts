@@ -1,6 +1,6 @@
 import type { ApprovalWorkbench } from "./approval.js";
 import type { Campaign } from "./campaign.js";
-import type { DeliveryAttempt, DeliveryEvent } from "./delivery.js";
+import type { DeliveryAttempt } from "./delivery.js";
 import type { WebhookDeliveryRecord } from "./outgoingWebhook.js";
 import type { SenderInventoryHealth } from "./sender.js";
 
@@ -168,7 +168,7 @@ export function renderPilotProofMarkdown(pack: Omit<PilotProofPack, "markdown">)
 function buildMetrics(input: PilotProofPackInput): PilotProofMetrics {
   const sentHandles = new Set<string>();
   const repliedHandles = new Set<string>();
-  const failedEvents: DeliveryEvent[] = [];
+  const failedHandles = new Set<string>();
 
   for (const attempt of input.deliveryAttempts ?? []) {
     for (const event of attempt.events) {
@@ -179,7 +179,7 @@ function buildMetrics(input: PilotProofPackInput): PilotProofMetrics {
         repliedHandles.add(attempt.intent.targetHandle);
       }
       if (event.type === "failed" || event.type === "restricted") {
-        failedEvents.push(event);
+        failedHandles.add(attempt.intent.targetHandle);
       }
     }
   }
@@ -231,8 +231,7 @@ function buildMetrics(input: PilotProofPackInput): PilotProofMetrics {
       replyAssessments.filter((reply) => reply.disposition === "complaint").length +
       incidents.filter((incident) => incident.kind === "complaint").length,
     deliveryFailures:
-      input.campaign.summary.failed +
-      failedEvents.length +
+      Math.max(input.campaign.summary.failed, failedHandles.size) +
       incidents.filter((incident) => incident.kind === "delivery_failure").length,
     senderWarnings,
     webhookDelivered: webhookDeliveries.filter((delivery) => delivery.status === "delivered").length,

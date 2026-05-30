@@ -42,11 +42,16 @@ This repo currently contains the first API/control-plane slice:
 ```bash
 npm install
 npm test
+npm run demo:pilot
 npm run dev
 ```
 
 By default, the built server persists campaigns to `.data/campaigns.json`.
 Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
+
+`npm run demo:pilot` runs a deterministic local proof-pack demo with mock
+delivery, simulated signed webhook delivery records, and no live Instagram
+sending.
 
 Create a campaign:
 

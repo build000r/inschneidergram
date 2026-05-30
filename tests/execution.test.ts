@@ -169,7 +169,7 @@ describe("campaign execution runner", () => {
       sentMessages: 2,
       replies: 1,
       interestedReplies: 1,
-      deliveryFailures: 2,
+      deliveryFailures: 1,
       senderWarnings: 1,
       webhookDelivered: 4
     });

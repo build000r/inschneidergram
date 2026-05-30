@@ -89,3 +89,12 @@ Restricted or failed events must include:
 The current dry-run artifact is [delivery-path-dry-run.md](proof/delivery-path-dry-run.md).
 It proves the selected path, local API, sender-health response, and duplicate
 suppression behavior without claiming a live Instagram send.
+
+For a repeatable local proof-pack demo, run:
+
+```bash
+npm run demo:pilot
+```
+
+This exercises approval, mock delivery, simulated signed webhook records, and
+proof-pack generation without requiring credentials or sending Instagram DMs.

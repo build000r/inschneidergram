@@ -159,7 +159,7 @@ describe("pilot proof pack", () => {
       blockedTargets: 1,
       optOuts: 1,
       complaints: 0,
-      deliveryFailures: 2,
+      deliveryFailures: 1,
       senderWarnings: 1,
       webhookDelivered: 1,
       webhookDeadLetters: 1
