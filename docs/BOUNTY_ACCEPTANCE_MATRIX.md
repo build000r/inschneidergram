@@ -16,15 +16,15 @@ selected managed path, and publishes live proof.
 
 Latest local proof:
 
-- `npm run proof:bounty-local` passed on 2026-05-30.
+- `npm run proof:bounty-local:docker` passed on 2026-05-30.
 - Provider bridge proof-packet hash:
-  `47b01e03d40e9f42c79d40c3ac530db25e2406061d8078b93b7b26a5cba12509`.
+  `8c740f38982b2ffd0bb99a99af0bbdbdbec5de83a844546fdd12b2fb35966f41`.
 - Service smoke proof-packet hash:
-  `18e157adaf1c61d1a61fd19180e75c47c4740498f5c9f0aa8ba2e5baa7edd95d`.
+  `fb6e085ddb9b6fcbb63126ebfc4ff660eddf45eb83ebabe47d2de65a61f0fa10`.
 - MMDX dry-run target:
   `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`.
 - MMDX dry-run source hash:
-  `6f4857b708d20ec8844aa0f1ffb551b56a40f48dee1aac27fdad21548a20bca3`.
+  `ff277bcdd4304b700a29bcf931b8106964ed706e6cb497100fd5802070ba8fbe`.
 
 ## Requirement Matrix
 
@@ -40,7 +40,7 @@ Latest local proof:
 | Delivery and reply status are reportable | Proven locally for recorded evidence | manual evidence API, provider-reported outcomes, runtime webhooks, proof packs, proof packets, operator dashboard | Real sent/replied/failed/restricted evidence from the pilot |
 | Graphed can receive callbacks or inspect status | Proven locally | signed runtime callbacks, dead-letter listing/replay, `GET /operator/dashboard`, proof-pack/proof-packet APIs | Graphed public HTTPS callback URL, if callback delivery is desired |
 | Reporting is auditable after execution | Proven locally | `GET /campaigns/:id/proof-pack`, `GET /campaigns/:id/proof-packet`, canonical SHA-256, local proof dossier | Live proof pack exported from real pilot records |
-| Product is not a one-off script or pitch deck | Proven locally | API service, JSON persistence, Docker/runtime config, runbooks, intake kit, service and Docker smoke tests | Operational ownership for live delivery |
+| Product is not a one-off script or pitch deck | Proven locally | API service, JSON persistence, Docker/runtime config, runbooks, intake kit, service smoke, and opt-in Docker-inclusive bounty proof | Operational ownership for live delivery |
 | Product is reliable enough for ongoing client deployments | Partly proven | idempotency, storage, retries, dead-letter replay, auth gate, callback guard, dashboard | Monitoring, stronger production persistence, real incident history |
 | Real pilot completes meaningful Instagram creator outreach | Not proven yet | Local rehearsal stops before fake live evidence by design | Low-volume real pilot with vetted creators, authorization, sender/provider ops, and outcome evidence |
 | Public progress MMDX is live-verifiable | Blocked externally | preflight and dry-run pass; stable slug is embedded | Refresh Buildooor SPAPS auth, then run `npm run status:mmdx:publish` |

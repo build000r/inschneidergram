@@ -70,6 +70,7 @@ This repo currently contains the API/control-plane MVP:
 ```bash
 npm install
 npm run proof:bounty-local
+npm run proof:bounty-local:docker
 npm run pilot:intake:validate
 npm run pilot:intake:rehearse
 npm run pilot:provider-bridge
@@ -89,6 +90,9 @@ MMDX preflight, and MMDX publish dry-run checks without requiring Instagram
 credentials. The bundled public example authorization windows are refreshed at
 runtime for these local proof commands so the examples do not expire; private
 pilot files supplied with `--authorization` are validated exactly as supplied.
+Docker is opt-in so the default proof stays usable in non-Docker evaluator
+environments; run `npm run proof:bounty-local:docker` or set
+`INSCHNEIDERGRAM_PROOF_INCLUDE_DOCKER=1` to include the container smoke proof.
 
 For the grounded adversarial stop condition on repo-side work, see
 [`docs/WIKI_DUEL_BOUNTY_READINESS.md`](docs/WIKI_DUEL_BOUNTY_READINESS.md).

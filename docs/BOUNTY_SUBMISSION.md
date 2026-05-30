@@ -21,6 +21,8 @@ Those require the external pilot inputs below.
 ```bash
 npm install
 npm run proof:bounty-local
+# Optional when Docker is available:
+npm run proof:bounty-local:docker
 ```
 
 The proof command runs the local gates that matter for bounty review:
@@ -38,6 +40,11 @@ The proof command runs the local gates that matter for bounty review:
 - Buildooor MMDX publish dry-run and source hash summary
 
 Expected result: `Local bounty proof passed.`
+
+`npm run proof:bounty-local:docker` runs the same proof with
+`INSCHNEIDERGRAM_PROOF_INCLUDE_DOCKER=1`, adding the container build/start,
+health, OpenAPI, API-auth, and launch-packet checks from `npm run
+smoke:docker`.
 
 The bundled public example authorization windows are renewed at runtime for
 this local proof path so the examples remain evaluator-friendly after their

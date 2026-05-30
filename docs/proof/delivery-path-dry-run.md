@@ -5,6 +5,8 @@ MMDX payload refreshed after acceptance-matrix status update:
 2026-05-30T17:26:01Z
 Docker smoke and MMDX payload refreshed after Docker status update:
 2026-05-30T17:39:06Z
+Opt-in Docker-inclusive bounty proof refreshed:
+2026-05-30T17:55:50Z
 
 Validation run base:
 `fb86c37cc7bb81e7b29f11f9ba7718446433ac3b`, the public closeout commit after
@@ -20,7 +22,9 @@ refresh and passed. After the acceptance matrix updated the status stack,
 and passed. After the Docker smoke proof updated the status stack,
 `npm run smoke:docker`, `npm run status:mmdx:preflight`, and
 `npm run status:mmdx:dry-run` were rerun and passed with the current MMDX
-source hash below.
+source hash. After the opt-in Docker proof mode was added,
+`npm run proof:bounty-local:docker` was rerun and passed with the latest hashes
+below.
 
 Runtime:
 
@@ -48,19 +52,20 @@ delivery or completed Graphed outreach.
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, pilot intake validation/rehearsal, managed-provider bridge rehearsal, MMDX preflight, and MMDX publish dry-run |
+| `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, pilot intake validation/rehearsal, managed-provider bridge rehearsal, MMDX preflight, and MMDX publish dry-run; Docker smoke is skipped by default |
+| `npm run proof:bounty-local:docker` | Passed | runs the same proof with `INSCHNEIDERGRAM_PROOF_INCLUDE_DOCKER=1`, adding the Docker smoke proof when Docker is available |
 | `npm test` | Passed | 14 files, 115 tests |
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exited 0 |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
 | `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender and runtime-renewed, evidence-backed example authorization |
 | `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, manual queue, proof-pack URL, and proof-packet URL state up to `awaiting_manual_evidence`; private authorization files remain strict |
-| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, reached `evidence_ready`, and exported proof-packet hash `47b01e03d40e9f42c79d40c3ac530db25e2406061d8078b93b7b26a5cba12509` |
-| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths, verified the operator dashboard, and exported proof-packet hash `18e157adaf1c61d1a61fd19180e75c47c4740498f5c9f0aa8ba2e5baa7edd95d` |
+| `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 evidence-bearing provider outcomes, runtime-renewed the bundled provider authorization, reached `evidence_ready`, and exported proof-packet hash `8c740f38982b2ffd0bb99a99af0bbdbdbec5de83a844546fdd12b2fb35966f41` |
+| `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths, verified the operator dashboard, and exported proof-packet hash `fb6e085ddb9b6fcbb63126ebfc4ff660eddf45eb83ebabe47d2de65a61f0fa10` |
 | `npm run smoke:docker` | Passed | built the production container, started it with API/webhook secrets and `/data`, checked `/health` and `/openapi.json`, verified `/campaigns` requires auth, and fetched `GET /pilot-launch-packet` with API key auth |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `6f4857b708d20ec8844aa0f1ffb551b56a40f48dee1aac27fdad21548a20bca3` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `ff277bcdd4304b700a29bcf931b8106964ed706e6cb497100fd5802070ba8fbe` |
 
 ## Live Pilot Intake Validation
 
@@ -175,7 +180,7 @@ Machine summary from the proof run:
   },
   "proofPacket": {
     "version": "proof-packet/v1",
-    "canonicalSha256": "47b01e03d40e9f42c79d40c3ac530db25e2406061d8078b93b7b26a5cba12509",
+    "canonicalSha256": "8c740f38982b2ffd0bb99a99af0bbdbdbec5de83a844546fdd12b2fb35966f41",
     "sourceUrl": "/campaigns/<campaign-id>/proof-packet"
   },
   "readiness": {
@@ -215,7 +220,7 @@ Machine-local temp store paths are omitted from this proof doc.
   "contactedTargets": 1,
   "sentMessages": 1,
   "proofExportContactedTargets": 1,
-  "proofPacketHash": "18e157adaf1c61d1a61fd19180e75c47c4740498f5c9f0aa8ba2e5baa7edd95d",
+  "proofPacketHash": "fb6e085ddb9b6fcbb63126ebfc4ff660eddf45eb83ebabe47d2de65a61f0fa10",
   "manualServicePath": {
     "readiness": "evidence_ready",
     "queueDone": 2,
@@ -357,8 +362,8 @@ Launch authorization preserved in the proof pack:
   "actor": "demo-approver",
   "deliveryPath": "manual",
   "approvedTargetLimit": 2,
-  "approvedAt": "2026-05-30T17:13:17.960Z",
-  "expiresAt": "2026-06-06T17:13:17.960Z",
+  "approvedAt": "2026-05-30T17:51:54.498Z",
+  "expiresAt": "2026-06-06T17:51:54.498Z",
   "reference": "manual-demo-launch-approval",
   "evidenceUrl": "https://docs.graphed.com/approvals/manual-demo-launch-approval",
   "notes": "Credential-free local rehearsal authorization; no live Instagram delivery."

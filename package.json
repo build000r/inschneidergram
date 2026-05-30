@@ -14,6 +14,7 @@
     "pilot:intake:rehearse": "tsx scripts/pilot-intake-api-rehearsal.ts",
     "pilot:intake:validate": "tsx scripts/validate-pilot-intake.ts",
     "proof:bounty-local": "bash scripts/bounty-local-proof.sh",
+    "proof:bounty-local:docker": "INSCHNEIDERGRAM_PROOF_INCLUDE_DOCKER=1 bash scripts/bounty-local-proof.sh",
     "presmoke:service": "npm run build",
     "smoke:docker": "bash scripts/docker-smoke.sh",
     "smoke:service": "tsx scripts/service-smoke.ts",
