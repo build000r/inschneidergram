@@ -26,6 +26,7 @@ flowchart LR
   readiness["GREEN Pilot readiness report"]
   contract["GREEN Hardened OpenAPI pilot contract"]
   rehearsal["GREEN Manual pilot rehearsal"]
+  statusLink["YELLOW Public Buildooor short link blocked by inschneidergram-j8b.7"]
   next["Next: real delivery ops + live pilot"]
   bounty --> api
   api --> store
@@ -40,6 +41,7 @@ flowchart LR
   runner --> readiness
   readiness --> contract
   contract --> rehearsal
+  rehearsal --> statusLink
   delivery --> beads
   ops --> beads
   runner --> beads
@@ -48,6 +50,7 @@ flowchart LR
   contract --> beads
   rehearsal --> beads
   providerContract --> beads
+  statusLink --> beads
   beads --> next
   class api green
   class store green
@@ -60,6 +63,7 @@ flowchart LR
   class readiness green
   class contract green
   class rehearsal green
+  class statusLink yellow
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -83,6 +87,7 @@ gantt
   GREEN Managed sender inventory + risk events :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API execution + atomic manual queue :done, 2026-05-30, 1d
+  YELLOW Public MMDX short link in inschneidergram-j8b.7 :active, 2026-05-30, 1d
   YELLOW Real provider/account operations in inschneidergram-j8b :active, 2026-05-31, 5d
   YELLOW Live pilot preparation in inschneidergram-j8b :active, 2026-06-04, 2d
   section RED Unproven
@@ -104,6 +109,7 @@ flowchart TD
   readiness["DONE GREEN Pilot readiness report"]
   contract["DONE GREEN OpenAPI pilot contract"]
   rehearsal["DONE GREEN Manual pilot rehearsal"]
+  statusLink["BLOCKED YELLOW Public MMDX short link inschneidergram-j8b.7"]
   pilot["FUTURE YELLOW Graphed pilot covered by inschneidergram-j8b"]
   api --> store
   api --> approval
@@ -118,6 +124,7 @@ flowchart TD
   runner --> readiness
   readiness --> contract
   contract --> rehearsal
+  rehearsal --> statusLink
   runner --> pilot
   readiness --> pilot
   contract --> pilot
@@ -134,6 +141,7 @@ flowchart TD
   class readiness green
   class contract green
   class rehearsal green
+  class statusLink yellow
   class pilot yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -203,15 +211,18 @@ flowchart TD
   tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution/operator-proof/readiness/openapi/manual-rehearsal/domain"]
   typecheck["GREEN typecheck green"]
   mmdx["GREEN MMDX preflight passed"]
+  statusLink["YELLOW Public Buildooor short link not minted; tracked by inschneidergram-j8b.7"]
   live["YELLOW no live Instagram delivery proof yet; covered by inschneidergram-j8b"]
   pilot["YELLOW no Graphed pilot evidence yet; covered by inschneidergram-j8b"]
   tests --> typecheck
   typecheck --> mmdx
-  mmdx --> live
+  mmdx --> statusLink
+  statusLink --> live
   live --> pilot
   class tests green
   class typecheck green
   class mmdx green
+  class statusLink yellow
   class live yellow
   class pilot yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -240,10 +251,11 @@ flowchart LR
 ```mermaid
 flowchart TD
   now["Current: API, durable store, sender inventory, approval/operator API, operator manual queue, managed-provider outcome contract, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
-  first["Next: verified provider/account operations"]
+  link["Blocked next: mint public Buildooor MMDX short link (inschneidergram-j8b.7)"]
+  first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]
   third["Then: deployment hardening"]
-  now --> first --> second --> third
+  now --> link --> first --> second --> third
 ```
 
 ## chart erd Data Model ERD

@@ -397,7 +397,9 @@ a pilot that completes meaningful creator outreach.
 - [Pilot spec](docs/PILOT_SPEC.md)
 - [Pilot runbook](docs/PILOT_RUNBOOK.md)
 - [Marketing surface](docs/MARKETING-SURFACE.md)
-- [Project status MMDX](diagrams/inschneidergram-project-status.mmdx)
+- [Project status MMDX](diagrams/inschneidergram-project-status.mmdx) -
+  repo-local source of truth; public Buildooor short link is tracked by
+  `inschneidergram-j8b.7` until the first browser save mints a slug.
 
 ## About Contributions
 
