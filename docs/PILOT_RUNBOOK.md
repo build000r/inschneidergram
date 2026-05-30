@@ -49,17 +49,20 @@ For the first pilot, maintain a private sender inventory outside git with:
    message copy, sender constraints, and webhook URL.
 2. Operator or approver creates `POST /campaigns/:id/approval-workbench` and
    persists creator plus first-touch copy decisions.
-3. Execution runner creates approved `SendIntent` records.
-4. Delivery adapter returns sent, failed, restricted, replied, or
+3. Operator claims approved creators and marks any non-actionable creators
+   skipped or blocked before execution.
+4. Execution runner creates `SendIntent` records only for approved creators that
+   remain queued or claimed.
+5. Delivery adapter returns sent, failed, restricted, replied, or
    `needs_manual_evidence`.
-5. Operator performs or verifies manual sends outside the codebase when the
+6. Operator performs or verifies manual sends outside the codebase when the
    adapter requires human evidence.
-6. Operator records sent, failed, restricted, or replied evidence through
+7. Operator records sent, failed, restricted, or replied evidence through
    `POST /campaigns/:id/executions/:executionId/manual-events` with an
    `Idempotency-Key` for retry safety.
-7. Campaign events update status and outgoing webhooks notify Graphed.
-8. Execution proof record is persisted for audit replay.
-9. Proof-pack generator produces the renewal report.
+8. Campaign events update status and outgoing webhooks notify Graphed.
+9. Execution proof record is persisted for audit replay.
+10. Proof-pack generator produces the renewal report.
 
 ## Evidence Rules
 

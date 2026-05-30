@@ -139,6 +139,9 @@ function isApprovedCandidate(workbench: ApprovalWorkbench, target: CampaignTarge
 
   const handle = normalizeInstagramHandle(target.handle);
   return workbench.candidates.some(
-    (candidate) => candidate.handle === handle && candidate.approval === "approved"
+    (candidate) =>
+      candidate.handle === handle &&
+      candidate.approval === "approved" &&
+      (candidate.work === "queued" || candidate.work === "claimed")
   );
 }

@@ -4,9 +4,12 @@ import { z, ZodError } from "zod";
 import {
   approveCandidate,
   approveMessage,
+  blockCandidate,
+  claimCandidate,
   createApprovalWorkbench,
   rejectCandidate,
   rejectMessage,
+  skipCandidate,
   type ApprovalWorkbench
 } from "./domain/approval.js";
 import { createCampaign, recordTargetEvent, type Campaign } from "./domain/campaign.js";
@@ -216,6 +219,83 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                 messageId,
                 actor: decision.actor,
                 reason: decision.reason
+              });
+        const saved = await store.upsertApprovalWorkbench(updated);
+
+        return {
+          campaignId: id,
+          approvalWorkbench: saved
+        };
+      } catch (error) {
+        return sendDomainError(reply, error);
+      }
+    }
+  );
+
+  app.post(
+    "/campaigns/:id/approval-workbench/candidates/:candidateId/claim",
+    async (request, reply) => {
+      const { id, candidateId } = request.params as { id: string; candidateId: string };
+      const campaign = await store.get(id);
+
+      if (!campaign) {
+        return reply.code(404).send({ error: "campaign_not_found" });
+      }
+
+      const workbench = await store.getApprovalWorkbench(id);
+      if (!workbench) {
+        return reply.code(404).send({ error: "approval_workbench_not_found" });
+      }
+
+      try {
+        const claim = operatorClaimRequestSchema.parse(request.body ?? {});
+        const saved = await store.upsertApprovalWorkbench(
+          claimCandidate(workbench, {
+            candidateId,
+            operator: claim.operator
+          })
+        );
+
+        return {
+          campaignId: id,
+          approvalWorkbench: saved
+        };
+      } catch (error) {
+        return sendDomainError(reply, error);
+      }
+    }
+  );
+
+  app.post(
+    "/campaigns/:id/approval-workbench/candidates/:candidateId/work",
+    async (request, reply) => {
+      const { id, candidateId } = request.params as { id: string; candidateId: string };
+      const campaign = await store.get(id);
+
+      if (!campaign) {
+        return reply.code(404).send({ error: "campaign_not_found" });
+      }
+
+      const workbench = await store.getApprovalWorkbench(id);
+      if (!workbench) {
+        return reply.code(404).send({ error: "approval_workbench_not_found" });
+      }
+
+      try {
+        const terminal = operatorTerminalRequestSchema.parse(request.body ?? {});
+        const updated =
+          terminal.work === "skipped"
+            ? skipCandidate(workbench, {
+                candidateId,
+                operator: terminal.operator,
+                reason: terminal.reason,
+                evidence: terminal.evidence
+              })
+            : blockCandidate(workbench, {
+                candidateId,
+                operator: terminal.operator,
+                reason: terminal.reason,
+                evidence: terminal.evidence
               });
         const saved = await store.upsertApprovalWorkbench(updated);
 
@@ -551,6 +631,64 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           }
         }
       },
+      "/campaigns/{id}/approval-workbench/candidates/{candidateId}/claim": {
+        post: {
+          summary: "Claim one approved creator candidate for operator work",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["operator"],
+                  properties: {
+                    operator: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            "200": { description: "Candidate claim persisted" },
+            "400": { description: "Invalid candidate claim" },
+            "404": { description: "Campaign or approval workbench not found" }
+          }
+        }
+      },
+      "/campaigns/{id}/approval-workbench/candidates/{candidateId}/work": {
+        post: {
+          summary: "Mark one claimed creator candidate skipped or blocked",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["work", "operator", "reason"],
+                  properties: {
+                    work: { type: "string", enum: ["skipped", "blocked"] },
+                    operator: { type: "string" },
+                    reason: { type: "string" },
+                    evidence: {
+                      type: "object",
+                      properties: {
+                        source: { type: "string" },
+                        reference: { type: "string" },
+                        note: { type: "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            "200": { description: "Candidate terminal work state persisted" },
+            "400": { description: "Invalid candidate work state" },
+            "404": { description: "Campaign or approval workbench not found" }
+          }
+        }
+      },
       "/campaigns/{id}/executions": {
         get: {
           summary: "List persisted execution proof records for a campaign",
@@ -792,6 +930,23 @@ const approvalDecisionRequestSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
   actor: z.string().min(1).max(120).default("api"),
   reason: z.string().min(1).max(1000).optional()
+});
+
+const operatorEvidenceRequestSchema = z.object({
+  source: z.string().min(1).max(120).optional(),
+  reference: z.string().min(1).max(500).optional(),
+  note: z.string().min(1).max(1000).optional()
+});
+
+const operatorClaimRequestSchema = z.object({
+  operator: z.string().min(1).max(120)
+});
+
+const operatorTerminalRequestSchema = z.object({
+  work: z.enum(["skipped", "blocked"]),
+  operator: z.string().min(1).max(120),
+  reason: z.string().min(1).max(1000),
+  evidence: operatorEvidenceRequestSchema.default({})
 });
 
 const manualEvidenceRequestSchema = z

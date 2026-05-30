@@ -32,6 +32,7 @@ This repo currently contains the first API/control-plane slice:
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
 | Approval workbench API | Working MVP | `POST /campaigns/:id/approval-workbench` |
+| Operator workbench state | Working MVP | claim, skip, block routes before execution |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Managed sender infrastructure | Partial | health model exists; real account operations next |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, renewal decision |
@@ -108,6 +109,23 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/approval-workbench \
     "rejectedTargets": ["instagram_profile_2"],
     "approveMessage": true,
     "actor": "approver"
+  }'
+```
+
+Claim or skip an approved creator before execution:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/approval-workbench/candidates/<candidate-id>/claim \
+  -H 'content-type: application/json' \
+  -d '{ "operator": "operator-a" }'
+
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/approval-workbench/candidates/<candidate-id>/work \
+  -H 'content-type: application/json' \
+  -d '{
+    "work": "skipped",
+    "operator": "operator-a",
+    "reason": "duplicate found in external suppression sheet",
+    "evidence": { "source": "operator-review", "reference": "sheet://row/42" }
   }'
 ```
 
@@ -193,8 +211,10 @@ senders are blocked from scheduling and surfaced as account-health blockers.
 state for a campaign. Callers can create a workbench with approved or rejected
 target handles, fetch it with `GET /campaigns/:id/approval-workbench`, and apply
 individual candidate or message decisions through the decision subroutes.
-Executions without inline approval overrides use the stored workbench when one
-exists.
+Operators can claim approved candidates and mark them `skipped` or `blocked`
+with evidence before execution. Executions without inline approval overrides use
+the stored workbench when one exists and only create send intents for approved
+candidates whose work state is still `queued` or `claimed`.
 
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It builds an
 approval workbench from the stored campaign, routes approved targets through a

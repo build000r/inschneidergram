@@ -348,6 +348,126 @@ describe("API", () => {
     await app.close();
   });
 
+  it("persists operator work state and excludes skipped candidates from execution", async () => {
+    const app = await buildServer({ webhookSecret: "operator-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@send_creator", "@skip_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "operator-workbench-pilot",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/inschneidergram",
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    const createdWorkbench = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@send_creator", "@skip_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    const candidateIds = Object.fromEntries(
+      createdWorkbench
+        .json()
+        .approvalWorkbench.candidates.map((candidate: { id: string; handle: string }) => [
+          candidate.handle,
+          candidate.id
+        ])
+    );
+
+    const claimResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench/candidates/${candidateIds.skip_creator}/claim`,
+      payload: {
+        operator: "operator-a"
+      }
+    });
+    expect(claimResponse.statusCode).toBe(200);
+    expect(claimResponse.json().approvalWorkbench.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: candidateIds.skip_creator,
+          work: "claimed",
+          claimedBy: "operator-a"
+        })
+      ])
+    );
+
+    const skipResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench/candidates/${candidateIds.skip_creator}/work`,
+      payload: {
+        work: "skipped",
+        operator: "operator-a",
+        reason: "duplicate found in external sheet",
+        evidence: {
+          source: "operator-review",
+          reference: "sheet://row/42"
+        }
+      }
+    });
+    expect(skipResponse.statusCode).toBe(200);
+    expect(skipResponse.json().approvalWorkbench.summary.candidates).toMatchObject({
+      approved: 2,
+      skipped: 1
+    });
+
+    const executionResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "mock",
+          replyTargets: ["@send_creator"]
+        }
+      }
+    });
+    expect(executionResponse.statusCode).toBe(200);
+    expect(
+      executionResponse.json().intents.map((intent: { targetHandle: string }) => intent.targetHandle)
+    ).toEqual(["send_creator"]);
+    expect(executionResponse.json()).toMatchObject({
+      summary: {
+        scheduled: 1,
+        replied: 1
+      },
+      proofPack: {
+        metrics: {
+          approvedTargets: 2,
+          contactedTargets: 1,
+          replies: 1
+        }
+      }
+    });
+    expect(executionResponse.json().execution.approvalWorkbench.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: candidateIds.skip_creator,
+          work: "skipped",
+          reason: "duplicate found in external sheet"
+        })
+      ])
+    );
+
+    await app.close();
+  });
+
   it("executes an approved mock pilot and returns proof pack evidence", async () => {
     const app = await buildServer({ webhookSecret: "execution-secret" });
     const createResponse = await app.inject({
@@ -772,6 +892,16 @@ describe("API", () => {
       openapi.paths["/campaigns/{id}/approval-workbench/messages/{messageId}/decision"].post
     ).toMatchObject({
       summary: "Approve or reject one message candidate"
+    });
+    expect(
+      openapi.paths["/campaigns/{id}/approval-workbench/candidates/{candidateId}/claim"].post
+    ).toMatchObject({
+      summary: "Claim one approved creator candidate for operator work"
+    });
+    expect(
+      openapi.paths["/campaigns/{id}/approval-workbench/candidates/{candidateId}/work"].post
+    ).toMatchObject({
+      summary: "Mark one claimed creator candidate skipped or blocked"
     });
     expect(openapi.paths["/campaigns/{id}/executions"].post).toMatchObject({
       summary: "Execute approved campaign targets through a mock or manual-safe adapter",

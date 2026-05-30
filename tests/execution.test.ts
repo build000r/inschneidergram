@@ -1,6 +1,8 @@
 import {
   approveCandidate,
   approveMessage,
+  blockCandidate,
+  claimCandidate,
   createApprovalWorkbench
 } from "../src/domain/approval.js";
 import { createCampaign } from "../src/domain/campaign.js";
@@ -201,5 +203,59 @@ describe("campaign execution runner", () => {
         })
       })
     ).rejects.toThrow("Campaign execution requires approved message copy");
+  });
+
+  it("does not execute approved candidates that operators blocked", async () => {
+    const campaign = createCampaign({
+      targets: ["@creator_one", "@creator_two"],
+      message: "Open to an affiliate pilot?",
+      campaign: "operator-gated-pilot"
+    });
+    let workbench = createApprovalWorkbench({
+      campaignId: campaign.id,
+      candidates: [
+        { id: "candidate_1", target: "@creator_one" },
+        { id: "candidate_2", target: "@creator_two" }
+      ],
+      messages: [{ id: "copy_1", body: "Open to an affiliate pilot?" }]
+    });
+    workbench = approveCandidate(workbench, {
+      candidateId: "candidate_1",
+      actor: "approver"
+    });
+    workbench = approveCandidate(workbench, {
+      candidateId: "candidate_2",
+      actor: "approver"
+    });
+    workbench = approveMessage(workbench, {
+      messageId: "copy_1",
+      actor: "approver"
+    });
+    workbench = claimCandidate(workbench, {
+      candidateId: "candidate_2",
+      operator: "operator-a"
+    });
+    workbench = blockCandidate(workbench, {
+      candidateId: "candidate_2",
+      operator: "operator-a",
+      reason: "creator provenance could not be defended"
+    });
+
+    const result = await executeApprovedCampaign({
+      campaign,
+      workbench,
+      adapter: createManagedProviderDeliveryAdapter({
+        deliver: () => ({
+          outcome: "accepted",
+          events: [{ type: "sent" }]
+        })
+      })
+    });
+
+    expect(result.intents.map((intent) => intent.targetHandle)).toEqual(["creator_one"]);
+    expect(result.proofPack.metrics).toMatchObject({
+      approvedTargets: 2,
+      contactedTargets: 1
+    });
   });
 });
