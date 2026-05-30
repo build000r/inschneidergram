@@ -1,0 +1,84 @@
+# Bounty Submission Packet
+
+This is the evaluator-facing handoff for the Graphed Instagram Creator
+Outreach Platform bounty.
+
+## Current Claim
+
+Inschneidergram is a working API/control-plane MVP for a managed Instagram
+creator outreach pilot. It can accept a campaign, preserve creator provenance,
+enforce approval/sender/authorization gates, create execution records, expose
+operator queues and dashboard state, record manual or provider-reported
+delivery evidence, dispatch signed runtime callbacks, and generate proof packs.
+
+It is not yet claiming live Instagram delivery or official cold-DM compliance.
+Those require the external pilot inputs below.
+
+## Fast Evaluation Path
+
+```bash
+npm install
+npm run proof:bounty-local
+```
+
+The proof command runs the local gates that matter for bounty review:
+
+- TypeScript typecheck
+- Vitest suite
+- production build
+- API-key protected service smoke
+- strict-provenance managed-sender manual rehearsal
+- deterministic mock pilot demo
+- project-status MMDX preflight
+- Buildooor MMDX publish dry-run and source hash summary
+
+Expected result: `Local bounty proof passed.`
+
+## What To Inspect
+
+| Question | Evidence |
+| --- | --- |
+| Does the API match the bounty-shaped interface? | `POST /campaigns`, `GET /pilot-launch-packet`, `GET /campaigns/:id/readiness`, `GET /campaigns/:id/pilot-handoff` |
+| Can Graphed avoid hosting browser automation? | [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md), selected operator-run managed manual path |
+| Are creators vetted before send evidence? | strict target provenance, approval workbench, readiness gates |
+| Is sender risk modeled? | sender inventory, risk events, cooldown/lockout/reconnect states |
+| Are outcomes auditable? | execution records, manual queue/evidence, provider events, proof packs |
+| Can Graphed receive status? | signed runtime webhooks, replayable dead letters, proof-pack API |
+| Is the repo honest about platform risk? | [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md), [BUILD_VS_CLONE.md](BUILD_VS_CLONE.md), adapter `officialColdDmCompliance: "not_claimed"` |
+
+## Pilot Ask
+
+To convert the local proof into a bounty-winning pilot, Graphed or the operator
+must provide:
+
+1. A vetted creator list with source and fit rationale for each target.
+2. Approved first-touch copy and optional follow-up copy.
+3. Selected delivery path: operator-run manual proof or a managed provider that
+   can return explicit outcomes.
+4. Non-secret sender inventory ids, with credentials/session material held
+   outside this repo.
+5. A launch authorization reference for the selected delivery path and target
+   limit.
+6. Optional public HTTPS callback URL for delivery/reply webhooks.
+7. Stop conditions for complaints, opt-outs, sender warnings, and low-quality
+   replies.
+
+After those inputs exist, run the pilot through the flow in
+[PILOT_RUNBOOK.md](PILOT_RUNBOOK.md), then publish the live
+`GET /campaigns/:id/proof-pack` output.
+
+## Current External Blockers
+
+- `inschneidergram-j8b.3`: live pilot proof needs private sender/provider
+  access, vetted Graphed creator targets, and launch authorization.
+- `inschneidergram-j8b.7`: the public Buildooor MMDX link needs refreshed
+  Buildooor SPAPS auth, then `npm run status:mmdx:publish`.
+
+## Non-Claims
+
+- No live Instagram DM has been sent from this repo.
+- No Graphed creator list has been contacted.
+- No sender credentials belong in git or in the local JSON store.
+- No official Meta cold-DM compliance claim is made.
+- No public Buildooor MMDX short link is live-verified until the auth-gated
+  publish succeeds.

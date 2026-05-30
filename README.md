@@ -46,6 +46,7 @@ This repo currently contains the API/control-plane MVP:
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
 | Pilot handoff packet | Working MVP | `GET /campaigns/:id/pilot-handoff` turns readiness into operator actions |
 | Operator dashboard | Working MVP | `GET /operator/dashboard` aggregates readiness, manual queue, sender health, follow-ups, proof, and runtime dead letters |
+| Bounty evaluator proof | Working MVP | `docs/BOUNTY_SUBMISSION.md`, `npm run proof:bounty-local` |
 | Launch authorization gate | Working MVP | manual/provider execution requires a structured approval reference |
 | Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from refreshed execution evidence |
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
@@ -65,6 +66,7 @@ This repo currently contains the API/control-plane MVP:
 
 ```bash
 npm install
+npm run proof:bounty-local
 npm test
 npm run build
 npm run smoke:service
@@ -72,6 +74,11 @@ npm run demo:pilot
 npm run demo:manual-pilot
 npm run dev
 ```
+
+For bounty review, `npm run proof:bounty-local` is the one-command local proof
+gate. It runs the test, typecheck, build, service-smoke, manual-rehearsal,
+mock-demo, MMDX preflight, and MMDX publish dry-run checks without requiring
+Instagram credentials.
 
 By default, the built server persists campaigns to `.data/campaigns.json`.
 Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
@@ -641,6 +648,7 @@ a pilot that completes meaningful creator outreach.
 
 - [Vision](docs/VISION.md)
 - [Bounty requirements](docs/BOUNTY_REQUIREMENTS.md)
+- [Bounty submission packet](docs/BOUNTY_SUBMISSION.md)
 - [Build-vs-clone analysis](docs/BUILD_VS_CLONE.md)
 - [Source evidence](docs/SOURCE_EVIDENCE.md)
 - [Power map](docs/POWER_MAP.md)

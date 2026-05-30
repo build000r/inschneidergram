@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.build.json",
     "demo:manual-pilot": "tsx scripts/manual-pilot-rehearsal.ts",
     "demo:pilot": "tsx scripts/pilot-demo.ts",
+    "proof:bounty-local": "bash scripts/bounty-local-proof.sh",
     "presmoke:service": "npm run build",
     "smoke:service": "tsx scripts/service-smoke.ts",
     "status:mmdx:dry-run": "bash scripts/publish-status-mmdx.sh dry-run",

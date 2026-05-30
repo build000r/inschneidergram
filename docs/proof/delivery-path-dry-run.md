@@ -1,11 +1,11 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T09:01:25Z
+Generated: 2026-05-30T09:43:02Z
 
-Validation run base: `e4eaeab`
+Validation run base: `0ba83f5`
 
-Validation target: the working tree after the operator-dashboard status API
-slice. The next commit records this proof refresh with the implementation.
+Validation target: the working tree after the bounty evaluator submission
+packet slice. The next commit records this proof refresh with the implementation.
 
 Runtime:
 
@@ -32,6 +32,7 @@ intact. It does not claim live Instagram delivery or completed Graphed outreach.
 
 | Command | Result | Evidence |
 | --- | --- | --- |
+| `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, MMDX preflight, and MMDX publish dry-run |
 | `npm test` | Passed | 13 files, 112 tests |
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exited 0 |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
@@ -39,6 +40,7 @@ intact. It does not claim live Instagram delivery or completed Graphed outreach.
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `20bae4eb73a0b3d6fd32ab69b4c693dde5113990ec167ea3c6a5b422ca55162c` |
 
 ## Service Smoke Evidence
 
@@ -258,6 +260,8 @@ authorization.
 - Manual restriction evidence writes back into managed sender risk state.
 - The service can run as an API-key-protected compiled service and reach
   `evidence_ready`.
+- The evaluator-facing local proof path can be run with
+  `npm run proof:bounty-local`.
 - Production or non-loopback startup requires strong API and webhook secrets.
 - Public webhook destinations are DNS-checked and the sender uses the
   prevalidated DNS addresses for the outbound request.

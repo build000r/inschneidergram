@@ -40,6 +40,7 @@ flowchart LR
   rehearsal["GREEN Manual pilot rehearsal + provenance/sender-risk proof"]
   serviceSmoke["GREEN Service smoke for provider + manual + dashboard paths"]
   apiAuth["GREEN Strong API/webhook secret deployment gate"]
+  evaluatorPacket["GREEN Bounty submission packet + one-command local proof"]
   statusLink["YELLOW Public Buildooor short link blocked: refresh SPAPS auth then run status:mmdx:publish"]
   next["Next: real delivery ops + live pilot"]
   bounty --> api
@@ -86,6 +87,7 @@ flowchart LR
   rehearsal --> serviceSmoke
   serviceSmoke --> apiAuth
   contract --> apiAuth
+  apiAuth --> evaluatorPacket
   apiAuth --> webhookGuard
   riskReconcile --> readiness
   riskReconcile --> proof
@@ -111,6 +113,7 @@ flowchart LR
   apiAuth --> beads
   providerContract --> beads
   statusLink --> beads
+  evaluatorPacket --> beads
   beads --> next
   class api green
   class creatorIntake green
@@ -137,6 +140,7 @@ flowchart LR
   class rehearsal green
   class serviceSmoke green
   class apiAuth green
+  class evaluatorPacket green
   class statusLink yellow
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -210,6 +214,7 @@ flowchart TD
   rehearsal["DONE GREEN Manual pilot rehearsal + provenance/sender-risk proof"]
   serviceSmoke["DONE GREEN Service smoke for provider + manual + dashboard paths"]
   apiAuth["DONE GREEN Strong API/webhook secret deployment gate"]
+  evaluatorPacket["DONE GREEN Bounty submission packet + proof:bounty-local"]
   statusLink["BLOCKED YELLOW Public MMDX short link inschneidergram-j8b.7; publish script ready, auth refresh required"]
   pilot["FUTURE YELLOW Graphed pilot covered by inschneidergram-j8b"]
   api --> store
@@ -255,8 +260,10 @@ flowchart TD
   executionGate --> serviceSmoke
   serviceSmoke --> apiAuth
   contract --> apiAuth
+  apiAuth --> evaluatorPacket
   apiAuth --> webhookGuard
   webhookGuard --> statusLink
+  evaluatorPacket --> statusLink
   proofExport --> pilot
   launchPacket --> pilot
   runner --> pilot
@@ -290,6 +297,7 @@ flowchart TD
   class rehearsal green
   class serviceSmoke green
   class apiAuth green
+  class evaluatorPacket green
   class statusLink yellow
   class pilot yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
@@ -379,6 +387,7 @@ flowchart TD
   smoke["GREEN npm run smoke:service builds first and passed provider + manual paths plus operator dashboard with API key enabled"]
   sourceDoc["GREEN source evidence doc separates public sources from operator-provided bounty interpretation"]
   proofDoc["GREEN current local proof dossier refreshed"]
+  evaluatorProof["GREEN npm run proof:bounty-local wraps local evaluator gates"]
   mmdx["GREEN MMDX preflight passed"]
   statusLink["YELLOW Public Buildooor short link not live-verified; status:mmdx scripts ready, SPAPS auth refresh required"]
   live["YELLOW no live Instagram delivery proof yet; covered by inschneidergram-j8b"]
@@ -387,7 +396,8 @@ flowchart TD
   typecheck --> smoke
   smoke --> sourceDoc
   sourceDoc --> proofDoc
-  proofDoc --> mmdx
+  proofDoc --> evaluatorProof
+  evaluatorProof --> mmdx
   mmdx --> statusLink
   statusLink --> live
   live --> pilot
@@ -396,6 +406,7 @@ flowchart TD
   class smoke green
   class sourceDoc green
   class proofDoc green
+  class evaluatorProof green
   class mmdx green
   class statusLink yellow
   class live yellow
@@ -425,7 +436,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, managed-provider outcome contract, execution readiness, launch authorization, pending-manual-evidence enforcement, latest proof export, late provider proof/follow-up refresh, pre-campaign launch packet, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics"]
+  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, managed-provider outcome contract, execution readiness, launch authorization, pending-manual-evidence enforcement, latest proof export, late provider proof/follow-up refresh, pre-campaign launch packet, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics, bounty submission packet, one-command local proof"]
   link["Blocked next: refresh Buildooor SPAPS auth and run npm run status:mmdx:publish (inschneidergram-j8b.7)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]

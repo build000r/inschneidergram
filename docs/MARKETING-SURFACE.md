@@ -15,6 +15,7 @@
 | "Launch authorization gate" | True for MVP scope | Manual and managed-provider executions require a structured authorization object and preserve it in proof exports; mock demos remain exempt. |
 | "Current local proof dossier" | True for MVP scope | `docs/proof/delivery-path-dry-run.md` records test, typecheck, build, service-smoke, manual-rehearsal, mock-demo, and MMDX preflight evidence while excluding live delivery claims. |
 | "Source-quality and caveat dossier" | True for MVP scope | `docs/SOURCE_EVIDENCE.md` separates reachable external sources, blocked/inaccessible sources, local proof, and operator-provided bounty interpretation; citation-grade claims are limited to reachable sources. |
+| "Bounty submission packet" | True for MVP scope | `docs/BOUNTY_SUBMISSION.md` and `npm run proof:bounty-local` give evaluators a one-command local proof path while excluding live delivery claims. |
 | "Delivery and reply reporting" | Partly true | Provider events refresh campaign status, latest proof metrics, follow-up state, and signed runtime callbacks by default; live provider integration still pending. |
 | "API-key protected service" | True for MVP scope | Production or non-loopback startup requires strong `INSCHNEIDERGRAM_API_KEY` and `INSCHNEIDERGRAM_WEBHOOK_SECRET`; smoke runs with auth enabled. |
 | "Guarded callback delivery" | True for MVP scope | Webhook URLs must be public HTTPS destinations; local/private/special-use hosts are blocked, production allowlists are supported, and dispatch uses prevalidated DNS answers. |

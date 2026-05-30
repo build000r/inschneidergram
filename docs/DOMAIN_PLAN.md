@@ -237,6 +237,7 @@ delivered at MVP proof level:
 - pre-campaign launch packet and pilot handoff packet
 - cross-campaign operator dashboard
 - service smoke for managed-provider and manual paths
+- bounty submission packet and `npm run proof:bounty-local` evaluator gate
 - Docker/runtime config, health checks, and strong API/webhook secret gate
 
 ## Remaining Before Bounty
