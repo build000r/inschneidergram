@@ -1,12 +1,12 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T14:38:13Z
+Generated: 2026-05-30T14:50:37Z
 
-Validation run base: `e4d381e`
+Validation run base: `30f5487`
 
-Validation target: the working tree after the launch-authorization evidence
-gate hardening slice. The next commit records this proof refresh with the
-implementation.
+Validation target: current `HEAD` after the launch-authorization evidence gate
+hardening slice. `npm run proof:bounty-local` was rerun against this commit and
+passed.
 
 Runtime:
 

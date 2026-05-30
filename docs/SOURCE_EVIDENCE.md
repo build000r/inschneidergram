@@ -1,6 +1,6 @@
 # Source Evidence
 
-Retrieved: 2026-05-30
+Retrieved/rechecked: 2026-05-30
 
 This file separates public external facts from operator-provided bounty
 interpretation and local repo proof.
@@ -9,7 +9,7 @@ interpretation and local repo proof.
 
 | Source | URL | Access result | How it is used |
 | --- | --- | --- | --- |
-| Graphed Notion bounty page | `https://www.notion.so/graphed/Request-for-Product-Instagram-Creator-Outreach-Platform-5K-Bounty-061576da0bd4499299f8e34f27908593` | HTTP 200, but unauthenticated HTML only exposes Notion boot data and page id, not stable bounty body text. | The requirements in `docs/BOUNTY_REQUIREMENTS.md` are treated as operator-provided bounty interpretation from the prompt and prior page access, not as independently extracted public text. |
+| Graphed Notion bounty page | `https://www.notion.so/graphed/Request-for-Product-Instagram-Creator-Outreach-Platform-5K-Bounty-061576da0bd4499299f8e34f27908593` | HTTP 200 in earlier shell retrieval, but unauthenticated HTML only exposed Notion boot data and page id, not stable bounty body text. Rechecked from this run; the direct public URL still did not expose stable body text to the agent, and public search did not surface a reliable copy of the bounty body. | The requirements in `docs/BOUNTY_REQUIREMENTS.md` are treated as operator-provided bounty interpretation from the prompt and prior page access, not as independently extracted public text. |
 
 The Notion page id visible in unauthenticated HTML is
 `061576da-0bd4-4992-99f8-e34f27908593`. A reviewer who has access to the page
