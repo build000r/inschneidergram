@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { approveCandidate, approveMessage, createApprovalWorkbench } from "../src/domain/approval.js";
 import { createCampaign } from "../src/domain/campaign.js";
 import { generatePilotProofPack } from "../src/domain/proofPack.js";
+import { createSenderAccount } from "../src/domain/sender.js";
 import {
   createCampaignExecutionRecord,
   InMemoryCampaignStore,
@@ -59,6 +60,66 @@ describe("campaign stores", () => {
       expect.objectContaining({ handle: "creator_one", campaignId: first.id }),
       expect.objectContaining({ handle: "creator_two", campaignId: second.id })
     ]);
+  });
+
+  it("persists sender inventory and appends risk events atomically", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "inschneidergram-senders-"));
+    const storePath = join(dir, "campaigns.json");
+
+    try {
+      const firstStore = new JsonFileCampaignStore(storePath);
+      await firstStore.upsertSenderAccount(
+        createSenderAccount({
+          id: "sender-a",
+          status: "healthy",
+          dailyLimit: 25,
+          riskEvents: [
+            {
+              kind: "manual_note",
+              at: "2026-05-30T00:00:00.000Z",
+              note: "Warm-up started"
+            }
+          ]
+        })
+      );
+
+      const secondStore = new JsonFileCampaignStore(storePath);
+      const updated = await secondStore.appendSenderRiskEvent(
+        "sender-a",
+        {
+          kind: "lockout",
+          note: "Login checkpoint"
+        },
+        new Date("2026-05-30T01:00:00.000Z")
+      );
+
+      expect(updated).toMatchObject({
+        id: "sender-a",
+        status: "locked",
+        riskEvents: [
+          { kind: "manual_note", note: "Warm-up started" },
+          {
+            kind: "lockout",
+            at: "2026-05-30T01:00:00.000Z",
+            note: "Login checkpoint"
+          }
+        ]
+      });
+
+      const thirdStore = new JsonFileCampaignStore(storePath);
+      expect(await thirdStore.listSenderAccounts()).toEqual([
+        expect.objectContaining({
+          id: "sender-a",
+          status: "locked",
+          riskEvents: expect.arrayContaining([
+            expect.objectContaining({ kind: "manual_note" }),
+            expect.objectContaining({ kind: "lockout" })
+          ])
+        })
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("persists campaigns across JsonFileCampaignStore instances", async () => {

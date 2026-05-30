@@ -2,6 +2,7 @@ import {
   availableSenderAccounts,
   buildSenderInventory,
   createSenderAccount,
+  recordSenderRiskEvent,
   summarizeSenderInventory
 } from "../src/domain/sender.js";
 
@@ -74,6 +75,47 @@ describe("sender account health", () => {
         }
       ]
     });
+  });
+
+  it("appends risk events and derives blocking sender states", () => {
+    const healthy = createSenderAccount({
+      id: "sender-a",
+      status: "healthy",
+      dailyLimit: 25
+    });
+
+    const restricted = recordSenderRiskEvent(
+      healthy,
+      {
+        kind: "restriction",
+        note: "Instagram reported a temporary DM restriction"
+      },
+      new Date("2026-05-30T01:15:00.000Z")
+    );
+
+    expect(restricted).toMatchObject({
+      id: "sender-a",
+      status: "cooldown",
+      riskEvents: [
+        {
+          kind: "restriction",
+          at: "2026-05-30T01:15:00.000Z",
+          note: "Instagram reported a temporary DM restriction"
+        }
+      ]
+    });
+    expect(summarizeSenderInventory([restricted]).accounts[0]).toMatchObject({
+      available: false,
+      blockers: ["cooldown"]
+    });
+
+    expect(
+      recordSenderRiskEvent(restricted, {
+        kind: "manual_note",
+        status: "healthy",
+        note: "Operator confirmed the account can send again"
+      }).status
+    ).toBe("healthy");
   });
 
   it("only returns senders whose cooldown and account state allow scheduling", () => {

@@ -68,8 +68,44 @@ export const senderAccountSchema = z.object({
 
 export type SenderAccountInput = z.input<typeof senderAccountSchema>;
 
+const senderRiskEventInputSchema = z.object({
+  kind: z.enum(senderRiskEventKinds),
+  at: z.string().datetime().optional(),
+  note: z.string().min(1).max(1000),
+  status: z.enum(senderAccountStatuses).optional(),
+  cooldownUntil: z.string().datetime().optional(),
+  warmupNote: z.string().min(1).max(1000).optional()
+});
+
+export type SenderRiskEventInput = z.input<typeof senderRiskEventInputSchema>;
+
 export function createSenderAccount(input: unknown): SenderAccount {
   return senderAccountSchema.parse(input);
+}
+
+export function recordSenderRiskEvent(
+  account: SenderAccount,
+  input: unknown,
+  now = new Date()
+): SenderAccount {
+  const event = senderRiskEventInputSchema.parse(input);
+  const status = event.status ?? statusForRiskEvent(event.kind, account.status);
+
+  return createSenderAccount({
+    ...account,
+    status,
+    cooldownUntil:
+      event.cooldownUntil ?? (status === "cooldown" ? account.cooldownUntil : undefined),
+    warmupNote: event.warmupNote ?? account.warmupNote,
+    riskEvents: [
+      ...account.riskEvents,
+      {
+        kind: event.kind,
+        at: event.at ?? now.toISOString(),
+        note: event.note
+      }
+    ]
+  });
 }
 
 export function buildSenderInventory(
@@ -155,5 +191,22 @@ function assertUnique(values: string[], label: string): void {
       throw new Error(`Duplicate ${label}: ${value}`);
     }
     seen.add(value);
+  }
+}
+
+function statusForRiskEvent(
+  kind: SenderRiskEventKind,
+  current: SenderAccountStatus
+): SenderAccountStatus {
+  switch (kind) {
+    case "restriction":
+      return "cooldown";
+    case "lockout":
+      return "locked";
+    case "reconnect_required":
+      return "reconnect_required";
+    case "warning":
+    case "manual_note":
+      return current;
   }
 }

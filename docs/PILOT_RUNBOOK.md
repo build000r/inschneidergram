@@ -31,7 +31,9 @@ events, webhook delivery, and proof-pack records.
 
 No credentials belong in this repo.
 
-For the first pilot, maintain a private sender inventory outside git with:
+For the first pilot, maintain credentials, recovery secrets, proxies, and
+session material outside git and outside the Inschneidergram JSON store. Persist
+only the non-secret operational inventory through the sender API:
 
 | Field | Requirement |
 | --- | --- |
@@ -43,28 +45,47 @@ For the first pilot, maintain a private sender inventory outside git with:
 | status | `healthy`, `cooldown`, `locked`, or `reconnect_required` |
 | risk events | Warnings, restrictions, lockouts, reconnects, and manual notes |
 
+Useful local calls:
+
+```bash
+curl -s http://127.0.0.1:3107/senders/sender-a \
+  -X PUT \
+  -H 'content-type: application/json' \
+  -d '{ "status": "healthy", "dailyLimit": 20, "warmupNote": "low-volume pilot" }'
+
+curl -s http://127.0.0.1:3107/senders
+
+curl -s http://127.0.0.1:3107/senders/sender-a/risk-events \
+  -X POST \
+  -H 'content-type: application/json' \
+  -d '{ "kind": "restriction", "note": "Temporary send warning from operator" }'
+```
+
 ## Pilot Flow
 
-1. Graphed submits `POST /campaigns` with vetted creator targets, offer,
-   message copy, sender constraints, and webhook URL.
-2. Operator or approver creates `POST /campaigns/:id/approval-workbench` and
+1. Operator registers non-secret sender inventory with `PUT /senders/:id`.
+2. Graphed submits `POST /campaigns` with vetted creator targets, offer,
+   message copy, sender constraints, and webhook URL. If inline
+   `settings.senderAccounts` is omitted, the API uses stored sender inventory
+   and rejects unknown sender ids.
+3. Operator or approver creates `POST /campaigns/:id/approval-workbench` and
    persists creator plus first-touch copy decisions.
-3. Operator claims approved creators and marks any non-actionable creators
+4. Operator claims approved creators and marks any non-actionable creators
    skipped or blocked before execution.
-4. Graphed or the operator checks `GET /campaigns/:id/readiness` to confirm the
+5. Graphed or the operator checks `GET /campaigns/:id/readiness` to confirm the
    campaign is ready to execute or to see the remaining external inputs.
-5. Execution runner creates `SendIntent` records only for approved creators that
-   remain queued or claimed.
-6. Delivery adapter returns sent, failed, restricted, replied, or
+6. Execution runner rechecks current sender health, then creates `SendIntent`
+   records only for approved creators that remain queued or claimed.
+7. Delivery adapter returns sent, failed, restricted, replied, or
    `needs_manual_evidence`.
-7. Operator performs or verifies manual sends outside the codebase when the
+8. Operator performs or verifies manual sends outside the codebase when the
    adapter requires human evidence.
-8. Operator records sent, failed, restricted, or replied evidence through
+9. Operator records sent, failed, restricted, or replied evidence through
    `POST /campaigns/:id/executions/:executionId/manual-events` with an
    `Idempotency-Key` for retry safety.
-9. Campaign events update status and outgoing webhooks notify Graphed.
-10. Execution proof record is persisted for audit replay.
-11. Proof-pack generator produces the renewal report with operator skipped and
+10. Campaign events update status and outgoing webhooks notify Graphed.
+11. Execution proof record is persisted for audit replay.
+12. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
 
 ## Readiness Gates
@@ -85,6 +106,11 @@ status of `awaiting_manual_evidence` means operator work is still required. A
 status of `evidence_ready` means the latest execution has proof ready for
 review; it does not by itself claim that Instagram delivery was live unless the
 underlying adapter/evidence is live.
+
+Readiness and execution use the current managed sender inventory when a
+campaign was scheduled from stored sender ids. If a sender is locked or cooling
+down after campaign creation, readiness blocks and execution returns a conflict
+instead of creating send intents for that account.
 
 ## Evidence Rules
 
@@ -118,6 +144,10 @@ Skipped or blocked workbench items must include:
 - missing operator evidence
 - webhook dead-letter that cannot be replayed before report generation
 
+When a sender warning, restriction, lockout, or reconnect requirement appears,
+record it with `POST /senders/:id/risk-events` before checking readiness or
+running execution.
+
 ## Dry-Run Evidence
 
 The current dry-run artifact is [delivery-path-dry-run.md](proof/delivery-path-dry-run.md).
@@ -126,10 +156,10 @@ suppression behavior without claiming a live Instagram send.
 
 The local OpenAPI contract is available at `/openapi.json`. Use it as the
 operator contract for the credential-free pilot path: campaign creation,
-approval, readiness, manual-safe execution, manual evidence, execution proof
-records, `/health`, and `/webhooks/preview`. Manual evidence schemas are
-event-specific, so sent, failed, restricted, and replied events list the
-required evidence fields separately.
+approval, readiness, sender inventory, manual-safe execution, manual evidence,
+execution proof records, `/health`, and `/webhooks/preview`. Manual evidence
+schemas are event-specific, so sent, failed, restricted, and replied events
+list the required evidence fields separately.
 
 For a repeatable local proof-pack demo, run:
 

@@ -10,6 +10,11 @@ import type {
 } from "./delivery.js";
 import type { WebhookDeliveryRecord } from "./outgoingWebhook.js";
 import type { PilotIncident, PilotProofPack, ReplyAssessment } from "./proofPack.js";
+import {
+  recordSenderRiskEvent,
+  type SenderAccount,
+  type SenderRiskEventInput
+} from "./sender.js";
 
 export interface SuppressionRecord {
   handle: string;
@@ -42,6 +47,14 @@ export interface CampaignStore {
   update(campaign: Campaign): Promise<Campaign>;
   list(): Promise<Campaign[]>;
   listSuppressions(): Promise<SuppressionRecord[]>;
+  upsertSenderAccount(account: SenderAccount): Promise<SenderAccount>;
+  getSenderAccount(id: string): Promise<SenderAccount | null>;
+  listSenderAccounts(): Promise<SenderAccount[]>;
+  appendSenderRiskEvent(
+    id: string,
+    input: SenderRiskEventInput,
+    now?: Date
+  ): Promise<SenderAccount | null>;
   upsertApprovalWorkbench(workbench: ApprovalWorkbench): Promise<ApprovalWorkbench>;
   getApprovalWorkbench(campaignId: string): Promise<ApprovalWorkbench | null>;
   insertExecution(record: CampaignExecutionRecord): Promise<CampaignExecutionRecord>;
@@ -53,6 +66,7 @@ export class InMemoryCampaignStore implements CampaignStore {
   private campaigns = new Map<string, Campaign>();
   private idempotencyIndex = new Map<string, string>();
   private suppressions = new Map<string, SuppressionRecord>();
+  private senderAccounts = new Map<string, SenderAccount>();
   private approvalWorkbenches = new Map<string, ApprovalWorkbench>();
   private executions = new Map<string, CampaignExecutionRecord>();
 
@@ -91,6 +105,35 @@ export class InMemoryCampaignStore implements CampaignStore {
 
   async listSuppressions(): Promise<SuppressionRecord[]> {
     return [...this.suppressions.values()].map((record) => structuredClone(record));
+  }
+
+  async upsertSenderAccount(account: SenderAccount): Promise<SenderAccount> {
+    this.senderAccounts.set(account.id, structuredClone(account));
+    return structuredClone(account);
+  }
+
+  async getSenderAccount(id: string): Promise<SenderAccount | null> {
+    const account = this.senderAccounts.get(id);
+    return account ? structuredClone(account) : null;
+  }
+
+  async listSenderAccounts(): Promise<SenderAccount[]> {
+    return [...this.senderAccounts.values()].map((account) => structuredClone(account));
+  }
+
+  async appendSenderRiskEvent(
+    id: string,
+    input: SenderRiskEventInput,
+    now = new Date()
+  ): Promise<SenderAccount | null> {
+    const account = this.senderAccounts.get(id);
+    if (!account) {
+      return null;
+    }
+
+    const updated = recordSenderRiskEvent(account, input, now);
+    this.senderAccounts.set(id, structuredClone(updated));
+    return structuredClone(updated);
   }
 
   async upsertApprovalWorkbench(workbench: ApprovalWorkbench): Promise<ApprovalWorkbench> {
@@ -141,6 +184,7 @@ export class InMemoryCampaignStore implements CampaignStore {
 interface StoreSnapshot {
   campaigns: Campaign[];
   suppressions: SuppressionRecord[];
+  senderAccounts: SenderAccount[];
   approvalWorkbenches: ApprovalWorkbench[];
   executions: CampaignExecutionRecord[];
 }
@@ -213,6 +257,56 @@ export class JsonFileCampaignStore implements CampaignStore {
     return this.locked(async () => {
       const snapshot = await this.readSnapshot();
       return snapshot.suppressions.map((record) => structuredClone(record));
+    });
+  }
+
+  async upsertSenderAccount(account: SenderAccount): Promise<SenderAccount> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      const index = snapshot.senderAccounts.findIndex((candidate) => candidate.id === account.id);
+
+      if (index === -1) {
+        snapshot.senderAccounts.push(structuredClone(account));
+      } else {
+        snapshot.senderAccounts[index] = structuredClone(account);
+      }
+
+      await this.writeSnapshot(snapshot);
+      return structuredClone(account);
+    });
+  }
+
+  async getSenderAccount(id: string): Promise<SenderAccount | null> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      const account = snapshot.senderAccounts.find((candidate) => candidate.id === id);
+      return account ? structuredClone(account) : null;
+    });
+  }
+
+  async listSenderAccounts(): Promise<SenderAccount[]> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      return snapshot.senderAccounts.map((account) => structuredClone(account));
+    });
+  }
+
+  async appendSenderRiskEvent(
+    id: string,
+    input: SenderRiskEventInput,
+    now = new Date()
+  ): Promise<SenderAccount | null> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      const index = snapshot.senderAccounts.findIndex((candidate) => candidate.id === id);
+      if (index === -1) {
+        return null;
+      }
+
+      const updated = recordSenderRiskEvent(snapshot.senderAccounts[index], input, now);
+      snapshot.senderAccounts[index] = structuredClone(updated);
+      await this.writeSnapshot(snapshot);
+      return structuredClone(updated);
     });
   }
 
@@ -293,6 +387,7 @@ export class JsonFileCampaignStore implements CampaignStore {
       return {
         campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
         suppressions: Array.isArray(parsed.suppressions) ? parsed.suppressions : [],
+        senderAccounts: Array.isArray(parsed.senderAccounts) ? parsed.senderAccounts : [],
         approvalWorkbenches: Array.isArray(parsed.approvalWorkbenches)
           ? parsed.approvalWorkbenches
           : [],
@@ -300,7 +395,13 @@ export class JsonFileCampaignStore implements CampaignStore {
       };
     } catch (error) {
       if (isNotFound(error)) {
-        return { campaigns: [], suppressions: [], approvalWorkbenches: [], executions: [] };
+        return {
+          campaigns: [],
+          suppressions: [],
+          senderAccounts: [],
+          approvalWorkbenches: [],
+          executions: []
+        };
       }
       throw error;
     }

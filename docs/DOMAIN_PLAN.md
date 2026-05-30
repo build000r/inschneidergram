@@ -53,6 +53,11 @@ The current implementation covers:
 - audit entries for approval and operator state changes
 - sender account limits, cooldowns, lockouts, reconnect-required state, warm-up
   notes, and risk events
+- non-secret managed sender inventory API with JSON persistence
+- sender risk-event append route that updates account state and preserves audit
+  history
+- campaign creation can use stored sender inventory when inline sender accounts
+  are absent and rejects unknown managed sender ids
 - scheduler refusal when no healthy sender is available
 - outgoing signed webhook payloads and jobs
 - retry/backoff, dead-letter, and replay behavior for injected webhook senders
@@ -66,6 +71,8 @@ The current implementation covers:
   campaign state, appends webhook delivery records, and refreshes proof packs
 - pilot launch readiness report that turns campaign, approval, sender,
   execution, and proof state into pass/fail/warn gates plus next actions
+- readiness and execution recheck current stored sender health for campaigns
+  created from managed inventory
 - hardened OpenAPI contract for the no-credential pilot path, including path
   params, idempotency headers, campaign settings, manual evidence cases, health,
   and webhook signature preview
@@ -105,7 +112,11 @@ The current implementation covers:
     operator to run the no-credential manual flow without guessing schemas.
 19. A one-command manual rehearsal proves the operator-run pilot path still
     works before real sender/list inputs are available.
-20. Tests prove the API contract and domain rules.
+20. Managed sender accounts can be registered, fetched, listed, health-checked,
+    and updated through risk events.
+21. Campaign creation uses stored sender inventory when inline sender accounts
+    are absent and rejects unknown managed sender ids.
+22. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -161,10 +172,11 @@ workbench.
 
 ### Sender Account Operations
 
-Connect real account operations to the current sender-health model: account
-inventory, warm-up state, daily budget, cooldowns, lockout detection, recovery
-notes, reconnect-required state, and per-account risk scoring now have a domain
-shape and scheduler behavior.
+The current API now persists non-secret sender inventory, exposes account
+health, appends risk events, and uses that stored inventory for campaign
+scheduling when inline sender accounts are absent. Real account credentials,
+session recovery, provider liveness, and automated cooldown detection remain
+outside the repo and must be connected before a live pilot.
 
 ### Webhook Delivery
 

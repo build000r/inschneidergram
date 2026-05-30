@@ -35,6 +35,11 @@ import {
   type CampaignStore
 } from "./domain/store.js";
 import { buildPilotReadinessReport } from "./domain/readiness.js";
+import {
+  createSenderAccount,
+  summarizeSenderInventory,
+  type SenderAccount
+} from "./domain/sender.js";
 import { signWebhookPayload } from "./domain/webhook.js";
 
 export interface ServerOptions {
@@ -55,10 +60,88 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     provider: process.env.INSCHNEIDERGRAM_PROVIDER ?? "mock"
   }));
 
+  app.get("/senders", async () => {
+    const senderAccounts = await store.listSenderAccounts();
+    return {
+      senderAccounts,
+      senderHealth: summarizeSenderInventory(senderAccounts)
+    };
+  });
+
+  app.get("/senders/health", async () => ({
+    senderHealth: summarizeSenderInventory(await store.listSenderAccounts())
+  }));
+
+  app.get("/senders/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const senderAccount = await store.getSenderAccount(id);
+
+    if (!senderAccount) {
+      return reply.code(404).send({ error: "sender_account_not_found" });
+    }
+
+    return {
+      senderAccount,
+      senderHealth: summarizeSenderInventory([senderAccount])
+    };
+  });
+
+  app.put("/senders/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    try {
+      const parsed = senderAccountRequestSchema.parse(request.body ?? {});
+      const existing = await store.getSenderAccount(id);
+      const status = parsed.status ?? existing?.status ?? "healthy";
+      const preserveExistingState = parsed.status === undefined;
+      const saved = await store.upsertSenderAccount(
+        createSenderAccount({
+          id,
+          status,
+          dailyLimit: parsed.dailyLimit,
+          cooldownUntil:
+            parsed.cooldownUntil ?? (preserveExistingState ? existing?.cooldownUntil : undefined),
+          warmupNote: parsed.warmupNote ?? existing?.warmupNote,
+          riskEvents: parsed.riskEvents ?? existing?.riskEvents ?? []
+        })
+      );
+      return {
+        senderAccount: saved,
+        senderHealth: summarizeSenderInventory(await store.listSenderAccounts())
+      };
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  app.post("/senders/:id/risk-events", async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    try {
+      const saved = await store.appendSenderRiskEvent(
+        id,
+        senderRiskEventRequestSchema.parse(request.body ?? {})
+      );
+      if (!saved) {
+        return reply.code(404).send({ error: "sender_account_not_found" });
+      }
+      return {
+        senderAccount: saved,
+        senderHealth: summarizeSenderInventory(await store.listSenderAccounts())
+      };
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
   app.post("/campaigns", async (request, reply) => {
     try {
+      const campaignInput = await withStoredSenderInventory(
+        store,
+        withIdempotencyKey(request.body, request.headers["idempotency-key"])
+      );
       const campaign = await store.insert(
-        createCampaign(withIdempotencyKey(request.body, request.headers["idempotency-key"]))
+        createCampaign(campaignInput)
       );
       const response = {
         campaignId: campaign.id,
@@ -97,7 +180,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     }
 
     return buildPilotReadinessReport({
-      campaign,
+      campaign: await withCurrentSenderInventorySnapshot(store, campaign),
       approvalWorkbench: await store.getApprovalWorkbench(id),
       executions: await store.listExecutions(id)
     });
@@ -335,11 +418,13 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
     try {
       const executionRequest = executionRequestSchema.parse(request.body ?? {});
+      const campaignForExecution = await withCurrentSenderInventorySnapshot(store, campaign);
       const workbench = buildExecutionApprovalWorkbench(
-        campaign,
+        campaignForExecution,
         executionRequest,
         await store.getApprovalWorkbench(id)
       );
+      assertCurrentSenderAvailability(campaignForExecution, workbench);
       const dispatcher = executionRequest.simulateWebhooks
         ? new OutgoingWebhookDispatcher({
             secret: webhookSecret,
@@ -349,7 +434,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           })
         : undefined;
       const result = await executeApprovedCampaign({
-        campaign,
+        campaign: campaignForExecution,
         workbench,
         adapter: buildDeliveryAdapter(executionRequest),
         webhookDispatcher: dispatcher,
@@ -481,6 +566,70 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           summary: "Check API health",
           responses: {
             "200": { description: "Service health returned" }
+          }
+        }
+      },
+      "/senders": {
+        get: {
+          summary: "List managed sender accounts and inventory health",
+          responses: {
+            "200": {
+              description: "Managed sender inventory returned"
+            }
+          }
+        }
+      },
+      "/senders/health": {
+        get: {
+          summary: "Inspect managed sender inventory health",
+          responses: {
+            "200": {
+              description: "Managed sender inventory health returned"
+            }
+          }
+        }
+      },
+      "/senders/{id}": {
+        parameters: openApiPathParameters("id"),
+        get: {
+          summary: "Get one managed sender account",
+          responses: {
+            "200": { description: "Managed sender account returned" },
+            "404": { description: "Sender account not found" }
+          }
+        },
+        put: {
+          summary: "Create or update one managed sender account",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: openApiSenderAccountRequestSchema()
+              }
+            }
+          },
+          responses: {
+            "200": { description: "Managed sender account persisted" },
+            "400": { description: "Invalid sender account request" }
+          }
+        }
+      },
+      "/senders/{id}/risk-events": {
+        parameters: openApiPathParameters("id"),
+        post: {
+          summary: "Append a sender account risk event",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: openApiSenderRiskEventRequestSchema()
+              }
+            }
+          },
+          responses: {
+            "200": { description: "Sender risk event appended" },
+            "400": { description: "Invalid sender risk event request" },
+            "404": { description: "Sender account not found" }
           }
         }
       },
@@ -963,6 +1112,45 @@ function openApiSenderAccountSchema() {
   };
 }
 
+function openApiSenderAccountRequestSchema() {
+  return {
+    type: "object",
+    required: ["dailyLimit"],
+    properties: {
+      status: {
+        type: "string",
+        enum: ["healthy", "cooldown", "locked", "reconnect_required"],
+        default: "healthy"
+      },
+      dailyLimit: { type: "integer", minimum: 1, maximum: 200 },
+      cooldownUntil: { type: "string", format: "date-time" },
+      warmupNote: { type: "string" },
+      riskEvents: openApiSenderAccountSchema().properties.riskEvents
+    }
+  };
+}
+
+function openApiSenderRiskEventRequestSchema() {
+  return {
+    type: "object",
+    required: ["kind", "note"],
+    properties: {
+      kind: {
+        type: "string",
+        enum: ["warning", "restriction", "lockout", "reconnect_required", "manual_note"]
+      },
+      at: { type: "string", format: "date-time" },
+      note: { type: "string" },
+      status: {
+        type: "string",
+        enum: ["healthy", "cooldown", "locked", "reconnect_required"]
+      },
+      cooldownUntil: { type: "string", format: "date-time" },
+      warmupNote: { type: "string" }
+    }
+  };
+}
+
 function openApiManualEvidenceSchema() {
   return {
     oneOf: [
@@ -1114,6 +1302,31 @@ const executionRequestSchema = z.object({
 });
 
 type ExecutionRequest = z.infer<typeof executionRequestSchema>;
+
+const senderAccountRequestSchema = z.object({
+  status: z.enum(["healthy", "cooldown", "locked", "reconnect_required"]).optional(),
+  dailyLimit: z.number().int().min(1).max(200),
+  cooldownUntil: z.string().datetime().optional(),
+  warmupNote: z.string().min(1).max(1000).optional(),
+  riskEvents: z
+    .array(
+      z.object({
+        kind: z.enum(["warning", "restriction", "lockout", "reconnect_required", "manual_note"]),
+        at: z.string().datetime(),
+        note: z.string().min(1).max(1000)
+      })
+    )
+    .optional()
+});
+
+const senderRiskEventRequestSchema = z.object({
+  kind: z.enum(["warning", "restriction", "lockout", "reconnect_required", "manual_note"]),
+  at: z.string().datetime().optional(),
+  note: z.string().min(1).max(1000),
+  status: z.enum(["healthy", "cooldown", "locked", "reconnect_required"]).optional(),
+  cooldownUntil: z.string().datetime().optional(),
+  warmupNote: z.string().min(1).max(1000).optional()
+});
 
 const approvalWorkbenchRequestSchema = z.object({
   approvedTargets: z.array(z.string().min(1)).default([]),
@@ -1534,6 +1747,163 @@ function normalizeHandle(target: string): string {
   return normalizeInstagramHandle(target);
 }
 
+async function withCurrentSenderInventorySnapshot(
+  store: CampaignStore,
+  campaign: Campaign
+): Promise<Campaign> {
+  const senderAccounts = await currentSenderAccountsForCampaign(store, campaign);
+  if (!senderAccounts) {
+    return campaign;
+  }
+
+  return {
+    ...campaign,
+    settings: {
+      ...campaign.settings,
+      senderPool: senderAccounts.map((account) => account.id),
+      senderAccounts
+    },
+    senderHealth: summarizeSenderInventory(senderAccounts)
+  };
+}
+
+async function currentSenderAccountsForCampaign(
+  store: CampaignStore,
+  campaign: Campaign
+): Promise<SenderAccount[] | null> {
+  if (campaign.metadata.senderInventorySource !== "managed_store") {
+    return null;
+  }
+
+  const storedAccounts = await store.listSenderAccounts();
+  if (storedAccounts.length === 0) {
+    return null;
+  }
+
+  const byId = new Map(storedAccounts.map((account) => [account.id, account]));
+  const senderIds = [...new Set(campaign.settings.senderPool)].filter((id) => byId.has(id));
+  if (senderIds.length === 0) {
+    return null;
+  }
+
+  return senderIds.map((id) => byId.get(id) as SenderAccount);
+}
+
+function assertCurrentSenderAvailability(
+  campaign: Campaign,
+  workbench: ApprovalWorkbench
+): void {
+  const healthById = new Map(
+    campaign.senderHealth.accounts.map((account) => [account.id, account])
+  );
+  const unavailable = new Set<string>();
+
+  for (const target of campaign.targets) {
+    if (
+      target.status !== "scheduled" ||
+      !target.handle ||
+      !target.sender ||
+      !isApprovedExecutionTarget(workbench, target.handle)
+    ) {
+      continue;
+    }
+
+    const health = healthById.get(target.sender);
+    if (health && !health.available) {
+      unavailable.add(target.sender);
+    }
+  }
+
+  if (unavailable.size > 0) {
+    throw new ConflictError(
+      `Sender account(s) unavailable for execution: ${[...unavailable].join(", ")}`
+    );
+  }
+}
+
+function isApprovedExecutionTarget(workbench: ApprovalWorkbench, target: string): boolean {
+  const handle = normalizeHandle(target);
+  return workbench.candidates.some(
+    (candidate) =>
+      candidate.handle === handle &&
+      candidate.approval === "approved" &&
+      (candidate.work === "queued" || candidate.work === "claimed")
+  );
+}
+
+async function withStoredSenderInventory(
+  store: CampaignStore,
+  body: unknown
+): Promise<unknown> {
+  if (!isRecord(body)) {
+    return body;
+  }
+
+  const settings = isRecord(body.settings) ? body.settings : {};
+  if (Array.isArray(settings.senderAccounts) && settings.senderAccounts.length > 0) {
+    return body;
+  }
+
+  const storedAccounts = await store.listSenderAccounts();
+  if (storedAccounts.length === 0) {
+    return body;
+  }
+
+  let requestedSenderPool: string[] | undefined;
+  if (settings.senderPool !== undefined) {
+    if (
+      !Array.isArray(settings.senderPool) ||
+      settings.senderPool.length === 0 ||
+      settings.senderPool.some((entry) => typeof entry !== "string")
+    ) {
+      return body;
+    }
+
+    requestedSenderPool = settings.senderPool;
+  }
+
+  if (requestedSenderPool) {
+    const storedIds = new Set(storedAccounts.map((account) => account.id));
+    const missing = requestedSenderPool.filter((id) => !storedIds.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Unknown managed sender account(s): ${missing.join(", ")}`);
+    }
+  }
+
+  const selectedAccounts = selectStoredSenderAccounts(storedAccounts, requestedSenderPool);
+  if (selectedAccounts.length === 0) {
+    return body;
+  }
+
+  return {
+    ...body,
+    metadata:
+      body.metadata === undefined || isRecord(body.metadata)
+        ? {
+            ...(isRecord(body.metadata) ? body.metadata : {}),
+            senderInventorySource: "managed_store"
+          }
+        : body.metadata,
+    settings: {
+      ...settings,
+      senderPool: selectedAccounts.map((account) => account.id),
+      senderAccounts: selectedAccounts
+    }
+  };
+}
+
+function selectStoredSenderAccounts(
+  accounts: SenderAccount[],
+  senderPool: string[] | undefined
+): SenderAccount[] {
+  if (!senderPool || senderPool.length === 0) {
+    return accounts;
+  }
+
+  const requested = new Set(senderPool);
+  return accounts.filter((account) => requested.has(account.id));
+}
+
 function withIdempotencyKey(body: unknown, headerValue: string | string[] | undefined): unknown {
   const headerKey = Array.isArray(headerValue) ? headerValue[0] : headerValue;
 
@@ -1547,6 +1917,10 @@ function withIdempotencyKey(body: unknown, headerValue: string | string[] | unde
     idempotencyKey:
       typeof record.idempotencyKey === "string" ? record.idempotencyKey : headerKey
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function withManualEventId(body: unknown, headerValue: string | string[] | undefined): unknown {

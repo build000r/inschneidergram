@@ -31,11 +31,12 @@ This repo currently contains the first API/control-plane slice:
 | Persistent local campaign store | Working MVP | `JsonFileCampaignStore`, idempotency/suppression tests |
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
+| Managed sender inventory | Working MVP | `GET/PUT /senders`, risk events, JSON persistence |
 | Approval workbench API | Working MVP | `POST /campaigns/:id/approval-workbench` |
 | Operator workbench state | Working MVP | claim, skip, block routes before execution |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
-| Managed sender infrastructure | Partial | health model exists; real account operations next |
+| Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
 | Manual evidence recording | Working MVP | `POST /campaigns/:id/executions/:executionId/manual-events` |
@@ -70,11 +71,27 @@ Inspect the local API contract:
 curl -s http://127.0.0.1:3107/openapi.json
 ```
 
-The OpenAPI document includes the no-credential pilot flow: campaign creation,
-approval workbench, readiness, manual-safe execution, manual evidence, proof
-records, health, and webhook signature preview. Templated routes document path
-parameters, and manual evidence schemas are split by event type so operators can
-see the required proof fields before a run.
+The OpenAPI document includes the no-credential pilot flow: managed sender
+inventory, campaign creation, approval workbench, readiness, manual-safe
+execution, manual evidence, proof records, health, and webhook signature
+preview. Templated routes document path parameters, and manual evidence schemas
+are split by event type so operators can see the required proof fields before a
+run.
+
+Register a non-secret sender account before scheduling a managed campaign:
+
+```bash
+curl -s http://127.0.0.1:3107/senders/sender-a \
+  -X PUT \
+  -H 'content-type: application/json' \
+  -d '{
+    "status": "healthy",
+    "dailyLimit": 20,
+    "warmupNote": "ready for low-volume pilot"
+  }'
+
+curl -s http://127.0.0.1:3107/senders/health
+```
 
 Create a campaign:
 
@@ -87,17 +104,8 @@ curl -s http://127.0.0.1:3107/campaigns \
     "message": "Hey - loved your content. Would you be open to an affiliate partnership?",
     "campaign": "client_creator_outreach_may_2026",
     "settings": {
-      "senderPool": ["sender-a", "sender-b"],
-      "senderAccounts": [
-        {
-          "id": "sender-a",
-          "status": "healthy",
-          "dailyLimit": 35,
-          "warmupNote": "ready for low-volume pilot",
-          "riskEvents": []
-        }
-      ],
-      "dailyLimitPerSender": 35,
+      "senderPool": ["sender-a"],
+      "dailyLimitPerSender": 20,
       "minDelaySeconds": 90,
       "maxDelaySeconds": 420,
       "webhookUrl": "https://example.com/inschneidergram/events"
@@ -236,6 +244,15 @@ campaigns also consult the persisted suppression records created by earlier
 campaigns, so previously scheduled handles are returned as `skipped_duplicate`.
 Responses include `senderHealth`; locked, cooling-down, or reconnect-required
 senders are blocked from scheduling and surfaced as account-health blockers.
+When a campaign omits inline `settings.senderAccounts`, the API uses the stored
+managed sender inventory. Unknown stored sender IDs are rejected instead of
+being treated as healthy synthetic senders.
+
+`GET /senders`, `GET /senders/:id`, `PUT /senders/:id`, and
+`POST /senders/:id/risk-events` manage the non-secret sender inventory. Risk
+events append audit history and can move an account into `cooldown`, `locked`,
+or `reconnect_required`. Credentials, session cookies, proxies, and recovery
+secrets do not belong in this store.
 
 `POST /campaigns/:id/approval-workbench` persists the creator and copy approval
 state for a campaign. Callers can create a workbench with approved or rejected
@@ -247,17 +264,18 @@ the stored workbench when one exists and only create send intents for approved
 candidates whose work state is still `queued` or `claimed`.
 
 `GET /campaigns/:id/readiness` returns a pilot launch checklist derived from the
-stored campaign, approval workbench, sender health, and execution proof records.
-It is the fastest way to see whether the campaign is blocked, needs approval,
-is ready to execute, is waiting on manual evidence, or has proof ready for
-review.
+stored campaign, approval workbench, current managed sender health, and
+execution proof records. It is the fastest way to see whether the campaign is
+blocked, needs approval, is ready to execute, is waiting on manual evidence, or
+has proof ready for review.
 
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It builds an
-approval workbench from the stored campaign, routes approved targets through a
-safe `mock` or `manual` adapter, records campaign events, simulates signed
-webhook delivery records, and returns the proof-pack metrics plus Markdown,
-including explicit operator skipped/blocked counts from workbench evidence. It
-also persists an execution proof record that can be listed with
+approval workbench from the stored campaign, rechecks current managed sender
+health for assigned approved targets, routes approved targets through a safe
+`mock` or `manual` adapter, records campaign events, simulates signed webhook
+delivery records, and returns the proof-pack metrics plus Markdown, including
+explicit operator skipped/blocked counts from workbench evidence. It also
+persists an execution proof record that can be listed with
 `GET /campaigns/:id/executions` or fetched with
 `GET /campaigns/:id/executions/:executionId`. Manual executions can be updated
 with `POST /campaigns/:id/executions/:executionId/manual-events`; that route
@@ -283,8 +301,9 @@ Safe scheduler -> sender assignment -> provider adapter
 Provider delivery events -> campaign status -> webhook/API response
 ```
 
-The current implementation ships the left side of this system. The next slice
-must turn the provider adapter into a real managed delivery operation.
+The current implementation ships the left side of this system plus a non-secret
+managed sender inventory. The next slice must turn the provider adapter into a
+real managed delivery operation.
 
 ## Why Not Just Use the Official Instagram API?
 
@@ -307,17 +326,17 @@ owns that operational risk.
 
 ## Roadmap to Bounty Pilot
 
-1. Connect real sender account operations to the sender health model.
-2. Connect a real managed sender/provider path to the execution runner.
-3. Run a controlled pilot with a small vetted creator list.
+1. Connect a real managed sender/provider path to the execution runner.
+2. Bring a verified sender account and vetted creator list into a controlled pilot.
+3. Run the pilot with explicit permission and low sender limits.
 4. Publish live reliability evidence using the proof-pack generator.
 
 ## Limitations
 
 This is not yet a working Instagram sending product. The current repo is the
 API and scheduling control plane needed to make that product auditable. Winning
-the bounty still requires a real managed delivery adapter, sender operations,
-and a pilot that completes meaningful creator outreach.
+the bounty still requires a real managed delivery adapter, live sender account
+operations, and a pilot that completes meaningful creator outreach.
 
 ## Documentation
 

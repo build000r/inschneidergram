@@ -198,6 +198,218 @@ describe("API", () => {
     await app.close();
   });
 
+  it("manages stored sender inventory and uses it for campaign scheduling", async () => {
+    const app = await buildServer();
+
+    const upsert = await app.inject({
+      method: "PUT",
+      url: "/senders/sender-a",
+      payload: {
+        dailyLimit: 20,
+        warmupNote: "day 4 warm-up"
+      }
+    });
+    expect(upsert.statusCode).toBe(200);
+    expect(upsert.json()).toMatchObject({
+      senderAccount: {
+        id: "sender-a",
+        status: "healthy",
+        dailyLimit: 20,
+        warmupNote: "day 4 warm-up",
+        riskEvents: []
+      },
+      senderHealth: {
+        total: 1,
+        available: 1
+      }
+    });
+
+    const fetched = await app.inject({
+      method: "GET",
+      url: "/senders/sender-a"
+    });
+    expect(fetched.statusCode).toBe(200);
+    expect(fetched.json().senderAccount.id).toBe("sender-a");
+
+    const listed = await app.inject({
+      method: "GET",
+      url: "/senders"
+    });
+    expect(listed.json()).toMatchObject({
+      senderAccounts: [expect.objectContaining({ id: "sender-a" })],
+      senderHealth: {
+        total: 1,
+        available: 1
+      }
+    });
+
+    const create = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@stored_sender_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "stored-sender-pilot",
+        settings: {
+          senderPool: ["sender-a"]
+        }
+      }
+    });
+    expect(create.statusCode).toBe(202);
+    expect(create.json()).toMatchObject({
+      status: "queued",
+      targets: [
+        {
+          handle: "stored_sender_creator",
+          status: "scheduled",
+          sender: "sender-a"
+        }
+      ],
+      senderHealth: {
+        available: 1
+      }
+    });
+
+    const unknownSender = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@unknown_sender_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "unknown-sender-pilot",
+        settings: {
+          senderPool: ["sender-missing"]
+        }
+      }
+    });
+    expect(unknownSender.statusCode).toBe(400);
+    expect(unknownSender.json()).toMatchObject({
+      error: "invalid_request",
+      message: "Unknown managed sender account(s): sender-missing"
+    });
+
+    const riskEvent = await app.inject({
+      method: "POST",
+      url: "/senders/sender-a/risk-events",
+      payload: {
+        kind: "lockout",
+        note: "Login checkpoint"
+      }
+    });
+    expect(riskEvent.statusCode).toBe(200);
+    expect(riskEvent.json()).toMatchObject({
+      senderAccount: {
+        id: "sender-a",
+        status: "locked",
+        warmupNote: "day 4 warm-up",
+        riskEvents: [expect.objectContaining({ kind: "lockout", note: "Login checkpoint" })]
+      },
+      senderHealth: {
+        available: 0,
+        blocked: 1
+      }
+    });
+
+    const blockedCreate = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@blocked_stored_sender_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "blocked-stored-sender-pilot",
+        settings: {
+          senderPool: ["sender-a"]
+        }
+      }
+    });
+    expect(blockedCreate.statusCode).toBe(202);
+    expect(blockedCreate.json()).toMatchObject({
+      status: "failed",
+      summary: {
+        blockedPolicy: 1
+      },
+      senderHealth: {
+        available: 0,
+        blocked: 1,
+        accounts: [
+          {
+            id: "sender-a",
+            status: "locked",
+            blockers: ["locked"]
+          }
+        ]
+      }
+    });
+
+    await app.close();
+  });
+
+  it("rechecks managed sender health before readiness and execution", async () => {
+    const app = await buildServer();
+
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-a",
+      payload: {
+        dailyLimit: 20
+      }
+    });
+    const create = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@post_creation_lock_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "post-creation-lock",
+        settings: {
+          senderPool: ["sender-a"]
+        }
+      }
+    });
+    const campaignId = create.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: "/senders/sender-a/risk-events",
+      payload: {
+        kind: "lockout",
+        note: "Login checkpoint after scheduling"
+      }
+    });
+
+    const readiness = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/readiness`
+    });
+    expect(readiness.statusCode).toBe(200);
+    expect(readiness.json()).toMatchObject({
+      status: "blocked",
+      readyForExecution: false,
+      counts: {
+        availableSenders: 0
+      },
+      gates: expect.arrayContaining([
+        expect.objectContaining({
+          id: "sender_health",
+          status: "fail",
+          detail: "0/1 sender account(s) available."
+        })
+      ])
+    });
+
+    const execution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`
+    });
+    expect(execution.statusCode).toBe(409);
+    expect(execution.json()).toMatchObject({
+      error: "conflict",
+      message: "Sender account(s) unavailable for execution: sender-a"
+    });
+
+    await app.close();
+  });
+
   it("persists approval workbench decisions and executes stored approvals", async () => {
     const app = await buildServer({ webhookSecret: "approval-secret" });
     const createResponse = await app.inject({
@@ -1082,6 +1294,39 @@ describe("API", () => {
     });
     expect(openapi.paths["/webhooks/preview"].post).toMatchObject({
       summary: "Preview a signed webhook payload"
+    });
+    expect(openapi.paths["/senders"].get).toMatchObject({
+      summary: "List managed sender accounts and inventory health"
+    });
+    expect(openapi.paths["/senders/health"].get).toMatchObject({
+      summary: "Inspect managed sender inventory health"
+    });
+    expect(openapi.paths["/senders/{id}"].get).toMatchObject({
+      summary: "Get one managed sender account"
+    });
+    expect(openapi.paths["/senders/{id}"].put).toMatchObject({
+      summary: "Create or update one managed sender account",
+      requestBody: {
+        content: {
+          "application/json": {
+            schema: {
+              required: ["dailyLimit"]
+            }
+          }
+        }
+      }
+    });
+    expect(openapi.paths["/senders/{id}/risk-events"].post).toMatchObject({
+      summary: "Append a sender account risk event",
+      requestBody: {
+        content: {
+          "application/json": {
+            schema: {
+              required: ["kind", "note"]
+            }
+          }
+        }
+      }
     });
     expect(openapi.paths["/campaigns/{id}/readiness"].get).toMatchObject({
       summary: "Get pilot launch readiness gates"

@@ -22,7 +22,8 @@ content collaborations, or qualified pipeline.
 - creator approval criteria and approving actor
 - copy approval criteria and approving actor
 - optional follow-up copy
-- sender account pool or selected delivery adapter
+- managed sender account ids registered through the sender API or selected
+  delivery adapter
 - stop conditions for opt-outs, complaints, sender warnings, and low quality
 - webhook or export destination for outcomes
 
@@ -34,6 +35,8 @@ needing approval, ready to execute, awaiting manual evidence, or evidence-ready.
 It also names the missing external inputs so the pilot cannot look ready while
 creator approvals, approved copy, a healthy sender/provider, operator evidence,
 or launch permission are still missing.
+For campaigns scheduled from managed sender ids, readiness rechecks the current
+stored sender inventory so post-creation lockouts or cooldowns block launch.
 
 ## Success Thresholds
 
@@ -84,6 +87,9 @@ default proof pack should include:
 - target list provenance cannot be defended
 - creator or copy approval cannot be produced before send
 - delivery adapter cannot produce enough status evidence for the proof pack
+
+Sender restrictions, warnings, lockouts, and reconnect requirements should be
+recorded as sender risk events before any further readiness or execution check.
 
 ## Operator Workbench
 
