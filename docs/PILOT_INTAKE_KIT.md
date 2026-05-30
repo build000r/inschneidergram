@@ -46,6 +46,8 @@ The validator checks:
 - at least one selected sender is healthy
 - manual delivery path for the first pilot
 - target count is within `approvedTargetLimit`
+- launch authorization has an approval evidence URL and an unexpired
+  `expiresAt`
 - campaign webhook URL matches the webhook file
 - callback URL is HTTPS, non-local, and present in `allowedHosts`
 - campaign scheduling produces no duplicate or policy-blocked targets

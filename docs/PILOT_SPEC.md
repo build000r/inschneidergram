@@ -64,8 +64,8 @@ It also names the missing external inputs so the pilot cannot look ready while
 creator approvals, approved copy, a healthy sender/provider, operator evidence,
 or launch authorization are still missing. Manual and managed-provider
 executions require a `launchAuthorization` object with actor, delivery path,
-approved target limit, approval timestamp, and reference/evidence pointer; mock
-executions are exempt for local rehearsal.
+approved target limit, approval timestamp, expiry timestamp, reference, and
+evidence URL; mock executions are exempt for local rehearsal.
 `GET /campaigns/:id/pilot-handoff` turns the same readiness state into an
 operator packet: source URLs, next API actions, missing external inputs,
 creator/sender/evidence contracts, launch-authorization expectations, proof

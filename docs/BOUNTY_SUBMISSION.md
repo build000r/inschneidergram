@@ -62,8 +62,8 @@ must provide:
    can return explicit outcomes.
 4. Non-secret sender inventory ids, with credentials/session material held
    outside this repo.
-5. A launch authorization reference for the selected delivery path and target
-   limit.
+5. A fresh launch authorization reference with evidence URL, expiry, selected
+   delivery path, and target limit.
 6. Optional public HTTPS callback URL for delivery/reply webhooks.
 7. Stop conditions for complaints, opt-outs, sender warnings, and low-quality
    replies.

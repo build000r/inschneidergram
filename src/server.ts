@@ -42,6 +42,7 @@ import { buildFollowUpPlan } from "./domain/followUp.js";
 import { normalizeInstagramHandle } from "./domain/handles.js";
 import {
   launchAuthorizationSchema,
+  validateLaunchAuthorizationFreshness,
   type LaunchAuthorization
 } from "./domain/launchAuthorization.js";
 import {
@@ -1400,7 +1401,9 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                         "deliveryPath",
                         "approvedTargetLimit",
                         "approvedAt",
-                        "reference"
+                        "expiresAt",
+                        "reference",
+                        "evidenceUrl"
                       ],
                       properties: {
                         actor: { type: "string" },
@@ -1413,6 +1416,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                           minimum: 1
                         },
                         approvedAt: { type: "string", format: "date-time" },
+                        expiresAt: { type: "string", format: "date-time" },
                         reference: { type: "string" },
                         evidenceUrl: { type: "string" },
                         notes: { type: "string" }
@@ -2241,6 +2245,7 @@ function openApiPilotLaunchPacketSchema() {
           "deliveryPath",
           "approvedTargetLimit",
           "approvedAt",
+          "expiresAt",
           "reference",
           "evidenceUrl",
           "notes"
@@ -2250,6 +2255,7 @@ function openApiPilotLaunchPacketSchema() {
           deliveryPath: { const: "manual" },
           approvedTargetLimit: { type: "integer", minimum: 1 },
           approvedAt: { type: "string", format: "date-time" },
+          expiresAt: { type: "string", format: "date-time" },
           reference: { type: "string" },
           evidenceUrl: { type: "string" },
           notes: { type: "string" }
@@ -3110,8 +3116,17 @@ function launchAuthorizationContract() {
   return {
     requiredBeforeLiveOutreach: true,
     currentApiBehavior:
-      "Manual and managed-provider executions require a launchAuthorization object; mock executions remain available for local rehearsal without live-pilot authorization.",
-    evidenceFields: ["actor", "reference", "approvedAt", "deliveryPath", "approvedTargetLimit", "stopConditions"]
+      "Manual and managed-provider executions require a fresh, evidence-backed launchAuthorization object; mock executions remain available for local rehearsal without live-pilot authorization.",
+    evidenceFields: [
+      "actor",
+      "reference",
+      "approvedAt",
+      "expiresAt",
+      "evidenceUrl",
+      "deliveryPath",
+      "approvedTargetLimit",
+      "stopConditions"
+    ]
   };
 }
 
@@ -4006,7 +4021,9 @@ function launchAuthorizationForReadiness(
       deliveryPath: "manual",
       approvedTargetLimit: Number.MAX_SAFE_INTEGER,
       approvedAt: new Date(0).toISOString(),
-      reference: "mock-execution-exempt"
+      expiresAt: new Date(8640000000000000).toISOString(),
+      reference: "mock-execution-exempt",
+      evidenceUrl: "https://localhost/mock-execution-exempt"
     };
   }
 
@@ -4031,6 +4048,13 @@ function assertLaunchAuthorizationForExecution(
     throw new ConflictError(
       `Launch authorization deliveryPath ${request.launchAuthorization.deliveryPath} does not match adapter kind ${request.adapter.kind}`
     );
+  }
+
+  const freshnessError = validateLaunchAuthorizationFreshness(
+    request.launchAuthorization
+  );
+  if (freshnessError) {
+    throw new ConflictError(freshnessError);
   }
 
   const executionTargetCount = countAuthorizedExecutionTargets(workbench);

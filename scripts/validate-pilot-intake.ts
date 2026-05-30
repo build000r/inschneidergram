@@ -8,7 +8,10 @@ import {
   createCampaignSchema,
   type CreateCampaignInput
 } from "../src/domain/campaign.js";
-import { launchAuthorizationSchema } from "../src/domain/launchAuthorization.js";
+import {
+  launchAuthorizationSchema,
+  validateLaunchAuthorizationFreshness
+} from "../src/domain/launchAuthorization.js";
 import { senderAccountSchema } from "../src/domain/sender.js";
 
 export const defaultPilotIntakePaths = {
@@ -168,6 +171,12 @@ function validateLivePilotKit(input: PilotIntakeKit): string[] {
     errors.push(
       `campaign has ${campaignInput.targets.length} target(s), but launch authorization only approves ${launchAuthorization.approvedTargetLimit}.`
     );
+  }
+
+  const launchAuthorizationFreshnessError =
+    validateLaunchAuthorizationFreshness(launchAuthorization);
+  if (launchAuthorizationFreshnessError) {
+    errors.push(launchAuthorizationFreshnessError);
   }
 
   const campaignWebhookUrl = campaignInput.settings.webhookUrl;

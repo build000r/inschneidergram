@@ -192,6 +192,7 @@ function launchAuthorizationLines(
     `- delivery path: ${authorization.deliveryPath}`,
     `- approved target limit: ${authorization.approvedTargetLimit}`,
     `- approved at: ${authorization.approvedAt}`,
+    ...(authorization.expiresAt ? [`- expires at: ${authorization.expiresAt}`] : []),
     `- reference: ${authorization.reference}`,
     ...(authorization.evidenceUrl ? [`- evidence: ${authorization.evidenceUrl}`] : []),
     ...(authorization.notes ? [`- notes: ${authorization.notes}`] : [])

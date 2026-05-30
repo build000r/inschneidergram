@@ -81,11 +81,11 @@ and evidence workflow that can absorb manual or provider-reported delivery
 outcomes. The bounty win still depends on proving the delivery path with real
 Instagram outreach records.
 
-The only noted hardening nit was that `launchAuthorization` validates shape,
-delivery path, target limit, and reference, but does not machine-enforce
-freshness or require an evidence URL in every case. The skeptic judged this as
-worth doing later, not as a blocker, because the live pilot can supply a fresh,
-scoped authorization reference.
+The only noted hardening nit was that `launchAuthorization` validated shape,
+delivery path, target limit, and reference, but did not machine-enforce
+freshness or require an evidence URL in every case. Follow-up hardening now
+requires an evidence-backed, unexpired authorization for manual and
+managed-provider execution while keeping mock rehearsal exempt.
 
 ## External Next Actions
 

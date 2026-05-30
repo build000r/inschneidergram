@@ -143,14 +143,14 @@ export function buildPilotReadinessReport(input: {
       label: "Launch authorization",
       status: launchAuthorization || launchAuthorizationNotRequired ? "pass" : "fail",
       detail: launchAuthorization
-        ? `Launch authorized by ${launchAuthorization.actor} for ${launchAuthorization.deliveryPath} up to ${launchAuthorization.approvedTargetLimit} target(s). Reference: ${launchAuthorization.reference}.`
+        ? `Launch authorized by ${launchAuthorization.actor} for ${launchAuthorization.deliveryPath} up to ${launchAuthorization.approvedTargetLimit} target(s). Reference: ${launchAuthorization.reference}. Evidence: ${launchAuthorization.evidenceUrl ?? "missing"}. Expires: ${launchAuthorization.expiresAt ?? "missing"}.`
         : launchAuthorizationNotRequired
           ? "Latest execution used the local mock adapter and did not require live launch authorization."
-          : "No explicit launch authorization reference is recorded for a real manual or managed-provider pilot.",
+          : "No explicit launch authorization reference, evidence URL, and expiry are recorded for a real manual or managed-provider pilot.",
       nextAction:
         launchAuthorization || launchAuthorizationNotRequired
           ? undefined
-          : "Collect explicit permission for the selected pilot delivery path."
+          : "Collect fresh, evidence-backed permission for the selected pilot delivery path."
     },
     {
       id: "execution_proof",

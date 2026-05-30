@@ -14,6 +14,7 @@
     "deliveryPath": "managed_provider",
     "approvedTargetLimit": 3,
     "approvedAt": "2026-05-30T09:00:00.000Z",
+    "expiresAt": "2026-06-06T09:00:00.000Z",
     "reference": "graphed-managed-provider-approval-001",
     "evidenceUrl": "https://docs.graphed.com/approvals/inschneidergram-managed-provider-001",
     "notes": "Approves the provider-operated sender path, creator list, first-touch copy, callback destination, target limit, and stop conditions for this bridge rehearsal."

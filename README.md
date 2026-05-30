@@ -48,7 +48,7 @@ This repo currently contains the API/control-plane MVP:
 | Live pilot intake kit | Working MVP | `docs/PILOT_INTAKE_KIT.md`, `npm run pilot:intake:validate`, `npm run pilot:intake:rehearse` |
 | Operator dashboard | Working MVP | `GET /operator/dashboard` aggregates readiness, manual queue, sender health, follow-ups, proof, and runtime dead letters |
 | Bounty evaluator proof | Working MVP | `docs/BOUNTY_SUBMISSION.md`, `npm run proof:bounty-local` |
-| Launch authorization gate | Working MVP | manual/provider execution requires a structured approval reference |
+| Launch authorization gate | Working MVP | manual/provider execution requires a fresh, evidence-backed approval reference |
 | Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from refreshed execution evidence |
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
 | Managed provider bridge | Working MVP | `npm run pilot:provider-bridge` exports provider handoff intents and consumes provider outcomes |
@@ -416,13 +416,16 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions \
       "deliveryPath": "managed_provider",
       "approvedTargetLimit": 1,
       "approvedAt": "2026-05-30T01:00:00.000Z",
+      "expiresAt": "2026-06-06T01:00:00.000Z",
       "reference": "approval-ticket-123",
+      "evidenceUrl": "https://docs.graphed.com/approvals/approval-ticket-123",
       "notes": "Provider contract execution authorized for this pilot batch."
     }
   }'
 ```
 
-Manual and managed-provider executions require `launchAuthorization`. Mock
+Manual and managed-provider executions require fresh, evidence-backed
+`launchAuthorization` with `evidenceUrl` and unexpired `expiresAt`. Mock
 executions remain available without it for local dry-runs and demos.
 
 List pending manual delivery work for operators:

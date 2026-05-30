@@ -166,14 +166,20 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
       )
     );
 
+    const authorizationApprovedAt = new Date();
+    const authorizationExpiresAt = new Date(
+      authorizationApprovedAt.getTime() + 7 * 24 * 60 * 60 * 1000
+    );
     const execution = await injectJson(app, "POST", `/campaigns/${campaign.campaignId}/executions`, {
       adapter: { kind: "manual" },
       launchAuthorization: {
         actor: "demo-approver",
         deliveryPath: "manual",
         approvedTargetLimit: 2,
-        approvedAt: "2026-05-30T01:00:00.000Z",
+        approvedAt: authorizationApprovedAt.toISOString(),
+        expiresAt: authorizationExpiresAt.toISOString(),
         reference: "manual-demo-launch-approval",
+        evidenceUrl: "https://docs.graphed.com/approvals/manual-demo-launch-approval",
         notes: "Credential-free local rehearsal authorization; no live Instagram delivery."
       }
     });

@@ -1,11 +1,12 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T10:34:14Z
+Generated: 2026-05-30T14:38:13Z
 
-Validation run base: `1e642ec`
+Validation run base: `e4d381e`
 
-Validation target: the working tree after the managed-provider bridge rehearsal
-slice. The next commit records this proof refresh with the implementation.
+Validation target: the working tree after the launch-authorization evidence
+gate hardening slice. The next commit records this proof refresh with the
+implementation.
 
 Runtime:
 
@@ -37,14 +38,14 @@ delivery or completed Graphed outreach.
 | `npm test` | Passed | 13 files, 112 tests |
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exited 0 |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
-| `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender |
+| `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender and fresh evidence-backed authorization |
 | `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, and manual queue state up to `awaiting_manual_evidence` |
 | `npm run pilot:provider-bridge` | Passed | provider handoff exported 3 approved intents, consumed 3 provider outcomes, and reached `evidence_ready` through managed-provider execution |
 | `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths and verified the operator dashboard |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `034c561d01d3ef73687218f9ef3e04714b6fc2fcf205a22d87a804be5a5f87a6` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `5b2d517e3e7917c112faf0290d8abdddbbd098523bf3010c22bc14d2bfae958c` |
 
 ## Live Pilot Intake Validation
 
@@ -236,7 +237,7 @@ path:
 - creates the campaign from profile-object targets with `source`,
   `fitReason`, tags, profile URLs, and `requireTargetProvenance=true`
 - schedules from managed `senderPool` ids without inline sender credentials
-- passes a structured manual `launchAuthorization`
+- passes a fresh, evidence-backed manual `launchAuthorization`
 - creates a manual execution queue
 - records sent, replied, and restricted manual evidence
 - reconciles the restricted evidence into managed sender risk state
@@ -327,8 +328,10 @@ Launch authorization preserved in the proof pack:
   "actor": "demo-approver",
   "deliveryPath": "manual",
   "approvedTargetLimit": 2,
-  "approvedAt": "2026-05-30T01:00:00.000Z",
+  "approvedAt": "2026-05-30T14:38:10.933Z",
+  "expiresAt": "2026-06-06T14:38:10.933Z",
   "reference": "manual-demo-launch-approval",
+  "evidenceUrl": "https://docs.graphed.com/approvals/manual-demo-launch-approval",
   "notes": "Credential-free local rehearsal authorization; no live Instagram delivery."
 }
 ```

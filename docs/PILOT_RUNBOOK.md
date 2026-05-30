@@ -162,7 +162,8 @@ private or special-use addresses before the outbound request is made.
    campaign.
 8. Graphed or the operator records a `launchAuthorization` object for the
    selected manual or managed-provider delivery path: actor, delivery path,
-   approved target limit, approval timestamp, and reference/evidence pointer.
+   approved target limit, approval timestamp, expiry timestamp, reference, and
+   evidence URL.
 9. Execution runner rejects campaigns that are not ready or lack matching launch
    authorization, rechecks current sender health, then creates `SendIntent`
    records only for approved creators that remain queued or claimed.
@@ -245,9 +246,12 @@ campaign-specific routes when they need details.
 `POST /campaigns/:id/executions` requires `launchAuthorization` for `manual`
 and `managed_provider` adapters. The authorization delivery path must match the
 adapter, and `approvedTargetLimit` must cover the approved executable target
-count after skipped or blocked workbench candidates are excluded. Missing,
-mismatched, or too-small authorization returns `409` without inserting an
-execution record. `mock` executions are exempt so local dry-runs stay cheap.
+count after skipped or blocked workbench candidates are excluded. The
+authorization must also include `evidenceUrl` and an unexpired `expiresAt`.
+Missing, mismatched, expired, or too-small authorization returns `409` without
+inserting an execution record. Missing `evidenceUrl`/`expiresAt` fails request
+validation before execution. `mock` executions are exempt so local dry-runs stay
+cheap.
 
 `GET /operator/manual-queue` defaults to the same blocking work readiness calls
 pending manual evidence: manual attempts with no recorded evidence from the

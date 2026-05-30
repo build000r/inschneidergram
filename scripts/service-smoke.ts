@@ -199,14 +199,18 @@ async function main(): Promise<void> {
         "permission to run the selected pilot delivery path"
       )
     ) {
-      throw new Error("Expected approved campaign readiness to require launch authorization");
-    }
+    throw new Error("Expected approved campaign readiness to require launch authorization");
+  }
 
-    const execution = await protectedFetch<ExecutionResponse>(
-      `/campaigns/${campaign.campaignId}/executions`,
-      {
-        method: "POST",
-        body: {
+  const providerAuthorizationApprovedAt = new Date();
+  const providerAuthorizationExpiresAt = new Date(
+    providerAuthorizationApprovedAt.getTime() + 7 * 24 * 60 * 60 * 1000
+  );
+  const execution = await protectedFetch<ExecutionResponse>(
+    `/campaigns/${campaign.campaignId}/executions`,
+    {
+      method: "POST",
+      body: {
           adapter: {
             kind: "managed_provider",
             id: "service_smoke_provider",
@@ -232,8 +236,10 @@ async function main(): Promise<void> {
             actor: "service-smoke-approver",
             deliveryPath: "managed_provider",
             approvedTargetLimit: 1,
-            approvedAt: "2026-05-30T01:00:00.000Z",
+            approvedAt: providerAuthorizationApprovedAt.toISOString(),
+            expiresAt: providerAuthorizationExpiresAt.toISOString(),
             reference: "service-smoke-launch-approval",
+            evidenceUrl: "https://docs.graphed.com/approvals/service-smoke-launch-approval",
             notes: "Local smoke authorization; not live Instagram delivery."
           }
         }
@@ -423,6 +429,10 @@ async function runManualServicePath(protectedFetch: ProtectedFetch) {
     );
   }
 
+  const manualAuthorizationApprovedAt = new Date();
+  const manualAuthorizationExpiresAt = new Date(
+    manualAuthorizationApprovedAt.getTime() + 7 * 24 * 60 * 60 * 1000
+  );
   const execution = await protectedFetch<ExecutionResponse>(
     `/campaigns/${campaign.campaignId}/executions`,
     {
@@ -433,8 +443,10 @@ async function runManualServicePath(protectedFetch: ProtectedFetch) {
           actor: "service-smoke-approver",
           deliveryPath: "manual",
           approvedTargetLimit: 2,
-          approvedAt: "2026-05-30T01:00:00.000Z",
+          approvedAt: manualAuthorizationApprovedAt.toISOString(),
+          expiresAt: manualAuthorizationExpiresAt.toISOString(),
           reference: "service-smoke-manual-launch-approval",
+          evidenceUrl: "https://docs.graphed.com/approvals/service-smoke-manual-launch-approval",
           notes: "Compiled-service manual path smoke; no live Instagram delivery."
         }
       }

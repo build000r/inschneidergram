@@ -13,18 +13,26 @@ function launchAuthorization(
     actor: string;
     approvedTargetLimit: number;
     approvedAt: string;
+    expiresAt: string;
     reference: string;
     evidenceUrl: string;
     notes: string;
   }> = {}
 ) {
+  const approvedAt = overrides.approvedAt ?? new Date().toISOString();
+  const expiresAt =
+    overrides.expiresAt ??
+    new Date(Date.parse(approvedAt) + 7 * 24 * 60 * 60 * 1000).toISOString();
   return {
     actor: overrides.actor ?? "graphed-approver",
     deliveryPath,
     approvedTargetLimit: overrides.approvedTargetLimit ?? 10,
-    approvedAt: overrides.approvedAt ?? "2026-05-30T01:00:00.000Z",
+    approvedAt,
+    expiresAt,
     reference: overrides.reference ?? `${deliveryPath}-launch-approval`,
-    ...(overrides.evidenceUrl ? { evidenceUrl: overrides.evidenceUrl } : {}),
+    evidenceUrl:
+      overrides.evidenceUrl ??
+      `https://docs.graphed.com/approvals/${deliveryPath}-launch-approval`,
     ...(overrides.notes ? { notes: overrides.notes } : {})
   };
 }
@@ -1291,6 +1299,38 @@ describe("API", () => {
     });
     expect(mismatchedPath.statusCode).toBe(409);
     expect(mismatchedPath.json().message).toContain("does not match adapter kind manual");
+
+    const { evidenceUrl: _missingEvidenceUrl, ...missingEvidenceAuthorization } =
+      launchAuthorization("manual", {
+        approvedTargetLimit: 2,
+        reference: "missing-evidence-launch"
+      });
+    const missingEvidence = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" },
+        launchAuthorization: missingEvidenceAuthorization
+      }
+    });
+    expect(missingEvidence.statusCode).toBe(400);
+    expect(JSON.stringify(missingEvidence.json().issues)).toContain("evidenceUrl");
+
+    const expiredAuthorization = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 2,
+          approvedAt: "2026-05-01T01:00:00.000Z",
+          expiresAt: "2026-05-02T01:00:00.000Z",
+          reference: "expired-launch"
+        })
+      }
+    });
+    expect(expiredAuthorization.statusCode).toBe(409);
+    expect(expiredAuthorization.json().message).toContain("expired");
 
     const tooSmall = await app.inject({
       method: "POST",
@@ -4455,7 +4495,9 @@ describe("API", () => {
                       "deliveryPath",
                       "approvedTargetLimit",
                       "approvedAt",
-                      "reference"
+                      "expiresAt",
+                      "reference",
+                      "evidenceUrl"
                     ])
                   }),
                   deliveryPathOptions: expect.objectContaining({
@@ -4591,7 +4633,9 @@ describe("API", () => {
                     "deliveryPath",
                     "approvedTargetLimit",
                     "approvedAt",
-                    "reference"
+                    "expiresAt",
+                    "reference",
+                    "evidenceUrl"
                   ]
                 }),
                 replyAssessments: expect.any(Object)

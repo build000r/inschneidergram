@@ -187,7 +187,8 @@ The current implementation covers:
     stop conditions, and proof-review state for a campaign.
 21. Manual and managed-provider executions require structured launch
     authorization with actor, delivery path, approved target limit, approval
-    timestamp, and reference; proof exports preserve that authorization.
+    timestamp, expiry timestamp, reference, and evidence URL; proof exports
+    preserve that authorization.
 22. Follow-up work can be inspected after execution with due/pending counts,
     sequence, message, sender, target, and preserved creator provenance.
 23. OpenAPI documents the runtime pilot contract closely enough for a local

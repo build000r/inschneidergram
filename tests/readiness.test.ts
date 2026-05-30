@@ -11,7 +11,9 @@ function launchAuthorization() {
     deliveryPath: "manual" as const,
     approvedTargetLimit: 2,
     approvedAt: "2026-05-30T01:00:00.000Z",
-    reference: "launch-ticket-1"
+    expiresAt: "2026-06-06T01:00:00.000Z",
+    reference: "launch-ticket-1",
+    evidenceUrl: "https://docs.graphed.com/approvals/launch-ticket-1"
   };
 }
 
