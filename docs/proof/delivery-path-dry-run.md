@@ -1,11 +1,11 @@
 # Bounty Local Proof Dossier
 
-Generated: 2026-05-30T10:08:31Z
+Generated: 2026-05-30T10:21:57Z
 
-Validation run base: `8f6bdee`
+Validation run base: `06ad07b`
 
-Validation target: the working tree after the live pilot intake kit slice. The
-next commit records this proof refresh with the implementation.
+Validation target: the working tree after the live pilot intake API rehearsal
+slice. The next commit records this proof refresh with the implementation.
 
 Runtime:
 
@@ -25,23 +25,25 @@ Risk posture:
 
 This is the credential-free proof surface for the current repo. It proves the
 API/control-plane, manual-pilot, managed-provider contract, launch packet,
-operator dashboard, proof export, runtime-secret, and webhook-proof surfaces are
-intact. It does not claim live Instagram delivery or completed Graphed outreach.
+operator dashboard, proof export, live-intake handoff, runtime-secret, and
+webhook-proof surfaces are intact. It does not claim live Instagram delivery or
+completed Graphed outreach.
 
 ## Validation Summary
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, pilot intake validation, MMDX preflight, and MMDX publish dry-run |
+| `npm run proof:bounty-local` | Passed | one-command evaluator proof across local gates, pilot intake validation/rehearsal, MMDX preflight, and MMDX publish dry-run |
 | `npm test` | Passed | 13 files, 112 tests |
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exited 0 |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exited 0 |
 | `npm run pilot:intake:validate` | Passed | example live pilot campaign/sender/authorization/webhook intake scheduled 3 targets with one healthy manual sender |
+| `npm run pilot:intake:rehearse` | Passed | example intake files created sender, campaign, approval, manual execution, handoff, dashboard, and manual queue state up to `awaiting_manual_evidence` |
 | `npm run smoke:service` | Passed | builds first, then API-key service smoke reached `evidence_ready` for provider and manual paths and verified the operator dashboard |
 | `npm run demo:manual-pilot` | Passed | strict-provenance manual rehearsal reached `evidence_ready` |
 | `npm run demo:pilot` | Passed | deterministic mock proof-pack demo recommended iteration |
 | `python3 <mmdx-skill>/scripts/mmd.py diagrams/inschneidergram-project-status.mmdx --preflight-only` | Passed | 10 charts |
-| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `167a5f3012a8822d3357cde0a273d2dcbbc52983bf23604bcc79d960b1b74663` |
+| `npm run status:mmdx:dry-run` | Passed | target `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`, source hash `817286f062e4584b85799588f61ee04f848bfcbb970b23cb713bd0f23c5669b7` |
 
 ## Live Pilot Intake Validation
 
@@ -61,6 +63,54 @@ This proves the handoff files for campaign creation, sender inventory, launch
 authorization, and callback configuration are executable. It still does not
 prove that the private Graphed creator list, sender account, or authorization
 has been supplied.
+
+## Live Pilot Intake API Rehearsal
+
+`npm run pilot:intake:rehearse` takes the validated intake files through the
+in-memory API and stops before any fake delivery evidence is recorded:
+
+```text
+Readiness after execution: awaiting_manual_evidence
+Pending manual evidence: 3
+```
+
+Machine summary from the proof run:
+
+```json
+{
+  "campaignSummary": {
+    "total": 3,
+    "scheduled": 3,
+    "blockedPolicy": 0,
+    "skippedDuplicate": 0
+  },
+  "readinessAfterExecution": {
+    "status": "awaiting_manual_evidence",
+    "readyForExecution": true,
+    "readyForEvidenceReview": false,
+    "pendingManualEvidence": 3,
+    "externalInputs": ["operator delivery evidence"]
+  },
+  "manualQueue": {
+    "pendingInitialEvidence": 3,
+    "replyMonitoring": 0,
+    "done": 0,
+    "items": 3
+  },
+  "operatorDashboard": {
+    "campaigns": 1,
+    "awaitingManualEvidence": 1,
+    "manualQueuePending": 3,
+    "senderBlocked": 0,
+    "deadLetters": 0
+  }
+}
+```
+
+This proves the intake handoff can create actionable API state: sender
+inventory, campaign scheduling, creator/copy approval, operator claims, manual
+execution, handoff, dashboard, and manual queue. It intentionally keeps the
+remaining live-pilot blocker on operator evidence.
 
 ## Service Smoke Evidence
 
@@ -116,6 +166,8 @@ What this proves:
 - `GET /pilot-launch-packet` exposes the pre-campaign private-input checklist.
 - `npm run pilot:intake:validate` exercises the private-input file contract
   before campaign creation.
+- `npm run pilot:intake:rehearse` turns that contract into actionable manual
+  queue state without recording fake live proof.
 - `GET /operator/dashboard` aggregates readiness, manual queue, sender health,
   runtime dead-letter, proof, and urgent-action status under API key auth.
 - Provider-reported execution can produce a proof export and readiness state.
@@ -286,6 +338,9 @@ authorization.
   `npm run proof:bounty-local`.
 - The live pilot intake files can be validated before private campaign creation
   with `npm run pilot:intake:validate`.
+- The live pilot intake files can be rehearsed through campaign creation,
+  approval, manual execution, handoff, dashboard, and manual queue creation
+  with `npm run pilot:intake:rehearse`.
 - Production or non-loopback startup requires strong API and webhook secrets.
 - Public webhook destinations are DNS-checked and the sender uses the
   prevalidated DNS addresses for the outbound request.

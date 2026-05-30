@@ -34,6 +34,8 @@ content collaborations, or qualified pipeline.
 - validated intake files for campaign, sender inventory, launch authorization,
   and webhook configuration; run `npm run pilot:intake:validate` before campaign
   creation
+- rehearsal of those files through the API up to `awaiting_manual_evidence`
+  with `npm run pilot:intake:rehearse`
 
 ## Launch Readiness
 
@@ -46,6 +48,9 @@ The companion [PILOT_INTAKE_KIT.md](PILOT_INTAKE_KIT.md) turns those inputs
 into executable JSON templates and validates them against the current campaign,
 sender, authorization, and webhook contracts before any private campaign is
 created.
+`npm run pilot:intake:rehearse` then proves the files can create the real
+sender, campaign, approval, manual execution, handoff, dashboard, and manual
+queue state without inventing live delivery evidence.
 
 Before running a created campaign, Graphed or the operator should call
 `GET /campaigns/:id/readiness`. The report classifies the campaign as blocked,

@@ -73,13 +73,22 @@ npm run pilot:intake:validate -- \
   --senders /path/to/live-pilot-senders.json \
   --authorization /path/to/live-pilot-launch-authorization.json \
   --webhook /path/to/live-pilot-webhook.json
+
+npm run pilot:intake:rehearse -- \
+  --campaign /path/to/live-pilot-campaign.json \
+  --senders /path/to/live-pilot-senders.json \
+  --authorization /path/to/live-pilot-launch-authorization.json \
+  --webhook /path/to/live-pilot-webhook.json
 ```
 
 The default command validates the public examples in `examples/`. The private
 filled files should keep creator targets, sender credential ownership, approval
 references, and callback configuration in the operator handoff system, not in
-the public repo. See [PILOT_INTAKE_KIT.md](PILOT_INTAKE_KIT.md) for the file
-contracts and validation gates.
+the public repo. The rehearsal command creates the in-memory API state up to
+`awaiting_manual_evidence` and prints the campaign, readiness, handoff,
+execution, manual queue, proof, and dashboard URLs for the operator. See
+[PILOT_INTAKE_KIT.md](PILOT_INTAKE_KIT.md) for the file contracts and
+validation gates.
 
 ## Service Preflight
 

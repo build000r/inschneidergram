@@ -45,7 +45,7 @@ This repo currently contains the API/control-plane MVP:
 | Pre-campaign launch packet | Working MVP | `GET /pilot-launch-packet` exports private-input requirements before a campaign exists |
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
 | Pilot handoff packet | Working MVP | `GET /campaigns/:id/pilot-handoff` turns readiness into operator actions |
-| Live pilot intake kit | Working MVP | `docs/PILOT_INTAKE_KIT.md`, `npm run pilot:intake:validate` |
+| Live pilot intake kit | Working MVP | `docs/PILOT_INTAKE_KIT.md`, `npm run pilot:intake:validate`, `npm run pilot:intake:rehearse` |
 | Operator dashboard | Working MVP | `GET /operator/dashboard` aggregates readiness, manual queue, sender health, follow-ups, proof, and runtime dead letters |
 | Bounty evaluator proof | Working MVP | `docs/BOUNTY_SUBMISSION.md`, `npm run proof:bounty-local` |
 | Launch authorization gate | Working MVP | manual/provider execution requires a structured approval reference |
@@ -69,6 +69,7 @@ This repo currently contains the API/control-plane MVP:
 npm install
 npm run proof:bounty-local
 npm run pilot:intake:validate
+npm run pilot:intake:rehearse
 npm test
 npm run build
 npm run smoke:service
@@ -79,8 +80,8 @@ npm run dev
 
 For bounty review, `npm run proof:bounty-local` is the one-command local proof
 gate. It runs the test, typecheck, build, service-smoke, manual-rehearsal,
-pilot-intake validation, mock-demo, MMDX preflight, and MMDX publish dry-run
-checks without requiring Instagram credentials.
+pilot-intake validation/rehearsal, mock-demo, MMDX preflight, and MMDX publish
+dry-run checks without requiring Instagram credentials.
 
 By default, the built server persists campaigns to `.data/campaigns.json`.
 Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
@@ -139,11 +140,15 @@ Validate the live pilot intake files before creating a private campaign:
 
 ```bash
 npm run pilot:intake:validate
+npm run pilot:intake:rehearse
 ```
 
 The intake kit in [docs/PILOT_INTAKE_KIT.md](docs/PILOT_INTAKE_KIT.md)
 validates campaign, sender, launch-authorization, and webhook JSON against the
-same schemas used by the API.
+same schemas used by the API. The rehearsal command then drives the files
+through the in-memory API up to `awaiting_manual_evidence`, proving the handoff
+creates sender inventory, campaign state, approvals, manual execution, handoff,
+dashboard, and manual queue without recording fake live evidence.
 
 When `INSCHNEIDERGRAM_API_KEY` is set, all routes except `GET /health`,
 `GET /openapi.json`, and CORS `OPTIONS` preflight require either:

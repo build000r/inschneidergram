@@ -61,6 +61,28 @@ Pilot intake validation passed.
 - webhook: https://hooks.graphed.com/inschneidergram/events
 ```
 
+## Rehearse API Handoff
+
+After validation, run the intake through the API without sending or faking live
+Instagram delivery:
+
+```bash
+npm run pilot:intake:rehearse
+```
+
+The rehearsal registers the selected non-secret senders, creates the campaign,
+approves and claims the scheduled targets, posts a manual execution with the
+validated `launchAuthorization`, fetches the handoff and operator dashboard,
+and stops at `awaiting_manual_evidence`. It proves the intake files can become
+real API state while keeping the live proof gap honest.
+
+Expected default output includes:
+
+```text
+Readiness after execution: awaiting_manual_evidence
+Pending manual evidence: 3
+```
+
 ## Live Pilot Use
 
 After validation passes:

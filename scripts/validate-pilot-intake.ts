@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z, ZodError } from "zod";
 import {
   createCampaign,
@@ -10,19 +11,19 @@ import {
 import { launchAuthorizationSchema } from "../src/domain/launchAuthorization.js";
 import { senderAccountSchema } from "../src/domain/sender.js";
 
-const defaultPaths = {
+export const defaultPilotIntakePaths = {
   campaign: "examples/live-pilot-campaign.example.json",
   senders: "examples/live-pilot-senders.example.json",
   authorization: "examples/live-pilot-launch-authorization.example.json",
   webhook: "examples/live-pilot-webhook.example.json"
 };
 
-const sendersFileSchema = z.object({
+export const pilotIntakeSendersFileSchema = z.object({
   senders: z.array(senderAccountSchema).min(1),
   privateInputsNotInGit: z.array(z.string().min(1)).min(1).default([])
 });
 
-const webhookFileSchema = z.object({
+export const pilotIntakeWebhookFileSchema = z.object({
   callbackUrl: z.string().url(),
   allowedHosts: z.array(z.string().min(1)).min(1),
   signingSecretOwner: z.string().min(1),
@@ -31,17 +32,45 @@ const webhookFileSchema = z.object({
   notes: z.string().min(1).optional()
 });
 
-type ParsedArgs = typeof defaultPaths;
+export type PilotIntakePaths = typeof defaultPilotIntakePaths;
+export type PilotIntakeSendersFile = z.infer<typeof pilotIntakeSendersFileSchema>;
+export type PilotIntakeWebhookFile = z.infer<typeof pilotIntakeWebhookFileSchema>;
+export type PilotIntakeLaunchAuthorization = z.infer<typeof launchAuthorizationSchema>;
+
+export interface PilotIntakeKit {
+  campaignInput: CreateCampaignInput;
+  sendersInput: PilotIntakeSendersFile;
+  launchAuthorization: PilotIntakeLaunchAuthorization;
+  webhook: PilotIntakeWebhookFile;
+}
 
 async function main(): Promise<void> {
-  const paths = parseArgs(process.argv.slice(2));
+  const paths = parsePilotIntakeArgs(process.argv.slice(2));
+  const kit = await loadPilotIntakeKit(paths);
+  assertPilotIntakeKit(kit);
+
+  const selectedSenders = selectedPilotSenderAccounts(
+    kit.campaignInput,
+    kit.sendersInput.senders
+  );
+  const validationCampaign = createPilotIntakeValidationCampaign(kit);
+
+  console.log("Pilot intake validation passed.");
+  console.log(`- campaign: ${kit.campaignInput.campaign}`);
+  console.log(`- targets scheduled: ${validationCampaign.summary.scheduled}`);
+  console.log(`- selected senders: ${selectedSenders.map((sender) => sender.id).join(", ")}`);
+  console.log(`- delivery path: ${kit.launchAuthorization.deliveryPath}`);
+  console.log(`- webhook: ${kit.webhook.callbackUrl}`);
+}
+
+export async function loadPilotIntakeKit(paths: PilotIntakePaths): Promise<PilotIntakeKit> {
   const campaignInput = parseWith(
     createCampaignSchema,
     await readJson(paths.campaign),
     "campaign"
   );
   const sendersInput = parseWith(
-    sendersFileSchema,
+    pilotIntakeSendersFileSchema,
     await readJson(paths.senders),
     "senders"
   );
@@ -51,17 +80,21 @@ async function main(): Promise<void> {
     "launch authorization"
   );
   const webhook = parseWith(
-    webhookFileSchema,
+    pilotIntakeWebhookFileSchema,
     await readJson(paths.webhook),
     "webhook"
   );
 
-  const errors = validateLivePilotKit({
+  return {
     campaignInput,
     sendersInput,
     launchAuthorization,
     webhook
-  });
+  };
+}
+
+export function assertPilotIntakeKit(kit: PilotIntakeKit): void {
+  const errors = validateLivePilotKit(kit);
 
   if (errors.length > 0) {
     throw new Error(
@@ -71,33 +104,25 @@ async function main(): Promise<void> {
       ].join("\n")
     );
   }
-
-  const selectedSenders = selectedSenderAccounts(campaignInput, sendersInput.senders);
-  const validationCampaign = createCampaign(
-    {
-      ...campaignInput,
-      settings: {
-        ...campaignInput.settings,
-        senderAccounts: selectedSenders
-      }
-    },
-    new Date(launchAuthorization.approvedAt)
-  );
-
-  console.log("Pilot intake validation passed.");
-  console.log(`- campaign: ${campaignInput.campaign}`);
-  console.log(`- targets scheduled: ${validationCampaign.summary.scheduled}`);
-  console.log(`- selected senders: ${selectedSenders.map((sender) => sender.id).join(", ")}`);
-  console.log(`- delivery path: ${launchAuthorization.deliveryPath}`);
-  console.log(`- webhook: ${webhook.callbackUrl}`);
 }
 
-function validateLivePilotKit(input: {
-  campaignInput: CreateCampaignInput;
-  sendersInput: z.infer<typeof sendersFileSchema>;
-  launchAuthorization: z.infer<typeof launchAuthorizationSchema>;
-  webhook: z.infer<typeof webhookFileSchema>;
-}): string[] {
+export function createPilotIntakeValidationCampaign(kit: PilotIntakeKit) {
+  return createCampaign(
+    {
+      ...kit.campaignInput,
+      settings: {
+        ...kit.campaignInput.settings,
+        senderAccounts: selectedPilotSenderAccounts(
+          kit.campaignInput,
+          kit.sendersInput.senders
+        )
+      }
+    },
+    new Date(kit.launchAuthorization.approvedAt)
+  );
+}
+
+function validateLivePilotKit(input: PilotIntakeKit): string[] {
   const errors: string[] = [];
   const { campaignInput, sendersInput, launchAuthorization, webhook } = input;
 
@@ -128,7 +153,7 @@ function validateLivePilotKit(input: {
     );
   }
 
-  const selectedSenders = selectedSenderAccounts(campaignInput, sendersInput.senders);
+  const selectedSenders = selectedPilotSenderAccounts(campaignInput, sendersInput.senders);
   if (selectedSenders.every((sender) => sender.status !== "healthy")) {
     errors.push("at least one selected sender must be healthy.");
   }
@@ -155,16 +180,7 @@ function validateLivePilotKit(input: {
   errors.push(...validateWebhookDestination(webhook.callbackUrl, webhook.allowedHosts));
 
   try {
-    const validationCampaign = createCampaign(
-      {
-        ...campaignInput,
-        settings: {
-          ...campaignInput.settings,
-          senderAccounts: selectedSenders
-        }
-      },
-      new Date(launchAuthorization.approvedAt)
-    );
+    const validationCampaign = createPilotIntakeValidationCampaign(input);
     if (validationCampaign.summary.blockedPolicy > 0) {
       errors.push(
         `campaign validation produced ${validationCampaign.summary.blockedPolicy} policy-blocked target(s).`
@@ -189,7 +205,7 @@ function validateLivePilotKit(input: {
   return errors;
 }
 
-function selectedSenderAccounts(
+export function selectedPilotSenderAccounts(
   campaignInput: CreateCampaignInput,
   senders: z.infer<typeof senderAccountSchema>[]
 ): z.infer<typeof senderAccountSchema>[] {
@@ -323,8 +339,8 @@ function formatZodError(error: ZodError): string {
     .join("\n");
 }
 
-function parseArgs(argv: string[]): ParsedArgs {
-  const paths = { ...defaultPaths };
+export function parsePilotIntakeArgs(argv: string[]): PilotIntakePaths {
+  const paths = { ...defaultPilotIntakePaths };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--help" || arg === "-h") {
@@ -352,7 +368,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   return paths;
 }
 
-function isPathKey(value: string): value is keyof ParsedArgs {
+function isPathKey(value: string): value is keyof PilotIntakePaths {
   return (
     value === "campaign" ||
     value === "senders" ||
@@ -371,14 +387,16 @@ Options:
   --webhook <path>        callback and allowlist JSON
 
 Defaults:
-  --campaign ${defaultPaths.campaign}
-  --senders ${defaultPaths.senders}
-  --authorization ${defaultPaths.authorization}
-  --webhook ${defaultPaths.webhook}`);
+  --campaign ${defaultPilotIntakePaths.campaign}
+  --senders ${defaultPilotIntakePaths.senders}
+  --authorization ${defaultPilotIntakePaths.authorization}
+  --webhook ${defaultPilotIntakePaths.webhook}`);
   process.exit(0);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}
