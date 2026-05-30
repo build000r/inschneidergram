@@ -17,6 +17,8 @@ content collaborations, or qualified pipeline.
 ## Pilot Inputs
 
 - 50-200 vetted Instagram creator profiles
+- source and fit rationale for every creator target when strict provenance is
+  enabled
 - one campaign offer
 - one approved first-touch message or template
 - creator approval criteria and approving actor
@@ -38,6 +40,9 @@ creator approvals, approved copy, a healthy sender/provider, operator evidence,
 or launch permission are still missing.
 For campaigns scheduled from managed sender ids, readiness rechecks the current
 stored sender inventory so post-creation lockouts or cooldowns block launch.
+For strict pilot intake, set `settings.requireTargetProvenance=true`; readiness
+then requires every accepted creator target to carry both `source` and
+`fitReason`.
 
 ## Success Thresholds
 
@@ -45,6 +50,7 @@ The exact thresholds should be negotiated with Graphed before the pilot. The
 default proof pack should include:
 
 - accepted targets
+- vetted/provenance-backed targets
 - approved targets
 - approved first-touch copy
 - contacted targets

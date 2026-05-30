@@ -15,6 +15,7 @@
 flowchart LR
   bounty["Bounty: managed Instagram creator outreach"]
   api["GREEN API control plane MVP"]
+  creatorIntake["GREEN Creator provenance intake"]
   store["GREEN Durable local store + idempotency"]
   approvalApi["GREEN Persisted approval + operator state API"]
   providerContract["GREEN Managed-provider contract surface"]
@@ -35,6 +36,7 @@ flowchart LR
   statusLink["YELLOW Public Buildooor short link blocked by inschneidergram-j8b.7"]
   next["Next: real delivery ops + live pilot"]
   bounty --> api
+  api --> creatorIntake
   api --> store
   api --> approvalApi
   bounty --> providerContract
@@ -42,6 +44,8 @@ flowchart LR
   providerContract --> delivery
   bounty --> ops
   api --> proof
+  creatorIntake --> proof
+  creatorIntake --> readiness
   proof --> proofExport
   proof --> webhookRuntime
   webhookRuntime --> webhookGuard
@@ -61,6 +65,7 @@ flowchart LR
   delivery --> beads
   ops --> beads
   runner --> beads
+  creatorIntake --> beads
   proof --> beads
   proofExport --> beads
   webhookRuntime --> beads
@@ -73,6 +78,7 @@ flowchart LR
   statusLink --> beads
   beads --> next
   class api green
+  class creatorIntake green
   class store green
   class approvalApi green
   class providerContract green
@@ -103,6 +109,7 @@ gantt
   dateFormat YYYY-MM-DD
   section GREEN Working
   GREEN Campaign API MVP :done, 2026-05-30, 1d
+  GREEN Creator provenance intake :done, 2026-05-30, 1d
   GREEN Durable store and approvals :done, 2026-05-30, 1d
   GREEN Persisted approval + operator state API :done, 2026-05-30, 1d
   GREEN Proof pack generator :done, 2026-05-30, 1d
@@ -130,6 +137,7 @@ gantt
 ```mermaid
 flowchart TD
   api["DONE GREEN API contract"]
+  creatorIntake["DONE GREEN Creator provenance intake"]
   store["DONE GREEN Persistent store + suppression"]
   approval["DONE GREEN Approval + operator workbench API/domain"]
   providerContract["DONE GREEN Managed-provider contract surface"]
@@ -149,12 +157,15 @@ flowchart TD
   statusLink["BLOCKED YELLOW Public MMDX short link inschneidergram-j8b.7"]
   pilot["FUTURE YELLOW Graphed pilot covered by inschneidergram-j8b"]
   api --> store
+  api --> creatorIntake
   api --> approval
   api --> providerContract
   providerContract --> adapter
   store --> webhooks
   webhooks --> webhookGuard
   webhookGuard --> proof
+  creatorIntake --> proof
+  creatorIntake --> readiness
   approval --> proof
   adapter --> sender
   sender --> proof
@@ -177,6 +188,7 @@ flowchart TD
   rehearsal --> pilot
   serviceSmoke --> pilot
   class api green
+  class creatorIntake green
   class store green
   class approval green
   class providerContract green
@@ -211,7 +223,7 @@ sequenceDiagram
   G->>I: send X-API-Key or bearer token when deployed
   G->>I: PUT /senders/:id for non-secret sender inventory
   G->>I: POST /campaigns
-  I->>I: validate, guard webhook URL, normalize, suppress, schedule from sender inventory
+  I->>I: validate, guard webhook URL, preserve creator provenance, normalize, suppress, schedule from sender inventory
   G->>I: POST /campaigns/:id/approval-workbench
   I->>I: persist creator and copy approvals
   G->>I: claim, skip, or block approved candidates
@@ -269,7 +281,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/auth/runtime-webhooks/webhook-guard/operator-proof/readiness/openapi/manual-rehearsal/runtime/domain"]
+  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/auth/runtime-webhooks/webhook-guard/creator-provenance/operator-proof/readiness/openapi/manual-rehearsal/runtime/domain"]
   typecheck["GREEN typecheck green"]
   smoke["GREEN npm run smoke:service passed with API key enabled"]
   mmdx["GREEN MMDX preflight passed"]
@@ -298,7 +310,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/auth/runtime-webhooks/webhook-guard/service-smoke/proof/openapi/rehearsal claims"]
+  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/auth/runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/rehearsal claims"]
   beads["YELLOW Beads keep live ops and pilot gap open"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -314,7 +326,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, sender inventory, approval/operator API, operator manual queue, managed-provider outcome contract, execution readiness enforcement, latest proof export, optional API key gate, runtime webhook callbacks, webhook destination guard, service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
+  now["Current: API, creator provenance intake, durable store, sender inventory, approval/operator API, operator manual queue, managed-provider outcome contract, execution readiness enforcement, latest proof export, optional API key gate, runtime webhook callbacks, webhook destination guard, service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
   link["Blocked next: mint public Buildooor MMDX short link (inschneidergram-j8b.7)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]
@@ -347,6 +359,8 @@ erDiagram
     string status
     string sender
     datetime scheduledAt
+    string source
+    string fitReason
   }
   SENDER_ACCOUNT {
     string id

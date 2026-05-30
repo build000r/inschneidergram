@@ -24,6 +24,7 @@ const defaultCampaignSettings = {
   minDelaySeconds: 90,
   maxDelaySeconds: 420,
   senderPool: ["unassigned"],
+  requireTargetProvenance: false,
   dryRun: true,
   followUps: []
 } satisfies {
@@ -32,6 +33,7 @@ const defaultCampaignSettings = {
   maxDelaySeconds: number;
   senderPool: string[];
   senderAccounts?: SenderAccount[];
+  requireTargetProvenance: boolean;
   dryRun: boolean;
   followUps: Array<{ delayHours: number; message: string }>;
 };
@@ -44,6 +46,7 @@ const campaignSettingsSchema = z
     senderPool: z.array(z.string().min(1)).min(1).default(["unassigned"]),
     senderAccounts: z.array(senderAccountSchema).max(100).optional(),
     webhookUrl: z.string().url().optional(),
+    requireTargetProvenance: z.boolean().default(false),
     dryRun: z.boolean().default(true),
     followUps: z
       .array(
@@ -57,9 +60,22 @@ const campaignSettingsSchema = z
   })
   .default(defaultCampaignSettings);
 
+const creatorProfileInputSchema = z.object({
+  target: z.string().min(1),
+  profileUrl: z.string().url().optional(),
+  displayName: z.string().min(1).max(200).optional(),
+  source: z.string().min(1).max(200).optional(),
+  fitReason: z.string().min(1).max(1000).optional(),
+  tags: z.array(z.string().min(1).max(80)).max(20).default([]),
+  followerCount: z.number().int().min(0).optional(),
+  engagementRate: z.number().min(0).max(100).optional()
+});
+
+const targetInputSchema = z.union([z.string().min(1), creatorProfileInputSchema]);
+
 export const createCampaignSchema = z.object({
   idempotencyKey: z.string().min(8).max(200).optional(),
-  targets: z.array(z.string().min(1)).min(1).max(5000),
+  targets: z.array(targetInputSchema).min(1).max(5000),
   message: z.string().min(1).max(1000).optional(),
   template: z
     .object({
@@ -94,7 +110,19 @@ export const createCampaignSchema = z.object({
 });
 
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
+export type CreatorProfileInput = z.infer<typeof creatorProfileInputSchema>;
 export type TargetEventInput = z.infer<typeof targetEventSchema>;
+
+export interface CreatorProfile {
+  target: string;
+  profileUrl?: string;
+  displayName?: string;
+  source?: string;
+  fitReason?: string;
+  tags: string[];
+  followerCount?: number;
+  engagementRate?: number;
+}
 
 export type CampaignStatus = "queued" | "running" | "completed" | "failed";
 export type TargetStatus =
@@ -112,6 +140,7 @@ export interface CampaignTarget {
   status: TargetStatus;
   sender: string | null;
   scheduledAt: string | null;
+  profile?: CreatorProfile;
   messageId?: string;
   error?: string;
   events: Array<{
@@ -175,6 +204,7 @@ export function createCampaign(
       maxDelaySeconds: parsed.settings.maxDelaySeconds,
       senderPool: parsed.settings.senderPool,
       senderAccounts: senderInventory,
+      requireTargetProvenance: parsed.settings.requireTargetProvenance,
       dryRun: parsed.settings.dryRun,
       followUps: parsed.settings.followUps,
       webhookUrl: parsed.settings.webhookUrl
@@ -250,7 +280,9 @@ function buildTargets(
     (input.settings.minDelaySeconds + input.settings.maxDelaySeconds) / 2
   );
 
-  return input.targets.map((raw) => {
+  return input.targets.map((targetInput) => {
+    const raw = targetInputRaw(targetInput);
+    const profileInput = targetProfileInput(targetInput);
     let handle: string;
 
     try {
@@ -267,6 +299,8 @@ function buildTargets(
       };
     }
 
+    const profile = profileInput ? creatorProfileFromInput(profileInput) : undefined;
+
     if (seen.has(handle)) {
       return {
         raw,
@@ -274,6 +308,20 @@ function buildTargets(
         status: "skipped_duplicate",
         sender: null,
         scheduledAt: null,
+        ...(profile ? { profile } : {}),
+        events: []
+      };
+    }
+
+    if (input.settings.requireTargetProvenance && !hasCreatorProfileProvenance(profile)) {
+      return {
+        raw,
+        handle,
+        status: "blocked_policy",
+        sender: null,
+        scheduledAt: null,
+        ...(profile ? { profile } : {}),
+        error: "Creator provenance and fit rationale required",
         events: []
       };
     }
@@ -286,6 +334,7 @@ function buildTargets(
         status: "blocked_policy",
         sender: null,
         scheduledAt: null,
+        ...(profile ? { profile } : {}),
         error: "No healthy sender account available",
         events: []
       };
@@ -306,9 +355,39 @@ function buildTargets(
         spacingSeconds,
         sender.dailyLimit
       ),
+      ...(profile ? { profile } : {}),
       events: []
     };
   });
+}
+
+export function hasCreatorProfileProvenance(
+  profile: CreatorProfile | undefined
+): boolean {
+  return !!profile?.source && !!profile.fitReason;
+}
+
+function targetInputRaw(input: CreateCampaignInput["targets"][number]): string {
+  return typeof input === "string" ? input : input.target;
+}
+
+function targetProfileInput(
+  input: CreateCampaignInput["targets"][number]
+): CreatorProfileInput | null {
+  return typeof input === "string" ? null : input;
+}
+
+function creatorProfileFromInput(input: CreatorProfileInput): CreatorProfile {
+  return {
+    target: input.target,
+    ...(input.profileUrl ? { profileUrl: input.profileUrl } : {}),
+    ...(input.displayName ? { displayName: input.displayName } : {}),
+    ...(input.source ? { source: input.source } : {}),
+    ...(input.fitReason ? { fitReason: input.fitReason } : {}),
+    tags: input.tags,
+    ...(input.followerCount !== undefined ? { followerCount: input.followerCount } : {}),
+    ...(input.engagementRate !== undefined ? { engagementRate: input.engagementRate } : {})
+  };
 }
 
 function chooseSender(senderPool: SenderAccount[], targetIndex: number): SenderAccount {

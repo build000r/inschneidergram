@@ -151,6 +151,7 @@ describe("pilot proof pack", () => {
     expect(proofPack.metrics).toEqual({
       sourcedTargets: 6,
       acceptedTargets: 4,
+      vettedTargets: 0,
       approvedTargets: 3,
       approvedCopy: 1,
       contactedTargets: 3,
@@ -173,6 +174,7 @@ describe("pilot proof pack", () => {
       decision: "renew"
     });
     expect(proofPack.markdown).toContain("| Interested replies | 1 |");
+    expect(proofPack.markdown).toContain("| Vetted targets | 0 |");
     expect(proofPack.markdown).toContain("| Duplicate skips | 1 |");
     expect(proofPack.markdown).toContain("| Policy blocked targets | 1 |");
     expect(proofPack.markdown).toContain("| Operator skipped targets | 0 |");
@@ -235,6 +237,65 @@ describe("pilot proof pack", () => {
     expect(proofPack.markdown).toContain("| Policy blocked targets | 0 |");
     expect(proofPack.markdown).toContain("| Operator skipped targets | 1 |");
     expect(proofPack.markdown).toContain("| Operator blocked targets | 1 |");
+  });
+
+  it("counts vetted creator profiles in proof metrics", () => {
+    const campaign = createCampaign(
+      {
+        targets: [
+          {
+            target: "@vetted_creator",
+            source: "graphed-sheet:row-12",
+            fitReason: "Audience overlaps the affiliate offer"
+          },
+          "@unvetted_creator"
+        ],
+        message: "Open to an affiliate pilot?",
+        campaign: "profile-proof-pilot"
+      },
+      new Date("2026-05-30T01:00:00.000Z")
+    );
+
+    const proofPack = generatePilotProofPack({
+      campaign,
+      generatedAt: "2026-05-30T02:00:00.000Z"
+    });
+
+    expect(proofPack.metrics).toMatchObject({
+      sourcedTargets: 2,
+      acceptedTargets: 2,
+      vettedTargets: 1
+    });
+    expect(proofPack.markdown).toContain("| Vetted targets | 1 |");
+  });
+
+  it("does not count skipped duplicate profile evidence as vetted proof", () => {
+    const campaign = createCampaign(
+      {
+        targets: [
+          "@same_creator",
+          {
+            target: "https://instagram.com/same_creator",
+            source: "graphed-sheet:row-14",
+            fitReason: "Strong audience match"
+          }
+        ],
+        message: "Open to an affiliate pilot?",
+        campaign: "profile-proof-duplicate-pilot"
+      },
+      new Date("2026-05-30T01:00:00.000Z")
+    );
+
+    const proofPack = generatePilotProofPack({
+      campaign,
+      generatedAt: "2026-05-30T02:00:00.000Z"
+    });
+
+    expect(proofPack.metrics).toMatchObject({
+      acceptedTargets: 1,
+      vettedTargets: 0
+    });
+    expect(proofPack.markdown).toContain("| Vetted targets | 0 |");
   });
 
   it("recommends stopping when complaints or critical incidents appear", () => {

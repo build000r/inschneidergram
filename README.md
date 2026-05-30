@@ -23,6 +23,7 @@ This repo currently contains the first API/control-plane slice:
 | --- | --- | --- |
 | `POST /campaigns` API | Working MVP | `src/server.ts`, `tests/server.test.ts` |
 | Target normalization | Working MVP | `src/domain/handles.ts`, `tests/campaign.test.ts` |
+| Creator provenance intake | Working MVP | target profile objects, opt-in provenance gate, readiness/proof metrics |
 | Duplicate prevention | Working MVP | in-campaign dedupe plus persisted suppression records |
 | Safe sending limits and scheduling | Working MVP | per-sender limits, delay windows, domain tests |
 | Delivery/reply status tracking | Working MVP | `POST /campaigns/:id/events` |
@@ -160,7 +161,15 @@ curl -s http://127.0.0.1:3107/campaigns \
   -H 'content-type: application/json' \
   -H 'idempotency-key: client_creator_outreach_may_2026_batch_1' \
   -d '{
-    "targets": ["instagram_profile_1", "instagram_profile_2"],
+    "targets": [
+      {
+        "target": "instagram_profile_1",
+        "source": "graphed-sheet:row-12",
+        "fitReason": "Audience overlaps the affiliate offer",
+        "tags": ["fitness", "affiliate"]
+      },
+      "instagram_profile_2"
+    ],
     "message": "Hey - loved your content. Would you be open to an affiliate partnership?",
     "campaign": "client_creator_outreach_may_2026",
     "settings": {
@@ -168,10 +177,18 @@ curl -s http://127.0.0.1:3107/campaigns \
       "dailyLimitPerSender": 20,
       "minDelaySeconds": 90,
       "maxDelaySeconds": 420,
+      "requireTargetProvenance": true,
       "webhookUrl": "https://example.com/inschneidergram/events"
     }
   }'
 ```
+
+`targets` may be plain handles/URLs for local demos or profile objects for real
+pilot intake. Profile objects preserve provenance on the campaign target:
+`target`, optional `profileUrl`, `displayName`, `source`, `fitReason`, `tags`,
+`followerCount`, and `engagementRate`. Set `settings.requireTargetProvenance`
+to `true` for a live pilot so targets without both `source` and `fitReason` are
+blocked before scheduling. Dedupe still runs by normalized Instagram handle.
 
 Record a provider event:
 
@@ -330,7 +347,18 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions/<execution-id>/
 
 ```json
 {
-  "targets": ["instagram_profile_1", "instagram_profile_2"],
+  "targets": [
+    {
+      "target": "instagram_profile_1",
+      "profileUrl": "https://instagram.com/instagram_profile_1",
+      "source": "graphed-sheet:row-12",
+      "fitReason": "Audience overlaps the affiliate offer",
+      "tags": ["fitness", "affiliate"],
+      "followerCount": 24000,
+      "engagementRate": 4.2
+    },
+    "instagram_profile_2"
+  ],
   "message": "Hey - loved your content. Would you be open to an affiliate partnership?",
   "campaign": "client_creator_outreach_may_2026",
   "metadata": {
@@ -342,6 +370,7 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions/<execution-id>/
     "dailyLimitPerSender": 35,
     "minDelaySeconds": 90,
     "maxDelaySeconds": 420,
+    "requireTargetProvenance": true,
     "webhookUrl": "https://example.com/webhooks/inschneidergram",
     "dryRun": true,
     "followUps": [
@@ -361,6 +390,8 @@ campaigns also consult the persisted suppression records created by earlier
 campaigns, so previously scheduled handles are returned as `skipped_duplicate`.
 Responses include `senderHealth`; locked, cooling-down, or reconnect-required
 senders are blocked from scheduling and surfaced as account-health blockers.
+Responses also preserve `targets[].profile` for object targets, so the campaign
+record remains the source of truth for creator provenance and fit rationale.
 When a campaign omits inline `settings.senderAccounts`, the API uses the stored
 managed sender inventory. Unknown stored sender IDs are rejected instead of
 being treated as healthy synthetic senders. `settings.webhookUrl` must be a

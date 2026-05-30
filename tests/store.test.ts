@@ -62,6 +62,46 @@ describe("campaign stores", () => {
     ]);
   });
 
+  it("persists creator profile provenance in JSON campaign storage", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "inschneidergram-profiles-"));
+    const storePath = join(dir, "campaigns.json");
+
+    try {
+      const firstStore = new JsonFileCampaignStore(storePath);
+      const campaign = await firstStore.insert(
+        createCampaign({
+          targets: [
+            {
+              target: "@profile_creator",
+              source: "graphed-sheet:row-21",
+              fitReason: "Strong audience match",
+              tags: ["fitness"]
+            }
+          ],
+          message: "Hey",
+          campaign: "profile-persistence-pilot"
+        })
+      );
+
+      const secondStore = new JsonFileCampaignStore(storePath);
+      expect(await secondStore.get(campaign.id)).toMatchObject({
+        id: campaign.id,
+        targets: [
+          {
+            handle: "profile_creator",
+            profile: {
+              source: "graphed-sheet:row-21",
+              fitReason: "Strong audience match",
+              tags: ["fitness"]
+            }
+          }
+        ]
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("persists sender inventory and appends risk events atomically", async () => {
     const dir = await mkdtemp(join(tmpdir(), "inschneidergram-senders-"));
     const storePath = join(dir, "campaigns.json");

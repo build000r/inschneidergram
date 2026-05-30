@@ -1,5 +1,5 @@
 import type { ApprovalWorkbench } from "./approval.js";
-import type { Campaign } from "./campaign.js";
+import { hasCreatorProfileProvenance, type Campaign } from "./campaign.js";
 import type { CampaignExecutionRecord } from "./store.js";
 
 export type PilotReadinessStatus =
@@ -28,6 +28,7 @@ export interface PilotReadinessReport {
   counts: {
     sourcedTargets: number;
     acceptedTargets: number;
+    vettedTargets: number;
     availableSenders: number;
     approvedTargets: number;
     actionableApprovedTargets: number;
@@ -55,6 +56,9 @@ export function buildPilotReadinessReport(input: {
     input.campaign.summary.total -
     input.campaign.summary.skippedDuplicate -
     input.campaign.summary.blockedPolicy;
+  const vettedTargets = input.campaign.targets.filter((target) =>
+    isAcceptedTarget(target) && hasCreatorProfileProvenance(target.profile)
+  ).length;
   const approvedTargets = input.approvalWorkbench?.summary.candidates.approved ?? 0;
   const approvedCopy = input.approvalWorkbench?.summary.messages.approved ?? 0;
   const actionableApprovedTargets = countActionableApprovedTargets(input.approvalWorkbench);
@@ -84,6 +88,23 @@ export function buildPilotReadinessReport(input: {
         input.campaign.senderHealth.available > 0
           ? undefined
           : "Provide a healthy sender account or managed provider before execution."
+    },
+    {
+      id: "creator_vetting",
+      label: "Creator profile vetting",
+      status:
+        !input.campaign.settings.requireTargetProvenance ||
+        (acceptedTargets > 0 && vettedTargets >= acceptedTargets)
+          ? "pass"
+          : "fail",
+      detail: input.campaign.settings.requireTargetProvenance
+        ? `${vettedTargets}/${acceptedTargets} accepted target(s) include source and fit rationale.`
+        : `${vettedTargets} target(s) include source and fit rationale; provenance is optional for this campaign.`,
+      nextAction:
+        input.campaign.settings.requireTargetProvenance &&
+        !(acceptedTargets > 0 && vettedTargets >= acceptedTargets)
+          ? "Attach source and fit rationale to every accepted creator target."
+          : undefined
     },
     {
       id: "approval_workbench",
@@ -144,6 +165,7 @@ export function buildPilotReadinessReport(input: {
   const readyForExecution =
     !failedGateIds.has("target_intake") &&
     !failedGateIds.has("sender_health") &&
+    !failedGateIds.has("creator_vetting") &&
     !failedGateIds.has("approval_workbench") &&
     !failedGateIds.has("creator_approval") &&
     !failedGateIds.has("copy_approval");
@@ -170,6 +192,7 @@ export function buildPilotReadinessReport(input: {
     counts: {
       sourcedTargets: input.campaign.summary.total,
       acceptedTargets,
+      vettedTargets,
       availableSenders: input.campaign.senderHealth.available,
       approvedTargets,
       actionableApprovedTargets,
@@ -193,7 +216,11 @@ function classifyReadiness(input: {
   contactedTargets: number;
   interestedReplies: number;
 }): PilotReadinessStatus {
-  if (input.failedGateIds.has("target_intake") || input.failedGateIds.has("sender_health")) {
+  if (
+    input.failedGateIds.has("target_intake") ||
+    input.failedGateIds.has("sender_health") ||
+    input.failedGateIds.has("creator_vetting")
+  ) {
     return "blocked";
   }
   if (!input.readyForExecution) {
@@ -245,6 +272,9 @@ function externalInputsForGates(
     if (gate.id === "sender_health") {
       inputs.add("healthy sender account or managed provider");
     }
+    if (gate.id === "creator_vetting") {
+      inputs.add("creator provenance and fit rationale");
+    }
     if (gate.id === "approval_workbench" || gate.id === "creator_approval") {
       inputs.add("creator approval decision");
     }
@@ -261,4 +291,8 @@ function externalInputsForGates(
   }
 
   return [...inputs];
+}
+
+function isAcceptedTarget(target: Campaign["targets"][number]): boolean {
+  return target.status !== "skipped_duplicate" && target.status !== "blocked_policy";
 }

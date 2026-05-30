@@ -33,6 +33,122 @@ describe("API", () => {
     await app.close();
   });
 
+  it("accepts vetted creator profile objects in campaign creation", async () => {
+    const app = await buildServer({ webhookSecret: "test-secret" });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: [
+          {
+            target: "@vetted_creator",
+            profileUrl: "https://instagram.com/vetted_creator",
+            displayName: "Vetted Creator",
+            source: "graphed-sheet:row-12",
+            fitReason: "Audience overlaps the affiliate offer",
+            tags: ["fitness"],
+            followerCount: 24000,
+            engagementRate: 4.2
+          }
+        ],
+        message: "Hey - loved your content. Open to an affiliate partnership?",
+        campaign: "creator_profile_intake_pilot",
+        settings: {
+          requireTargetProvenance: true
+        }
+      }
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({
+      status: "queued",
+      summary: {
+        total: 1,
+        scheduled: 1,
+        blockedPolicy: 0
+      },
+      targets: [
+        {
+          handle: "vetted_creator",
+          profile: {
+            source: "graphed-sheet:row-12",
+            fitReason: "Audience overlaps the affiliate offer",
+            tags: ["fitness"]
+          }
+        }
+      ]
+    });
+
+    await app.close();
+  });
+
+  it("preserves mixed string and creator profile targets through campaign fetch", async () => {
+    const app = await buildServer({ webhookSecret: "test-secret" });
+
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: [
+          {
+            target: "@profile_creator",
+            source: "graphed-sheet:row-21",
+            fitReason: "Strong audience match"
+          },
+          "@string_creator"
+        ],
+        message: "Hey - loved your content. Open to an affiliate partnership?",
+        campaign: "mixed_creator_profile_intake"
+      }
+    });
+    expect(createResponse.statusCode).toBe(202);
+    expect(createResponse.json()).toMatchObject({
+      summary: {
+        scheduled: 2
+      },
+      targets: [
+        {
+          handle: "profile_creator",
+          profile: {
+            source: "graphed-sheet:row-21",
+            fitReason: "Strong audience match"
+          }
+        },
+        {
+          handle: "string_creator",
+          status: "scheduled"
+        }
+      ]
+    });
+
+    const fetchResponse = await app.inject({
+      method: "GET",
+      url: `/campaigns/${createResponse.json().campaignId}`
+    });
+    expect(fetchResponse.statusCode).toBe(200);
+    expect(fetchResponse.json().targets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          handle: "profile_creator",
+          profile: expect.objectContaining({
+            source: "graphed-sheet:row-21",
+            fitReason: "Strong audience match"
+          })
+        }),
+        expect.objectContaining({
+          handle: "string_creator"
+        })
+      ])
+    );
+    expect(
+      fetchResponse.json().targets.find((target: { handle: string }) => target.handle === "string_creator")
+        .profile
+    ).toBeUndefined();
+
+    await app.close();
+  });
+
   it("updates campaign status from provider events", async () => {
     const app = await buildServer();
     const createResponse = await app.inject({
@@ -3074,6 +3190,21 @@ describe("API", () => {
       required: ["targets", "campaign"],
       oneOf: [{ required: ["message"] }, { required: ["template"] }],
       properties: {
+        targets: {
+          items: {
+            oneOf: expect.arrayContaining([
+              expect.objectContaining({ type: "string" }),
+              expect.objectContaining({
+                type: "object",
+                required: ["target"],
+                properties: expect.objectContaining({
+                  source: expect.any(Object),
+                  fitReason: expect.any(Object)
+                })
+              })
+            ])
+          }
+        },
         template: {
           properties: {
             body: { type: "string" },
@@ -3099,6 +3230,9 @@ describe("API", () => {
                   riskEvents: expect.any(Object)
                 }
               }
+            },
+            requireTargetProvenance: {
+              type: "boolean"
             },
             followUps: {
               items: {

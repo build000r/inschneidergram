@@ -37,6 +37,113 @@ describe("campaign domain", () => {
     expect(campaign.targets[2]?.status).toBe("skipped_duplicate");
   });
 
+  it("preserves vetted creator profile evidence on campaign targets", () => {
+    const campaign = createCampaign({
+      targets: [
+        {
+          target: "@vetted_creator",
+          profileUrl: "https://instagram.com/vetted_creator",
+          displayName: "Vetted Creator",
+          source: "graphed-sheet:row-12",
+          fitReason: "Audience overlaps the affiliate offer",
+          tags: ["fitness", "affiliate"],
+          followerCount: 24000,
+          engagementRate: 4.2
+        }
+      ],
+      message: "Open to an affiliate pilot?",
+      campaign: "profile-intake-pilot"
+    });
+
+    expect(campaign.targets[0]).toMatchObject({
+      raw: "@vetted_creator",
+      handle: "vetted_creator",
+      status: "scheduled",
+      profile: {
+        profileUrl: "https://instagram.com/vetted_creator",
+        displayName: "Vetted Creator",
+        source: "graphed-sheet:row-12",
+        fitReason: "Audience overlaps the affiliate offer",
+        tags: ["fitness", "affiliate"],
+        followerCount: 24000,
+        engagementRate: 4.2
+      }
+    });
+  });
+
+  it("deduplicates mixed string and profile targets by normalized handle", () => {
+    const campaign = createCampaign({
+      targets: [
+        {
+          target: "@dupe_creator",
+          source: "graphed-sheet:row-12",
+          fitReason: "Audience overlaps the affiliate offer"
+        },
+        "https://instagram.com/dupe_creator"
+      ],
+      message: "Open to an affiliate pilot?",
+      campaign: "mixed-target-dedupe-pilot",
+      settings: {
+        requireTargetProvenance: true
+      }
+    });
+
+    expect(campaign.summary).toMatchObject({
+      total: 2,
+      scheduled: 1,
+      skippedDuplicate: 1,
+      blockedPolicy: 0
+    });
+    expect(campaign.targets).toEqual([
+      expect.objectContaining({
+        handle: "dupe_creator",
+        status: "scheduled",
+        profile: expect.objectContaining({
+          source: "graphed-sheet:row-12",
+          fitReason: "Audience overlaps the affiliate offer"
+        })
+      }),
+      expect.objectContaining({
+        handle: "dupe_creator",
+        status: "skipped_duplicate"
+      })
+    ]);
+    expect(campaign.targets[1]?.profile).toBeUndefined();
+  });
+
+  it("can require creator provenance before scheduling targets", () => {
+    const campaign = createCampaign({
+      targets: [
+        {
+          target: "@vetted_creator",
+          source: "graphed-sheet:row-12",
+          fitReason: "Audience overlaps the affiliate offer"
+        },
+        "@unvetted_string_creator",
+        {
+          target: "@missing_fit_creator",
+          source: "graphed-sheet:row-13"
+        }
+      ],
+      message: "Open to an affiliate pilot?",
+      campaign: "required-profile-intake-pilot",
+      settings: {
+        requireTargetProvenance: true
+      }
+    });
+
+    expect(campaign.summary).toMatchObject({
+      total: 3,
+      scheduled: 1,
+      blockedPolicy: 2
+    });
+    expect(campaign.targets.map((target) => [target.handle, target.status, target.error])).toEqual([
+      ["vetted_creator", "scheduled", undefined],
+      ["unvetted_string_creator", "blocked_policy", "Creator provenance and fit rationale required"],
+      ["missing_fit_creator", "blocked_policy", "Creator provenance and fit rationale required"]
+    ]);
+  });
+
   it("refuses unhealthy senders and reports sender health", () => {
     const campaign = createCampaign(
       {

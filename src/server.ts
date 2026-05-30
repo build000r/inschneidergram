@@ -858,7 +858,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                   properties: {
                     targets: {
                       type: "array",
-                      items: { type: "string" },
+                      items: openApiTargetInputSchema(),
                       minItems: 1
                     },
                     message: { type: "string" },
@@ -891,6 +891,12 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                         senderAccounts: {
                           type: "array",
                           items: openApiSenderAccountSchema()
+                        },
+                        requireTargetProvenance: {
+                          type: "boolean",
+                          default: false,
+                          description:
+                            "When true, every accepted creator target must include source and fitReason."
                         },
                         webhookUrl: {
                           type: "string",
@@ -1780,6 +1786,43 @@ function openApiSenderAccountSchema() {
         }
       }
     }
+  };
+}
+
+function openApiTargetInputSchema() {
+  return {
+    oneOf: [
+      {
+        type: "string",
+        description: "Instagram handle or profile URL."
+      },
+      {
+        type: "object",
+        required: ["target"],
+        properties: {
+          target: {
+            type: "string",
+            description: "Instagram handle or profile URL."
+          },
+          profileUrl: { type: "string", format: "uri" },
+          displayName: { type: "string" },
+          source: {
+            type: "string",
+            description: "Where this creator came from, such as a Graphed sheet row or operator review."
+          },
+          fitReason: {
+            type: "string",
+            description: "Why this creator is a defensible fit for the campaign."
+          },
+          tags: {
+            type: "array",
+            items: { type: "string" }
+          },
+          followerCount: { type: "integer", minimum: 0 },
+          engagementRate: { type: "number", minimum: 0, maximum: 100 }
+        }
+      }
+    ]
   };
 }
 

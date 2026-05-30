@@ -1,5 +1,5 @@
 import type { ApprovalWorkbench } from "./approval.js";
-import type { Campaign } from "./campaign.js";
+import { hasCreatorProfileProvenance, type Campaign } from "./campaign.js";
 import type { DeliveryAttempt } from "./delivery.js";
 import type { WebhookDeliveryRecord } from "./outgoingWebhook.js";
 import type { SenderInventoryHealth } from "./sender.js";
@@ -51,6 +51,7 @@ export interface PilotProofPackInput {
 export interface PilotProofMetrics {
   sourcedTargets: number;
   acceptedTargets: number;
+  vettedTargets: number;
   approvedTargets: number;
   approvedCopy: number;
   contactedTargets: number;
@@ -121,6 +122,7 @@ export function renderPilotProofMarkdown(pack: Omit<PilotProofPack, "markdown">)
     "| --- | ---: |",
     metricRow("Sourced targets", pack.metrics.sourcedTargets),
     metricRow("Accepted targets", pack.metrics.acceptedTargets),
+    metricRow("Vetted targets", pack.metrics.vettedTargets),
     metricRow("Approved targets", pack.metrics.approvedTargets),
     metricRow("Approved first-touch copy", pack.metrics.approvedCopy),
     metricRow("Contacted targets", pack.metrics.contactedTargets),
@@ -219,6 +221,11 @@ function buildMetrics(input: PilotProofPackInput): PilotProofMetrics {
       input.campaign.summary.total -
       input.campaign.summary.skippedDuplicate -
       input.campaign.summary.blockedPolicy,
+    vettedTargets: input.campaign.targets.filter((target) =>
+      target.status !== "skipped_duplicate" &&
+      target.status !== "blocked_policy" &&
+      hasCreatorProfileProvenance(target.profile)
+    ).length,
     approvedTargets: input.approvalWorkbench?.summary.candidates.approved ?? 0,
     approvedCopy: input.approvalWorkbench?.summary.messages.approved ?? 0,
     contactedTargets: sentHandles.size,

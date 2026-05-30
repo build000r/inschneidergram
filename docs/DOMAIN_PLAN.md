@@ -35,6 +35,10 @@ The current implementation covers:
 - campaign creation
 - message/template validation
 - target normalization
+- creator profile object intake with preserved source, fit rationale, tags, and
+  optional audience metrics
+- opt-in campaign setting that blocks targets without provenance and fit
+  rationale before scheduling
 - duplicate prevention inside a campaign
 - persisted suppression records across campaigns
 - idempotent campaign creation
@@ -89,7 +93,8 @@ The current implementation covers:
   sender-health gates instead of synthesizing proof records for unapproved
   pilots
 - pilot launch readiness report that turns campaign, approval, sender,
-  execution, and proof state into pass/fail/warn gates plus next actions
+  creator vetting, execution, and proof state into pass/fail/warn gates plus
+  next actions
 - latest proof export route that returns the most recent proof pack, readiness,
   metrics, renewal recommendation, source URLs, and Markdown from one
   campaign-level API call
@@ -118,55 +123,57 @@ The current implementation covers:
 2. Duplicate profile inputs and previously suppressed handles are skipped with
    an inspectable status.
 3. Invalid profile inputs are blocked before scheduling.
-4. Safe sending defaults assign targets across senders and schedule delays.
-5. Provider events update delivery/reply status idempotently.
-6. Creator/copy approval gates operator work before send evidence can be logged.
-7. Approval workbenches can be persisted, fetched, and reused by execution.
-8. Operator workbench items can be claimed, sent, skipped, or blocked with
+4. Creator profile evidence is preserved on targets and strict campaigns can
+   require source plus fit rationale before scheduling.
+5. Safe sending defaults assign targets across senders and schedule delays.
+6. Provider events update delivery/reply status idempotently.
+7. Creator/copy approval gates operator work before send evidence can be logged.
+8. Approval workbenches can be persisted, fetched, and reused by execution.
+9. Operator workbench items can be claimed, sent, skipped, or blocked with
    evidence.
-9. Execution only sends approved candidates whose operator work state is still
+10. Execution only sends approved candidates whose operator work state is still
    actionable.
-10. Unhealthy senders are refused before scheduling and reported in campaign
+11. Unhealthy senders are refused before scheduling and reported in campaign
    status.
-11. Outgoing webhooks can be signed, retried, dead-lettered, and replayed.
-12. A sample pilot fixture generates proof metrics and a Markdown report,
+12. Outgoing webhooks can be signed, retried, dead-lettered, and replayed.
+13. A sample pilot fixture generates proof metrics and a Markdown report,
     including operator skip/block evidence when it exists.
-13. Approved campaign execution routes send intents through an injected adapter,
+14. Approved campaign execution routes send intents through an injected adapter,
     records events, sends webhooks, and returns proof.
-14. `POST /campaigns/:id/executions` exposes the safe execution/proof workflow
+15. `POST /campaigns/:id/executions` exposes the safe execution/proof workflow
     without claiming live Instagram delivery.
-15. Execution proof records can be listed and fetched after the run.
-16. Manual execution evidence can be recorded idempotently and refreshes the
+16. Execution proof records can be listed and fetched after the run.
+17. Manual execution evidence can be recorded idempotently and refreshes the
     stored proof pack without losing concurrent operator updates.
-17. Launch readiness can be inspected from one API response before execution,
+18. Launch readiness can be inspected from one API response before execution,
     during manual evidence collection, and after proof is ready.
-18. OpenAPI documents the runtime pilot contract closely enough for a local
+19. OpenAPI documents the runtime pilot contract closely enough for a local
     operator to run the no-credential manual flow without guessing schemas.
-19. A one-command manual rehearsal proves the operator-run pilot path still
+20. A one-command manual rehearsal proves the operator-run pilot path still
     works before real sender/list inputs are available.
-20. Managed sender accounts can be registered, fetched, listed, health-checked,
+21. Managed sender accounts can be registered, fetched, listed, health-checked,
     and updated through risk events.
-21. Campaign creation uses stored sender inventory when inline sender accounts
+22. Campaign creation uses stored sender inventory when inline sender accounts
     are absent and rejects unknown managed sender ids.
-22. Operators can list pending and completed manual delivery work with stable
+23. Operators can list pending and completed manual delivery work with stable
     intent ids and required evidence fields.
-23. Managed-provider executions require explicit outcomes for all approved
+24. Managed-provider executions require explicit outcomes for all approved
     executable targets and reject duplicate, missing, or unknown outcome
     targets.
-24. Executions cannot create proof records while approval readiness gates still
+25. Executions cannot create proof records while approval readiness gates still
     fail.
-25. Buyers/operators can export the latest proof pack and readiness context
+26. Buyers/operators can export the latest proof pack and readiness context
     without knowing which execution id to inspect.
-26. The built service can be smoke-tested through real HTTP with an isolated
+27. The built service can be smoke-tested through real HTTP with an isolated
     JSON store.
-27. Public service deployments can require `X-API-Key` or bearer credentials
+28. Public service deployments can require `X-API-Key` or bearer credentials
     without breaking local default-open demos.
-28. Provider event ingestion and non-simulated executions dispatch signed
+29. Provider event ingestion and non-simulated executions dispatch signed
     webhook callbacks through the runtime sender.
-29. Operators can inspect and replay dead-lettered callback deliveries.
-30. Network-exposed deployments reject unsafe webhook destinations before
+30. Operators can inspect and replay dead-lettered callback deliveries.
+31. Network-exposed deployments reject unsafe webhook destinations before
     storing campaigns and before dispatching legacy callback records.
-31. Tests prove the API contract and domain rules.
+32. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -239,7 +246,8 @@ discover an execution id first.
 
 The refreshed proof pack keeps campaign ingest/policy blocks separate from
 operator skipped and operator blocked targets captured in the approval
-workbench.
+workbench, and it now includes a vetted target count from creator profile
+source plus fit rationale.
 
 The operator manual queue is a read model over execution delivery attempts. It
 defaults to pending initial manual evidence from the latest manual execution per

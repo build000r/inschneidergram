@@ -98,8 +98,10 @@ private or special-use addresses before the outbound request is made.
 1. Operator registers non-secret sender inventory with `PUT /senders/:id`.
 2. Graphed or the operator authenticates with the deployment API key when the
    service is network exposed.
-3. Graphed submits `POST /campaigns` with vetted creator targets, offer,
-   message copy, sender constraints, and webhook URL. If inline
+3. Graphed submits `POST /campaigns` with vetted creator targets, source and
+   fit rationale, offer, message copy, sender constraints, and webhook URL.
+   Use profile-object targets and `settings.requireTargetProvenance=true` for
+   live pilots so unvetted handles are blocked before scheduling. If inline
    `settings.senderAccounts` is omitted, the API uses stored sender inventory
    and rejects unknown sender ids.
 4. Operator or approver creates `POST /campaigns/:id/approval-workbench` and
@@ -135,6 +137,7 @@ private or special-use addresses before the outbound request is made.
 `GET /campaigns/:id/readiness` returns the live campaign checklist:
 
 - creator target intake
+- creator profile vetting and provenance
 - sender health
 - approval workbench presence
 - approved and actionable creators
