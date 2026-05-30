@@ -5,8 +5,18 @@ import { executeApprovedCampaign } from "../src/domain/execution.js";
 import { buildPilotReadinessReport } from "../src/domain/readiness.js";
 import { createCampaignExecutionRecord } from "../src/domain/store.js";
 
+function launchAuthorization() {
+  return {
+    actor: "graphed-approver",
+    deliveryPath: "manual" as const,
+    approvedTargetLimit: 2,
+    approvedAt: "2026-05-30T01:00:00.000Z",
+    reference: "launch-ticket-1"
+  };
+}
+
 describe("pilot readiness report", () => {
-  it("classifies approved campaigns without execution as ready to execute", () => {
+  it("requires launch authorization before classifying approved campaigns as ready to execute", () => {
     const campaign = createCampaign({
       targets: ["@creator_one"],
       message: "Open to an affiliate pilot?",
@@ -33,17 +43,46 @@ describe("pilot readiness report", () => {
     });
 
     expect(report).toMatchObject({
-      status: "ready_to_execute",
-      readyForExecution: true,
+      status: "needs_approval",
+      readyForExecution: false,
       readyForEvidenceReview: false,
       counts: {
         acceptedTargets: 1,
         actionableApprovedTargets: 1,
         approvedCopy: 1,
+        launchAuthorized: 0,
         executions: 0
-      }
+      },
+      gates: expect.arrayContaining([
+        expect.objectContaining({
+          id: "launch_authorization",
+          status: "fail"
+        })
+      ])
     });
     expect(report.externalInputs).toEqual(["permission to run the selected pilot delivery path"]);
+
+    const authorizedReport = buildPilotReadinessReport({
+      campaign,
+      approvalWorkbench: workbench,
+      executions: [],
+      launchAuthorization: launchAuthorization()
+    });
+
+    expect(authorizedReport).toMatchObject({
+      status: "ready_to_execute",
+      readyForExecution: true,
+      counts: {
+        launchAuthorized: 1
+      },
+      gates: expect.arrayContaining([
+        expect.objectContaining({
+          id: "launch_authorization",
+          status: "pass"
+        })
+      ])
+    });
+    expect(authorizedReport.externalInputs).toEqual([]);
   });
 
   it("blocks required creator provenance until every accepted target is vetted", () => {
@@ -79,7 +118,8 @@ describe("pilot readiness report", () => {
     const report = buildPilotReadinessReport({
       campaign,
       approvalWorkbench: workbench,
-      executions: []
+      executions: [],
+      launchAuthorization: launchAuthorization()
     });
 
     expect(report).toMatchObject({
@@ -96,7 +136,7 @@ describe("pilot readiness report", () => {
         })
       ])
     });
-    expect(report.externalInputs).toEqual(["permission to run the selected pilot delivery path"]);
+    expect(report.externalInputs).toEqual([]);
   });
 
   it("passes optional creator vetting while still reporting vetted target counts", () => {
@@ -271,6 +311,7 @@ describe("pilot readiness report", () => {
       campaign,
       workbench,
       adapter: createManualDeliveryAdapter(),
+      launchAuthorization: launchAuthorization(),
       now: new Date("2026-05-30T01:00:00.000Z")
     });
     const executionRecord = createCampaignExecutionRecord(
@@ -281,6 +322,7 @@ describe("pilot readiness report", () => {
         deliveryAttempts: execution.deliveryAttempts,
         webhookDeliveries: execution.webhookDeliveries,
         approvalWorkbench: workbench,
+        launchAuthorization: launchAuthorization(),
         proofPack: execution.proofPack
       },
       new Date("2026-05-30T01:01:00.000Z")

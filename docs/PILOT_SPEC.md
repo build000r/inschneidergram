@@ -39,10 +39,13 @@ Before running a pilot, Graphed or the operator should call
 needing approval, ready to execute, awaiting manual evidence, or evidence-ready.
 It also names the missing external inputs so the pilot cannot look ready while
 creator approvals, approved copy, a healthy sender/provider, operator evidence,
-or launch permission are still missing.
+or launch authorization are still missing. Manual and managed-provider
+executions require a `launchAuthorization` object with actor, delivery path,
+approved target limit, approval timestamp, and reference/evidence pointer; mock
+executions are exempt for local rehearsal.
 `GET /campaigns/:id/pilot-handoff` turns the same readiness state into an
 operator packet: source URLs, next API actions, missing external inputs,
-creator/sender/evidence contracts, launch-permission expectations, proof
+creator/sender/evidence contracts, launch-authorization expectations, proof
 criteria, stop conditions, follow-up state, and latest execution context.
 For campaigns scheduled from managed sender ids, readiness rechecks the current
 stored sender inventory so post-creation lockouts or cooldowns block launch.

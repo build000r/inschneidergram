@@ -1,5 +1,6 @@
 import type { ApprovalWorkbench } from "./approval.js";
 import { hasCreatorProfileProvenance, type Campaign } from "./campaign.js";
+import type { LaunchAuthorization } from "./launchAuthorization.js";
 import { newestExecutionsFirst, type CampaignExecutionRecord } from "./store.js";
 
 export type PilotReadinessStatus =
@@ -33,6 +34,7 @@ export interface PilotReadinessReport {
     approvedTargets: number;
     actionableApprovedTargets: number;
     approvedCopy: number;
+    launchAuthorized: number;
     executions: number;
     pendingManualEvidence: number;
     contactedTargets: number;
@@ -47,9 +49,11 @@ export function buildPilotReadinessReport(input: {
   campaign: Campaign;
   approvalWorkbench?: ApprovalWorkbench | null;
   executions?: CampaignExecutionRecord[];
+  launchAuthorization?: LaunchAuthorization | null;
 }): PilotReadinessReport {
   const executions = newestExecutionsFirst(input.executions ?? []);
   const latestExecution = executions[0];
+  const launchAuthorization = input.launchAuthorization ?? latestExecution?.launchAuthorization;
   const acceptedTargets =
     input.campaign.summary.total -
     input.campaign.summary.skippedDuplicate -
@@ -65,6 +69,7 @@ export function buildPilotReadinessReport(input: {
     : 0;
   const contactedTargets = latestExecution?.proofPack.metrics.contactedTargets ?? 0;
   const interestedReplies = latestExecution?.proofPack.metrics.interestedReplies ?? 0;
+  const launchAuthorizationNotRequired = latestExecution?.adapterRiskPosture?.kind === "mock";
 
   const gates: PilotReadinessGate[] = [
     {
@@ -134,6 +139,20 @@ export function buildPilotReadinessReport(input: {
         approvedCopy > 0 ? undefined : "Approve one first-touch message before execution."
     },
     {
+      id: "launch_authorization",
+      label: "Launch authorization",
+      status: launchAuthorization || launchAuthorizationNotRequired ? "pass" : "fail",
+      detail: launchAuthorization
+        ? `Launch authorized by ${launchAuthorization.actor} for ${launchAuthorization.deliveryPath} up to ${launchAuthorization.approvedTargetLimit} target(s). Reference: ${launchAuthorization.reference}.`
+        : launchAuthorizationNotRequired
+          ? "Latest execution used the local mock adapter and did not require live launch authorization."
+          : "No explicit launch authorization reference is recorded for a real manual or managed-provider pilot.",
+      nextAction:
+        launchAuthorization || launchAuthorizationNotRequired
+          ? undefined
+          : "Collect explicit permission for the selected pilot delivery path."
+    },
+    {
       id: "execution_proof",
       label: "Execution proof",
       status: latestExecution ? "pass" : "warn",
@@ -166,7 +185,8 @@ export function buildPilotReadinessReport(input: {
     !failedGateIds.has("creator_vetting") &&
     !failedGateIds.has("approval_workbench") &&
     !failedGateIds.has("creator_approval") &&
-    !failedGateIds.has("copy_approval");
+    !failedGateIds.has("copy_approval") &&
+    !failedGateIds.has("launch_authorization");
   const readyForEvidenceReview = !!latestExecution && pendingManualEvidence === 0;
   const status = classifyReadiness({
     failedGateIds,
@@ -195,6 +215,7 @@ export function buildPilotReadinessReport(input: {
       approvedTargets,
       actionableApprovedTargets,
       approvedCopy,
+      launchAuthorized: launchAuthorization || launchAuthorizationNotRequired ? 1 : 0,
       executions: executions.length,
       pendingManualEvidence,
       contactedTargets,
@@ -279,13 +300,12 @@ function externalInputsForGates(
     if (gate.id === "copy_approval") {
       inputs.add("approved first-touch copy");
     }
+    if (gate.id === "launch_authorization") {
+      inputs.add("permission to run the selected pilot delivery path");
+    }
     if (gate.id === "manual_evidence") {
       inputs.add("operator delivery evidence");
     }
-  }
-
-  if (!latestExecution) {
-    inputs.add("permission to run the selected pilot delivery path");
   }
 
   return [...inputs];

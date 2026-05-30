@@ -7,6 +7,28 @@ import { InMemoryCampaignStore, JsonFileCampaignStore } from "../src/domain/stor
 import type { OutgoingWebhookRequest } from "../src/domain/outgoingWebhook.js";
 import { verifyWebhookSignature } from "../src/domain/webhook.js";
 
+function launchAuthorization(
+  deliveryPath: "manual" | "managed_provider",
+  overrides: Partial<{
+    actor: string;
+    approvedTargetLimit: number;
+    approvedAt: string;
+    reference: string;
+    evidenceUrl: string;
+    notes: string;
+  }> = {}
+) {
+  return {
+    actor: overrides.actor ?? "graphed-approver",
+    deliveryPath,
+    approvedTargetLimit: overrides.approvedTargetLimit ?? 10,
+    approvedAt: overrides.approvedAt ?? "2026-05-30T01:00:00.000Z",
+    reference: overrides.reference ?? `${deliveryPath}-launch-approval`,
+    ...(overrides.evidenceUrl ? { evidenceUrl: overrides.evidenceUrl } : {}),
+    ...(overrides.notes ? { notes: overrides.notes } : {})
+  };
+}
+
 describe("API", () => {
   it("accepts campaign creation through POST /campaigns", async () => {
     const app = await buildServer({ webhookSecret: "test-secret" });
@@ -1129,6 +1151,111 @@ describe("API", () => {
     await app.close();
   });
 
+  it("gates manual and managed-provider execution on explicit launch authorization", async () => {
+    const app = await buildServer();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@auth_creator_one", "@auth_creator_two"],
+        message: "Open to an affiliate pilot?",
+        campaign: "launch-auth-execution",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 20,
+              riskEvents: []
+            }
+          ]
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@auth_creator_one", "@auth_creator_two"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+
+    const manualMissing = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" }
+      }
+    });
+    expect(manualMissing.statusCode).toBe(409);
+    expect(manualMissing.json().message).toContain("Launch authorization");
+
+    const providerMissing = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: {
+          kind: "managed_provider",
+          outcomes: [
+            {
+              target: "@auth_creator_one",
+              outcome: "accepted",
+              events: [{ type: "sent", messageId: "auth_provider_1" }]
+            },
+            {
+              target: "@auth_creator_two",
+              outcome: "accepted",
+              events: [{ type: "sent", messageId: "auth_provider_2" }]
+            }
+          ]
+        }
+      }
+    });
+    expect(providerMissing.statusCode).toBe(409);
+    expect(providerMissing.json().message).toContain("Launch authorization");
+
+    const mismatchedPath = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("managed_provider", {
+          approvedTargetLimit: 2,
+          reference: "wrong-path-launch"
+        })
+      }
+    });
+    expect(mismatchedPath.statusCode).toBe(409);
+    expect(mismatchedPath.json().message).toContain("does not match adapter kind manual");
+
+    const tooSmall = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 1,
+          reference: "too-small-launch"
+        })
+      }
+    });
+    expect(tooSmall.statusCode).toBe(409);
+    expect(tooSmall.json().message).toContain("would contact 2");
+
+    const executions = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions`
+    });
+    expect(executions.json().executions).toEqual([]);
+
+    await app.close();
+  });
+
   it("uses the runtime webhook sender for non-simulated executions", async () => {
     const webhookRequests: OutgoingWebhookRequest[] = [];
     const app = await buildServer({
@@ -1248,7 +1375,10 @@ describe("API", () => {
       method: "POST",
       url: `/campaigns/${campaignId}/executions`,
       payload: {
-        adapter: { kind: "manual" }
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          reference: "runtime-manual-launch"
+        })
       }
     });
     const executionId = execution.json().executionId;
@@ -1636,22 +1766,33 @@ describe("API", () => {
       url: `/campaigns/${campaignId}/readiness`
     });
     expect(approvedReadiness.json()).toMatchObject({
-      status: "ready_to_execute",
-      readyForExecution: true,
+      status: "needs_approval",
+      readyForExecution: false,
       readyForEvidenceReview: false,
       counts: {
         approvedTargets: 1,
         actionableApprovedTargets: 1,
         approvedCopy: 1,
         executions: 0
-      }
+      },
+      gates: expect.arrayContaining([
+        expect.objectContaining({
+          id: "launch_authorization",
+          status: "fail"
+        })
+      ]),
+      externalInputs: expect.arrayContaining(["permission to run the selected pilot delivery path"])
     });
 
     const manualExecution = await app.inject({
       method: "POST",
       url: `/campaigns/${campaignId}/executions`,
       payload: {
-        adapter: { kind: "manual" }
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 1,
+          reference: "readiness-manual-launch"
+        })
       }
     });
     const executionId = manualExecution.json().executionId;
@@ -1675,7 +1816,11 @@ describe("API", () => {
       method: "POST",
       url: `/campaigns/${campaignId}/executions`,
       payload: {
-        adapter: { kind: "manual" }
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 1,
+          reference: "readiness-duplicate-launch"
+        })
       }
     });
     expect(duplicateManualExecution.statusCode).toBe(409);
@@ -1814,7 +1959,7 @@ describe("API", () => {
             })
           ]
         },
-        launchPermission: {
+        launchAuthorization: {
           requiredBeforeLiveOutreach: true
         },
         manualEvidence: {
@@ -1842,7 +1987,7 @@ describe("API", () => {
           state: "required"
         }),
         expect.objectContaining({
-          id: "collect_launch_permission",
+          id: "collect_launch_authorization",
           method: "EXTERNAL",
           state: "external_required"
         })
@@ -2002,7 +2147,11 @@ describe("API", () => {
       method: "POST",
       url: `/campaigns/${campaignId}/executions`,
       payload: {
-        adapter: { kind: "manual" }
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 2,
+          reference: "manual-queue-launch"
+        })
       }
     });
     const executionId = executionResponse.json().executionId;
@@ -2256,6 +2405,10 @@ describe("API", () => {
             }
           ]
         },
+        launchAuthorization: launchAuthorization("managed_provider", {
+          approvedTargetLimit: 3,
+          reference: "provider-contract-launch"
+        }),
         replyAssessments: [
           {
             targetHandle: "@provider_reply",
@@ -2488,7 +2641,11 @@ describe("API", () => {
               ]
             }
           ]
-        }
+        },
+        launchAuthorization: launchAuthorization("managed_provider", {
+          approvedTargetLimit: 2,
+          reference: "late-provider-launch"
+        })
       }
     });
     expect(execution.statusCode).toBe(200);
@@ -2544,7 +2701,18 @@ describe("API", () => {
       campaignStatus: "completed",
       latestExecution: {
         id: execution.json().executionId,
-        deliveryAttemptCount: 2
+        deliveryAttemptCount: 2,
+        launchAuthorization: {
+          reference: "late-provider-launch"
+        }
+      },
+      launchAuthorization: {
+        reference: "late-provider-launch"
+      },
+      proofPack: {
+        launchAuthorization: {
+          reference: "late-provider-launch"
+        }
       },
       metrics: {
         contactedTargets: 2,
@@ -2585,6 +2753,16 @@ describe("API", () => {
       ["sent", expect.any(String)],
       ["failed", "late-provider-failure-1"]
     ]);
+    expect(refreshedExecution.json()).toMatchObject({
+      launchAuthorization: {
+        reference: "late-provider-launch"
+      },
+      proofPack: {
+        launchAuthorization: {
+          reference: "late-provider-launch"
+        }
+      }
+    });
 
     const followUps = await app.inject({
       method: "GET",
@@ -2775,7 +2953,11 @@ describe("API", () => {
             events: [{ type: "sent", messageId: "provider_msg_1" }]
           }
         ]
-      }
+      },
+      launchAuthorization: launchAuthorization("managed_provider", {
+        approvedTargetLimit: 2,
+        reference: "provider-validation-launch"
+      })
     };
 
     const missing = await app.inject({
@@ -2796,7 +2978,11 @@ describe("API", () => {
             ...basePayload.adapter.outcomes,
             ...basePayload.adapter.outcomes
           ]
-        }
+        },
+        launchAuthorization: launchAuthorization("managed_provider", {
+          approvedTargetLimit: 2,
+          reference: "provider-duplicate-launch"
+        })
       }
     });
     expect(duplicate.statusCode).toBe(400);
@@ -2821,7 +3007,11 @@ describe("API", () => {
               events: [{ type: "sent", messageId: "provider_msg_3" }]
             }
           ]
-        }
+        },
+        launchAuthorization: launchAuthorization("managed_provider", {
+          approvedTargetLimit: 2,
+          reference: "provider-unknown-launch"
+        })
       }
     });
     expect(unknown.statusCode).toBe(400);
@@ -2898,7 +3088,11 @@ describe("API", () => {
         method: "POST",
         url: `/campaigns/${campaignId}/executions`,
         payload: {
-          adapter: { kind: "manual" }
+          adapter: { kind: "manual" },
+          launchAuthorization: launchAuthorization("manual", {
+            approvedTargetLimit: 2,
+            reference: "atomic-manual-launch"
+          })
         }
       });
       const executionId = executionResponse.json().executionId;
@@ -2959,6 +3153,17 @@ describe("API", () => {
       expect(storedExecution.json().proofPack.metrics).toMatchObject({
         sentMessages: 1,
         deliveryFailures: 1
+      });
+      expect(storedExecution.json()).toMatchObject({
+        launchAuthorization: {
+          reference: "atomic-manual-launch",
+          deliveryPath: "manual"
+        },
+        proofPack: {
+          launchAuthorization: {
+            reference: "atomic-manual-launch"
+          }
+        }
       });
 
       const queue = await app.inject({
@@ -3252,7 +3457,11 @@ describe("API", () => {
         },
         adapter: {
           kind: "manual"
-        }
+        },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 1,
+          reference: "manual-safe-launch"
+        })
       }
     });
 
@@ -3263,7 +3472,14 @@ describe("API", () => {
         officialColdDmCompliance: "not_claimed",
         requiresHumanEvidence: true
       },
+      launchAuthorization: {
+        reference: "manual-safe-launch",
+        deliveryPath: "manual"
+      },
       proofPack: {
+        launchAuthorization: {
+          reference: "manual-safe-launch"
+        },
         metrics: {
           contactedTargets: 0,
           sentMessages: 0
@@ -3316,11 +3532,26 @@ describe("API", () => {
       method: "POST",
       url: `/campaigns/${campaignId}/executions`,
       payload: {
-        adapter: { kind: "manual" }
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 1,
+          reference: "manual-evidence-launch"
+        })
       }
     });
     expect(manualExecution.statusCode).toBe(200);
     const executionId = manualExecution.json().executionId;
+    expect(manualExecution.json()).toMatchObject({
+      launchAuthorization: {
+        reference: "manual-evidence-launch",
+        deliveryPath: "manual"
+      },
+      proofPack: {
+        launchAuthorization: {
+          reference: "manual-evidence-launch"
+        }
+      }
+    });
     expect(manualExecution.json().deliveryAttempts[0]).toMatchObject({
       outcome: "needs_manual_evidence",
       riskPosture: {
@@ -3391,6 +3622,9 @@ describe("API", () => {
         messageId: "manual_msg_1"
       },
       proofPack: {
+        launchAuthorization: {
+          reference: "manual-evidence-launch"
+        },
         metrics: {
           approvedTargets: 1,
           contactedTargets: 1,
@@ -3563,7 +3797,11 @@ describe("API", () => {
       method: "POST",
       url: `/campaigns/${campaignId}/executions`,
       payload: {
-        adapter: { kind: "manual" }
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 2,
+          reference: "manual-restriction-launch"
+        })
       }
     });
     const executionId = executionResponse.json().executionId;
@@ -3654,6 +3892,14 @@ describe("API", () => {
       url: `/campaigns/${campaignId}/proof-pack`
     });
     expect(proofExport.json()).toMatchObject({
+      launchAuthorization: {
+        reference: "manual-restriction-launch"
+      },
+      proofPack: {
+        launchAuthorization: {
+          reference: "manual-restriction-launch"
+        }
+      },
       metrics: {
         senderWarnings: 1
       }
@@ -3663,7 +3909,11 @@ describe("API", () => {
       method: "POST",
       url: `/campaigns/${campaignId}/executions`,
       payload: {
-        adapter: { kind: "manual" }
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 2,
+          reference: "manual-restriction-second-launch"
+        })
       }
     });
     expect(secondExecution.statusCode).toBe(409);
@@ -3797,6 +4047,15 @@ describe("API", () => {
               properties: {
                 adapter: expect.any(Object),
                 approvals: expect.any(Object),
+                launchAuthorization: expect.objectContaining({
+                  required: [
+                    "actor",
+                    "deliveryPath",
+                    "approvedTargetLimit",
+                    "approvedAt",
+                    "reference"
+                  ]
+                }),
                 replyAssessments: expect.any(Object)
               }
             }
@@ -3806,6 +4065,9 @@ describe("API", () => {
       responses: {
         "200": {
           description: "Safe execution completed and proof pack returned"
+        },
+        "409": {
+          description: "Execution readiness or launch authorization conflict"
         }
       }
     });

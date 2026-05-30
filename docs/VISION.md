@@ -94,9 +94,10 @@ approval workbench, operator manual queue, manual evidence recording,
 sender-risk reconciliation for manual restrictions, readiness gates, creator
 profile provenance intake, follow-up planning, proof-pack generation, and a
 managed-provider execution contract for provider-reported outcomes. Execution
-now enforces readiness approval and creator-vetting gates before proof records
-are created, and late provider replies/failures refresh the latest proof export
-plus follow-up plan after the original execution. The service path is also
+now enforces readiness approval, creator-vetting, sender-health,
+pending-manual-evidence, and launch-authorization gates before live manual/provider proof
+records are created; late provider replies/failures refresh the latest proof
+export plus follow-up plan after the original execution. The service path is also
 operator-testable: startup config is validated, `/health` checks the JSON
 store, optional API key protection gates non-public routes for exposed
 deployments, provider events and non-simulated executions can dispatch signed
@@ -109,14 +110,16 @@ Buyers and operators can fetch
 pack without knowing the internal execution id, and
 `GET /campaigns/:id/pilot-handoff` turns readiness into a campaign-level
 operator packet with missing inputs, next API actions, evidence contracts, proof
-URLs, and stop conditions. The credential-free manual rehearsal now uses stored
+URLs, and stop conditions. Execution and proof records preserve the structured
+launch authorization reference for manual and managed-provider pilots. The
+credential-free manual rehearsal now uses stored
 managed senders and strict creator-provenance intake, then proves that
 restricted manual evidence writes back into sender cooldown/proof warning state
 before the live pilot path substitutes real accounts.
 
 It is not yet bounty-complete because verified provider/account operations, a
-vetted Graphed creator list, explicit permission to run outreach, and live
+vetted Graphed creator list, a real launch authorization reference, and live
 pilot evidence remain outside the repo. The next decisive milestone is the
 external pilot handoff: choose the real delivery operation, load a vetted
-creator list, run low-volume outreach with permission, and publish the proof
+creator list, run low-volume outreach with authorization, and publish the proof
 pack.

@@ -11,6 +11,7 @@ import {
   type SendIntent
 } from "./delivery.js";
 import { normalizeInstagramHandle } from "./handles.js";
+import type { LaunchAuthorization } from "./launchAuthorization.js";
 import {
   createTargetWebhookJob,
   type OutgoingWebhookDispatcher,
@@ -30,6 +31,7 @@ export interface CampaignExecutionInput {
   webhookDispatcher?: OutgoingWebhookDispatcher;
   replyAssessments?: ReplyAssessment[];
   incidents?: PilotIncident[];
+  launchAuthorization?: LaunchAuthorization;
   now?: Date;
 }
 
@@ -115,6 +117,7 @@ export async function executeApprovedCampaign(
       webhookDeliveries,
       replyAssessments: input.replyAssessments,
       incidents: input.incidents,
+      launchAuthorization: input.launchAuthorization,
       generatedAt: now
     })
   };

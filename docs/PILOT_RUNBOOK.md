@@ -114,31 +114,34 @@ private or special-use addresses before the outbound request is made.
    the missing external inputs, exact next API actions, creator/sender/evidence
    contracts, proof URLs, follow-up state, and stop conditions for this
    campaign.
-8. Execution runner rejects campaigns that are not ready, rechecks current
-   sender health, then creates `SendIntent` records only for approved creators
-   that remain queued or claimed.
-9. Delivery adapter returns sent, failed, restricted, replied, or, for the
+8. Graphed or the operator records a `launchAuthorization` object for the
+   selected manual or managed-provider delivery path: actor, delivery path,
+   approved target limit, approval timestamp, and reference/evidence pointer.
+9. Execution runner rejects campaigns that are not ready or lack matching launch
+   authorization, rechecks current sender health, then creates `SendIntent`
+   records only for approved creators that remain queued or claimed.
+10. Delivery adapter returns sent, failed, restricted, replied, or, for the
    manual-safe adapter, `needs_manual_evidence`.
-10. Operator checks `GET /operator/manual-queue` or
+11. Operator checks `GET /operator/manual-queue` or
    `GET /campaigns/:id/executions/:executionId/manual-queue` to see stable
    intent ids, target handles, sender accounts, messages, allowed manual
    events, and required evidence fields.
-11. Operator performs or verifies manual sends outside the codebase when the
+12. Operator performs or verifies manual sends outside the codebase when the
    adapter requires human evidence.
-12. Operator records sent, failed, restricted, or replied evidence through
+13. Operator records sent, failed, restricted, or replied evidence through
    `POST /campaigns/:id/executions/:executionId/manual-events` with an
    `Idempotency-Key` for retry safety.
-13. Campaign events update status, refresh latest proof/follow-up state, and
+14. Campaign events update status, refresh latest proof/follow-up state, and
     outgoing webhooks notify Graphed.
-14. Execution proof record is persisted for audit replay.
-15. Operator or buyer fetches `GET /campaigns/:id/proof-pack` for the latest
+15. Execution proof record is persisted for audit replay.
+16. Operator or buyer fetches `GET /campaigns/:id/proof-pack` for the latest
     proof export, readiness state, source URLs, metrics, renewal decision, and
     Markdown report.
-16. Operator checks `GET /campaigns/:id/follow-ups` when the campaign includes
+17. Operator checks `GET /campaigns/:id/follow-ups` when the campaign includes
     `settings.followUps`. The plan lists only contacted creators without reply,
     failure, or restriction evidence, with due/pending status, sequence,
     sender, message, and creator provenance for the next operator touch.
-17. Proof-pack generator produces the renewal report with operator skipped and
+18. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
 
 ## Readiness Gates
@@ -151,11 +154,13 @@ private or special-use addresses before the outbound request is made.
 - approval workbench presence
 - approved and actionable creators
 - approved first-touch copy
+- launch authorization for manual or managed-provider delivery
 - execution proof
 - pending manual evidence
 
 Use this before execution and again before renewal review. A status of
-`ready_to_execute` means the local product state can create send intents. A
+`ready_to_execute` means the local product state can create send intents for a
+selected delivery path with launch authorization already supplied. A
 status of `awaiting_manual_evidence` means operator work is still required. A
 status of `evidence_ready` means the latest execution has proof ready for
 review; it does not by itself claim that Instagram delivery was live unless the
@@ -169,10 +174,17 @@ instead of creating send intents for that account.
 `GET /campaigns/:id/pilot-handoff` is the campaign-level handoff document for
 operators and evaluators. It wraps readiness with next API actions, source
 URLs, missing external inputs, creator provenance requirements, sender
-credential boundaries, launch-permission evidence fields, manual evidence
+credential boundaries, launch-authorization evidence fields, manual evidence
 requirements, provider outcome expectations, stop conditions, follow-up state,
 and latest proof context. Use it before moving from local rehearsal to a real
 Graphed pilot.
+
+`POST /campaigns/:id/executions` requires `launchAuthorization` for `manual`
+and `managed_provider` adapters. The authorization delivery path must match the
+adapter, and `approvedTargetLimit` must cover the approved executable target
+count after skipped or blocked workbench candidates are excluded. Missing,
+mismatched, or too-small authorization returns `409` without inserting an
+execution record. `mock` executions are exempt so local dry-runs stay cheap.
 
 `GET /operator/manual-queue` defaults to the same blocking work readiness calls
 pending manual evidence: manual attempts with no recorded evidence from the

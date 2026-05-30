@@ -8,6 +8,7 @@ import type {
   DeliveryAttempt,
   SendIntent
 } from "./delivery.js";
+import type { LaunchAuthorization } from "./launchAuthorization.js";
 import type { WebhookDeliveryRecord } from "./outgoingWebhook.js";
 import type { PilotIncident, PilotProofPack, ReplyAssessment } from "./proofPack.js";
 import {
@@ -33,6 +34,7 @@ export interface CampaignExecutionRecordInput {
   approvalWorkbench?: ApprovalWorkbench;
   replyAssessments?: ReplyAssessment[];
   incidents?: PilotIncident[];
+  launchAuthorization?: LaunchAuthorization;
   proofPack: PilotProofPack;
 }
 
@@ -545,6 +547,9 @@ export function createCampaignExecutionRecord(
       : undefined,
     replyAssessments: structuredClone(input.replyAssessments ?? []),
     incidents: structuredClone(input.incidents ?? []),
+    launchAuthorization: input.launchAuthorization
+      ? structuredClone(input.launchAuthorization)
+      : undefined,
     proofPack: structuredClone(input.proofPack)
   };
 }

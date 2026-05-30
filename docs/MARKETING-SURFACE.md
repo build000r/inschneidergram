@@ -10,6 +10,7 @@
 | "Provenance-backed creator intake" | True for MVP scope | Campaign targets can carry source and fit rationale; strict campaigns block unvetted targets and proof packs count vetted targets. |
 | "Follow-up planning" | True for MVP scope | Campaign follow-up rules now produce due/pending operator work after execution and suppress targets after late provider replies/failures; automatic follow-up sending is not claimed. |
 | "Pilot handoff packet" | True for MVP scope | `GET /campaigns/:id/pilot-handoff` turns readiness into missing inputs, next API actions, source URLs, evidence requirements, and proof-review state. |
+| "Launch authorization gate" | True for MVP scope | Manual and managed-provider executions require a structured authorization object and preserve it in proof exports; mock demos remain exempt. |
 | "Delivery and reply reporting" | Partly true | Provider events refresh campaign status, latest proof metrics, follow-up state, and signed runtime callbacks by default; live provider integration still pending. |
 | "API-key protected service" | True for MVP scope | Optional `INSCHNEIDERGRAM_API_KEY` protects non-public routes; smoke runs with auth enabled. |
 | "Guarded callback delivery" | True for MVP scope | Webhook URLs must be public HTTPS destinations; local/private/special-use hosts are blocked and production allowlists are supported. |

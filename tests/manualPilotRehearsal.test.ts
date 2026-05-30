@@ -40,10 +40,15 @@ describe("manual pilot rehearsal", () => {
     );
     expect(result.readinessTimeline.map((point) => point.status)).toEqual([
       "needs_approval",
-      "ready_to_execute",
+      "needs_approval",
       "awaiting_manual_evidence",
       "evidence_ready"
     ]);
+    expect(result.readinessTimeline[1]).toMatchObject({
+      label: "approved_and_claimed",
+      readyForExecution: false,
+      externalInputs: expect.arrayContaining(["permission to run the selected pilot delivery path"])
+    });
     expect(result.readinessTimeline.at(-1)).toMatchObject({
       readyForExecution: true,
       readyForEvidenceReview: true,

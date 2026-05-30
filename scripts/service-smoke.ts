@@ -158,6 +158,14 @@ async function main(): Promise<void> {
                 ]
               }
             ]
+          },
+          launchAuthorization: {
+            actor: "service-smoke-approver",
+            deliveryPath: "managed_provider",
+            approvedTargetLimit: 1,
+            approvedAt: "2026-05-30T01:00:00.000Z",
+            reference: "service-smoke-launch-approval",
+            notes: "Local smoke authorization; not live Instagram delivery."
           }
         }
       }

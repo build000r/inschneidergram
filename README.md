@@ -41,6 +41,7 @@ This repo currently contains the first API/control-plane slice:
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
 | Pilot handoff packet | Working MVP | `GET /campaigns/:id/pilot-handoff` turns readiness into operator actions |
+| Launch authorization gate | Working MVP | manual/provider execution requires a structured approval reference |
 | Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from refreshed execution evidence |
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
@@ -261,8 +262,8 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/readiness
 
 The readiness report returns pass/fail/warn gates, next actions, and external
 inputs still needed before a live pilot, such as creator approval, approved
-copy, a healthy sender or provider, operator evidence, or permission to run the
-selected delivery path.
+copy, a healthy sender or provider, operator evidence, or a structured
+`launchAuthorization` object for the selected delivery path.
 
 Export the pilot handoff packet:
 
@@ -271,7 +272,7 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/pilot-handoff
 ```
 
 The handoff packet wraps readiness, missing external inputs, source URLs, next
-API actions, creator/sender/evidence contracts, launch-permission expectations,
+API actions, creator/sender/evidence contracts, launch-authorization expectations,
 stop conditions, manual queue state, follow-up state, and latest proof context.
 It is the operator/evaluator bridge from local product state to a real Graphed
 pilot; it does not claim permission or live Instagram delivery has already
@@ -349,9 +350,20 @@ curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/executions \
           ]
         }
       ]
+    },
+    "launchAuthorization": {
+      "actor": "graphed-approver",
+      "deliveryPath": "managed_provider",
+      "approvedTargetLimit": 1,
+      "approvedAt": "2026-05-30T01:00:00.000Z",
+      "reference": "approval-ticket-123",
+      "notes": "Provider contract execution authorized for this pilot batch."
     }
   }'
 ```
+
+Manual and managed-provider executions require `launchAuthorization`. Mock
+executions remain available without it for local dry-runs and demos.
 
 List pending manual delivery work for operators:
 
@@ -483,13 +495,16 @@ cannot remain due for a creator who already replied or failed.
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It refuses to
 create proof records until readiness approval gates pass through a stored
 approval workbench or explicit inline execution approvals, rechecks current
-managed sender health for assigned approved targets, routes approved targets
+managed sender health for assigned approved targets, requires a structured
+`launchAuthorization` for `manual` and `managed_provider` adapters, routes approved targets
 through a safe
 `mock`, `manual`, or `managed_provider` adapter, records campaign events,
 dispatches signed webhook records through the runtime sender when
 `simulateWebhooks` is false, and returns the proof-pack metrics plus Markdown,
 including explicit operator skipped/blocked counts from workbench evidence.
-The managed-provider adapter requires an explicit outcome for every approved
+The launch authorization records actor, delivery path, approved target limit,
+approval timestamp, and reference, then persists into the execution record and
+proof export. The managed-provider adapter requires an explicit outcome for every approved
 executable target and treats events as provider-reported evidence, not as a
 claim that this repo performs live Instagram delivery. It also persists an
 execution proof record that can be listed with
@@ -570,7 +585,7 @@ owns that operational risk.
 
 1. Connect verified provider/account operations to the managed-provider contract.
 2. Bring a verified sender account and vetted creator list into a controlled pilot.
-3. Run the pilot with explicit permission and low sender limits.
+3. Run the pilot with structured launch authorization and low sender limits.
 4. Publish live reliability evidence using the proof-pack generator.
 
 ## Limitations

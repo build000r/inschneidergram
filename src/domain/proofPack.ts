@@ -1,6 +1,7 @@
 import type { ApprovalWorkbench } from "./approval.js";
 import { hasCreatorProfileProvenance, type Campaign } from "./campaign.js";
 import type { DeliveryAttempt } from "./delivery.js";
+import type { LaunchAuthorization } from "./launchAuthorization.js";
 import type { WebhookDeliveryRecord } from "./outgoingWebhook.js";
 import type { SenderInventoryHealth } from "./sender.js";
 
@@ -45,6 +46,7 @@ export interface PilotProofPackInput {
   webhookDeliveries?: WebhookDeliveryRecord[];
   replyAssessments?: ReplyAssessment[];
   incidents?: PilotIncident[];
+  launchAuthorization?: LaunchAuthorization;
   generatedAt?: Date | string;
 }
 
@@ -86,6 +88,7 @@ export interface PilotProofPack {
   senderHealth: SenderInventoryHealth;
   incidents: PilotIncident[];
   replies: ReplyAssessment[];
+  launchAuthorization?: LaunchAuthorization;
   renewalRecommendation: RenewalRecommendation;
   markdown: string;
 }
@@ -101,6 +104,9 @@ export function generatePilotProofPack(input: PilotProofPackInput): PilotProofPa
     senderHealth: input.campaign.senderHealth,
     incidents: [...(input.incidents ?? [])],
     replies: [...(input.replyAssessments ?? [])],
+    launchAuthorization: input.launchAuthorization
+      ? structuredClone(input.launchAuthorization)
+      : undefined,
     renewalRecommendation: recommendRenewal(metrics, input.campaign.senderHealth, input.incidents ?? [])
   };
 
@@ -164,11 +170,32 @@ export function renderPilotProofMarkdown(pack: Omit<PilotProofPack, "markdown">)
       })
     ),
     "",
+    "## Launch Authorization",
+    ...launchAuthorizationLines(pack.launchAuthorization),
+    "",
     "## Renewal Recommendation",
     `Decision: ${pack.renewalRecommendation.decision}`,
     ...pack.renewalRecommendation.reasons.map((reason) => `- ${reason}`),
     ""
   ].join("\n");
+}
+
+function launchAuthorizationLines(
+  authorization: LaunchAuthorization | undefined
+): string[] {
+  if (!authorization) {
+    return ["- none recorded"];
+  }
+
+  return [
+    `- actor: ${authorization.actor}`,
+    `- delivery path: ${authorization.deliveryPath}`,
+    `- approved target limit: ${authorization.approvedTargetLimit}`,
+    `- approved at: ${authorization.approvedAt}`,
+    `- reference: ${authorization.reference}`,
+    ...(authorization.evidenceUrl ? [`- evidence: ${authorization.evidenceUrl}`] : []),
+    ...(authorization.notes ? [`- notes: ${authorization.notes}`] : [])
+  ];
 }
 
 function buildMetrics(input: PilotProofPackInput): PilotProofMetrics {

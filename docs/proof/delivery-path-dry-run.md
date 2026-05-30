@@ -89,17 +89,20 @@ strict provenance path:
 - creates the campaign from profile-object targets with `source`, `fitReason`,
   tags, profile URLs, and `settings.requireTargetProvenance=true`
 - schedules from `senderPool` ids without inline sender credentials
+- passes a structured manual `launchAuthorization` before creating the manual
+  execution queue
 - records sent, replied, and restricted manual evidence
 - reconciles the restricted evidence into one managed sender risk event
 - leaves one sender healthy and one sender in cooldown
 - reports `vettedTargets: 2` and `senderWarnings: 1` in the proof pack while
   final readiness remains `evidence_ready`
-- reports 26 OpenAPI paths after adding `GET /campaigns/:id/pilot-handoff`
+- reports 26 OpenAPI paths, including the pilot handoff packet and execution
+  launch-authorization schema
 
-Last verified for the pilot-handoff slice with `npm run demo:manual-pilot`.
-The demo uses explicit `simulateWebhookDelivery=true` payloads so the local
-proof can count simulated callbacks without claiming a runtime Graphed receiver
-was contacted.
+Last verified for the launch-authorization slice with
+`npm run demo:manual-pilot`. The demo uses explicit
+`simulateWebhookDelivery=true` payloads so the local proof can count simulated
+callbacks without claiming a runtime Graphed receiver was contacted.
 
 ```json
 {

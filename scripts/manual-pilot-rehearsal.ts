@@ -167,7 +167,15 @@ export async function runManualPilotRehearsal(): Promise<ManualPilotRehearsalRes
     );
 
     const execution = await injectJson(app, "POST", `/campaigns/${campaign.campaignId}/executions`, {
-      adapter: { kind: "manual" }
+      adapter: { kind: "manual" },
+      launchAuthorization: {
+        actor: "demo-approver",
+        deliveryPath: "manual",
+        approvedTargetLimit: 2,
+        approvedAt: "2026-05-30T01:00:00.000Z",
+        reference: "manual-demo-launch-approval",
+        notes: "Credential-free local rehearsal authorization; no live Instagram delivery."
+      }
     });
     const adapterRiskPosture = execution.adapterRiskPosture;
     const manualQueueTimeline = [

@@ -39,6 +39,10 @@ import { executeApprovedCampaign } from "./domain/execution.js";
 import { buildFollowUpPlan } from "./domain/followUp.js";
 import { normalizeInstagramHandle } from "./domain/handles.js";
 import {
+  launchAuthorizationSchema,
+  type LaunchAuthorization
+} from "./domain/launchAuthorization.js";
+import {
   createTargetWebhookJob,
   OutgoingWebhookDispatcher,
   type OutgoingWebhookRequest,
@@ -571,7 +575,12 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       const storedWorkbench = await store.getApprovalWorkbench(id);
       const existingExecutions = await store.listExecutions(id);
       if (!storedWorkbench && !hasInlineApprovalOverrides(executionRequest)) {
-        assertExecutionReadiness(campaignForExecution, null, existingExecutions);
+        assertExecutionReadiness(
+          campaignForExecution,
+          null,
+          existingExecutions,
+          launchAuthorizationForReadiness(executionRequest)
+        );
       }
       const workbench = buildExecutionApprovalWorkbench(
         campaignForExecution,
@@ -581,8 +590,10 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       assertExecutionReadiness(
         campaignForExecution,
         workbench,
-        existingExecutions
+        existingExecutions,
+        launchAuthorizationForReadiness(executionRequest)
       );
+      assertLaunchAuthorizationForExecution(executionRequest, workbench);
       validateManagedProviderOutcomes(campaignForExecution, workbench, executionRequest);
       assertCurrentSenderAvailability(campaignForExecution, workbench);
       const dispatcher = executionRequest.simulateWebhooks
@@ -599,7 +610,8 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         adapter: buildDeliveryAdapter(executionRequest),
         webhookDispatcher: dispatcher,
         replyAssessments: executionRequest.replyAssessments,
-        incidents: executionRequest.incidents
+        incidents: executionRequest.incidents,
+        launchAuthorization: executionRequest.launchAuthorization
       });
       const updated = await store.update(result.campaign);
       const execution = await store.insertExecution(
@@ -612,6 +624,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           approvalWorkbench: workbench,
           replyAssessments: executionRequest.replyAssessments,
           incidents: executionRequest.incidents,
+          launchAuthorization: executionRequest.launchAuthorization,
           proofPack: result.proofPack
         })
       );
@@ -623,6 +636,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         summary: updated.summary,
         senderHealth: updated.senderHealth,
         adapterRiskPosture: execution.adapterRiskPosture,
+        launchAuthorization: execution.launchAuthorization ?? null,
         intents: result.intents,
         deliveryAttempts: result.deliveryAttempts,
         webhookDeliveries: result.webhookDeliveries,
@@ -1330,6 +1344,33 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                         }
                       ]
                     },
+                    launchAuthorization: {
+                      type: "object",
+                      description:
+                        "Required for manual and managed-provider executions. Mock executions do not need this local rehearsal gate.",
+                      required: [
+                        "actor",
+                        "deliveryPath",
+                        "approvedTargetLimit",
+                        "approvedAt",
+                        "reference"
+                      ],
+                      properties: {
+                        actor: { type: "string" },
+                        deliveryPath: {
+                          type: "string",
+                          enum: ["manual", "managed_provider"]
+                        },
+                        approvedTargetLimit: {
+                          type: "integer",
+                          minimum: 1
+                        },
+                        approvedAt: { type: "string", format: "date-time" },
+                        reference: { type: "string" },
+                        evidenceUrl: { type: "string" },
+                        notes: { type: "string" }
+                      }
+                    },
                     simulateWebhooks: { type: "boolean" },
                     simulatedWebhookStatusCode: { type: "integer" },
                     replyAssessments: {
@@ -1350,7 +1391,8 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
               description: "Safe execution completed and proof pack returned"
             },
             "400": { description: "Invalid execution request" },
-            "404": { description: "Campaign not found" }
+            "404": { description: "Campaign not found" },
+            "409": { description: "Execution readiness or launch authorization conflict" }
           }
         }
       },
@@ -1793,7 +1835,8 @@ function refreshExecutionProofForProviderEvent(
       deliveryAttempts,
       webhookDeliveries: execution.webhookDeliveries,
       replyAssessments: execution.replyAssessments,
-      incidents: execution.incidents
+      incidents: execution.incidents,
+      launchAuthorization: execution.launchAuthorization
     })
   };
 }
@@ -2234,6 +2277,7 @@ const executionRequestSchema = z.object({
       })
     ])
     .default({ kind: "mock", restrictedTargets: [], failingTargets: [], replyTargets: [] }),
+  launchAuthorization: launchAuthorizationSchema.optional(),
   simulateWebhooks: z.boolean().default(true),
   simulatedWebhookStatusCode: z.number().int().min(100).max(599).default(204),
   replyAssessments: z
@@ -2420,8 +2464,10 @@ async function buildLatestProofPackReport(
       adapterRiskPosture: latestExecution.adapterRiskPosture,
       intentCount: latestExecution.intents.length,
       deliveryAttemptCount: latestExecution.deliveryAttempts.length,
-      webhookDeliveryCount: latestExecution.webhookDeliveries.length
+      webhookDeliveryCount: latestExecution.webhookDeliveries.length,
+      launchAuthorization: latestExecution.launchAuthorization ?? null
     },
+    launchAuthorization: latestExecution.launchAuthorization ?? null,
     proofPack: latestExecution.proofPack,
     metrics: latestExecution.proofPack.metrics,
     renewalRecommendation: latestExecution.proofPack.renewalRecommendation,
@@ -2482,7 +2528,7 @@ async function buildPilotHandoffPacket(
     contracts: {
       creatorInput: creatorInputContract(campaignForReadiness),
       senderOperations: senderOperationsContract(campaignForReadiness),
-      launchPermission: launchPermissionContract(),
+      launchAuthorization: launchAuthorizationContract(),
       manualEvidence: manualEvidenceContract(),
       providerExecution: providerExecutionContract(),
       proofCriteria: proofCriteriaContract(),
@@ -2497,7 +2543,8 @@ async function buildPilotHandoffPacket(
             intentCount: latestExecution.intents.length,
             deliveryAttemptCount: latestExecution.deliveryAttempts.length,
             proofMetrics: latestExecution.proofPack.metrics,
-            renewalDecision: latestExecution.proofPack.renewalRecommendation.decision
+            renewalDecision: latestExecution.proofPack.renewalRecommendation.decision,
+            launchAuthorization: latestExecution.launchAuthorization ?? null
           }
         : null,
       manualQueue: manualQueue
@@ -2608,7 +2655,7 @@ function pilotHandoffActions(input: {
 
   if (!input.latestExecution) {
     actions.push({
-      id: "collect_launch_permission",
+      id: "collect_launch_authorization",
       label: "Collect explicit permission for the selected pilot delivery path",
       state: "external_required",
       method: "EXTERNAL",
@@ -2737,12 +2784,12 @@ function senderOperationsContract(campaign: Campaign) {
   };
 }
 
-function launchPermissionContract() {
+function launchAuthorizationContract() {
   return {
     requiredBeforeLiveOutreach: true,
     currentApiBehavior:
-      "The handoff packet names launch permission as an external input; operators must record the approval reference in their launch log before executing a real pilot.",
-    evidenceFields: ["actor", "reference", "approvedAt", "deliveryPath", "targetLimit", "stopConditions"]
+      "Manual and managed-provider executions require a launchAuthorization object; mock executions remain available for local rehearsal without live-pilot authorization.",
+    evidenceFields: ["actor", "reference", "approvedAt", "deliveryPath", "approvedTargetLimit", "stopConditions"]
   };
 }
 
@@ -3083,7 +3130,8 @@ async function recordManualEvidence(input: {
         deliveryAttempts,
         webhookDeliveries,
         replyAssessments,
-        incidents: input.execution.incidents ?? []
+        incidents: input.execution.incidents ?? [],
+        launchAuthorization: input.execution.launchAuthorization
       })
     },
     event,
@@ -3136,7 +3184,8 @@ async function reconcileManualRestrictionSenderRisk(input: {
           deliveryAttempts: currentExecution.deliveryAttempts,
           webhookDeliveries: currentExecution.webhookDeliveries,
           replyAssessments: currentExecution.replyAssessments,
-          incidents: currentExecution.incidents
+          incidents: currentExecution.incidents,
+          launchAuthorization: currentExecution.launchAuthorization
         })
       };
 
@@ -3405,12 +3454,14 @@ function hasInlineApprovalOverrides(request: ExecutionRequest): boolean {
 function assertExecutionReadiness(
   campaign: Campaign,
   workbench: ApprovalWorkbench | null,
-  executions: CampaignExecutionRecord[]
+  executions: CampaignExecutionRecord[],
+  launchAuthorization: LaunchAuthorization | null | undefined = null
 ): void {
   const readiness = buildPilotReadinessReport({
     campaign,
     approvalWorkbench: workbench,
-    executions
+    executions,
+    launchAuthorization
   });
   if (readiness.readyForExecution && readiness.counts.pendingManualEvidence === 0) {
     return;
@@ -3428,6 +3479,62 @@ function assertExecutionReadiness(
       .filter(Boolean)
       .join(". ")
   );
+}
+
+function launchAuthorizationForReadiness(
+  request: ExecutionRequest
+): LaunchAuthorization | null {
+  if (request.launchAuthorization) {
+    return request.launchAuthorization;
+  }
+
+  if (request.adapter.kind === "mock") {
+    return {
+      actor: "local-rehearsal",
+      deliveryPath: "manual",
+      approvedTargetLimit: Number.MAX_SAFE_INTEGER,
+      approvedAt: new Date(0).toISOString(),
+      reference: "mock-execution-exempt"
+    };
+  }
+
+  return null;
+}
+
+function assertLaunchAuthorizationForExecution(
+  request: ExecutionRequest,
+  workbench: ApprovalWorkbench
+): void {
+  if (request.adapter.kind === "mock") {
+    return;
+  }
+
+  if (!request.launchAuthorization) {
+    throw new ConflictError(
+      "Launch authorization is required for manual and managed-provider execution"
+    );
+  }
+
+  if (request.launchAuthorization.deliveryPath !== request.adapter.kind) {
+    throw new ConflictError(
+      `Launch authorization deliveryPath ${request.launchAuthorization.deliveryPath} does not match adapter kind ${request.adapter.kind}`
+    );
+  }
+
+  const executionTargetCount = countAuthorizedExecutionTargets(workbench);
+  if (executionTargetCount > request.launchAuthorization.approvedTargetLimit) {
+    throw new ConflictError(
+      `Launch authorization permits ${request.launchAuthorization.approvedTargetLimit} target(s), but execution would contact ${executionTargetCount}`
+    );
+  }
+}
+
+function countAuthorizedExecutionTargets(workbench: ApprovalWorkbench): number {
+  return workbench.candidates.filter(
+    (candidate) =>
+      candidate.approval === "approved" &&
+      (candidate.work === "queued" || candidate.work === "claimed")
+  ).length;
 }
 
 function validateManagedProviderOutcomes(
