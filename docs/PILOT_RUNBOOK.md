@@ -129,7 +129,11 @@ private or special-use addresses before the outbound request is made.
 14. Operator or buyer fetches `GET /campaigns/:id/proof-pack` for the latest
     proof export, readiness state, source URLs, metrics, renewal decision, and
     Markdown report.
-15. Proof-pack generator produces the renewal report with operator skipped and
+15. Operator checks `GET /campaigns/:id/follow-ups` when the campaign includes
+    `settings.followUps`. The plan lists only contacted creators without reply,
+    failure, or restriction evidence, with due/pending status, sequence,
+    sender, message, and creator provenance for the next operator touch.
+16. Proof-pack generator produces the renewal report with operator skipped and
     blocked counts from workbench evidence.
 
 ## Readiness Gates
@@ -166,6 +170,16 @@ attempts, and `status=all` for an audit view.
 Manual evidence writes update the campaign and execution proof record together
 inside the store. That makes the queue/evidence loop safe for a small pilot with
 more than one operator submitting evidence at the same time.
+
+## Follow-up Plan
+
+The follow-up plan is an operator planning surface, not an automatic sender.
+`GET /campaigns/:id/follow-ups` reads `settings.followUps` and the latest
+execution evidence, then returns due and pending follow-up items for contacted
+creators who have not replied, failed, or been restricted. `GET
+/campaigns/:id/proof-pack` includes the same `followUpPlan` plus
+`source.followUpsUrl` so renewal review can see whether there is remaining
+operator work before another campaign is created.
 
 ## Evidence Rules
 

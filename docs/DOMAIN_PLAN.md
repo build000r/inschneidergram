@@ -86,6 +86,10 @@ The current implementation covers:
   campaign state, appends webhook delivery records, and refreshes proof packs
 - store-level campaign/execution mutation for manual evidence so concurrent
   operator submissions do not overwrite each other
+- follow-up plan API that derives due and pending operator work from
+  `settings.followUps` plus latest execution evidence without scheduling
+  follow-ups for replied, failed, restricted, duplicate, or policy-blocked
+  targets
 - managed-provider execution contract that accepts explicit provider-reported
   outcomes for every approved executable target and records sent, replied,
   failed, or restricted events into campaign status, webhooks, and proof packs
@@ -147,33 +151,35 @@ The current implementation covers:
     stored proof pack without losing concurrent operator updates.
 18. Launch readiness can be inspected from one API response before execution,
     during manual evidence collection, and after proof is ready.
-19. OpenAPI documents the runtime pilot contract closely enough for a local
+19. Follow-up work can be inspected after execution with due/pending counts,
+    sequence, message, sender, target, and preserved creator provenance.
+20. OpenAPI documents the runtime pilot contract closely enough for a local
     operator to run the no-credential manual flow without guessing schemas.
-20. A one-command manual rehearsal proves the operator-run pilot path still
+21. A one-command manual rehearsal proves the operator-run pilot path still
     works before real sender/list inputs are available.
-21. Managed sender accounts can be registered, fetched, listed, health-checked,
+22. Managed sender accounts can be registered, fetched, listed, health-checked,
     and updated through risk events.
-22. Campaign creation uses stored sender inventory when inline sender accounts
+23. Campaign creation uses stored sender inventory when inline sender accounts
     are absent and rejects unknown managed sender ids.
-23. Operators can list pending and completed manual delivery work with stable
+24. Operators can list pending and completed manual delivery work with stable
     intent ids and required evidence fields.
-24. Managed-provider executions require explicit outcomes for all approved
+25. Managed-provider executions require explicit outcomes for all approved
     executable targets and reject duplicate, missing, or unknown outcome
     targets.
-25. Executions cannot create proof records while approval readiness gates still
+26. Executions cannot create proof records while approval readiness gates still
     fail.
-26. Buyers/operators can export the latest proof pack and readiness context
+27. Buyers/operators can export the latest proof pack and readiness context
     without knowing which execution id to inspect.
-27. The built service can be smoke-tested through real HTTP with an isolated
+28. The built service can be smoke-tested through real HTTP with an isolated
     JSON store.
-28. Public service deployments can require `X-API-Key` or bearer credentials
+29. Public service deployments can require `X-API-Key` or bearer credentials
     without breaking local default-open demos.
-29. Provider event ingestion and non-simulated executions dispatch signed
+30. Provider event ingestion and non-simulated executions dispatch signed
     webhook callbacks through the runtime sender.
-30. Operators can inspect and replay dead-lettered callback deliveries.
-31. Network-exposed deployments reject unsafe webhook destinations before
+31. Operators can inspect and replay dead-lettered callback deliveries.
+32. Network-exposed deployments reject unsafe webhook destinations before
     storing campaigns and before dispatching legacy callback records.
-32. Tests prove the API contract and domain rules.
+33. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -243,6 +249,12 @@ metrics.
 latest execution, attaches readiness and source URLs, and returns metrics,
 renewal recommendation, and the Markdown report without requiring the caller to
 discover an execution id first.
+
+`GET /campaigns/:id/follow-ups` is the operator follow-up plan. It uses the
+campaign's configured follow-up rules and latest execution evidence to expose
+only follow-ups that still make sense: sent creators with no reply, failure, or
+restriction. The latest proof export includes the same plan and a
+`source.followUpsUrl` pointer.
 
 The refreshed proof pack keeps campaign ingest/policy blocks separate from
 operator skipped and operator blocked targets captured in the approval

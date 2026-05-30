@@ -39,6 +39,7 @@ This repo currently contains the first API/control-plane slice:
 | Operator workbench state | Working MVP | claim, skip, block routes before execution |
 | Execution runner | Working MVP | `POST /campaigns/:id/executions` |
 | Pilot launch readiness | Working MVP | `GET /campaigns/:id/readiness` |
+| Follow-up planning | Working MVP | `GET /campaigns/:id/follow-ups` derives due/pending work from execution evidence |
 | Managed sender infrastructure | Partial | non-secret inventory exists; credentials/provider ops are external |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, operator triage, renewal decision |
 | Execution proof records | Working MVP | `GET /campaigns/:id/executions` |
@@ -266,6 +267,18 @@ The export returns the latest execution id, adapter risk posture, readiness,
 metrics, renewal recommendation, and the proof-pack Markdown so a buyer or
 operator can review the pilot result without walking raw execution records.
 
+Inspect follow-up work derived from the latest execution evidence:
+
+```bash
+curl -s http://127.0.0.1:3107/campaigns/<campaign-id>/follow-ups
+```
+
+The follow-up plan turns `settings.followUps` into operator-visible work only
+for creators who were contacted and have not replied, failed, or been
+restricted. Each item includes the target, sender, sequence, message, last
+sent timestamp, due timestamp, due/pending status, and preserved creator
+profile evidence when available.
+
 Run a safe execution dry-run:
 
 ```bash
@@ -424,6 +437,13 @@ has proof ready for review.
 context, source URLs, metrics, renewal recommendation, and Markdown. It returns
 `404 proof_pack_not_found` when the campaign has not produced execution proof
 yet, including the current readiness report so the next action is still clear.
+The export also includes `followUpPlan` and `source.followUpsUrl` so a buyer or
+operator can see the next planned touches without discovering execution ids.
+
+`GET /campaigns/:id/follow-ups` derives the current follow-up plan from
+`settings.followUps` and the latest execution evidence. It suppresses follow-up
+items for creators who replied, failed, were restricted, or were never accepted
+for scheduling, then reports due and pending counts for operator review.
 
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It refuses to
 create proof records until readiness approval gates pass through a stored

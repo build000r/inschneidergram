@@ -8,6 +8,7 @@
 | "Managed, not a script" | Aspirational | Need sender operations, incident handling, and real pilot. |
 | "Duplicate-safe campaigns" | True for MVP scope | Domain tests cover duplicate prevention inside a campaign. |
 | "Provenance-backed creator intake" | True for MVP scope | Campaign targets can carry source and fit rationale; strict campaigns block unvetted targets and proof packs count vetted targets. |
+| "Follow-up planning" | True for MVP scope | Campaign follow-up rules now produce due/pending operator work after execution; automatic follow-up sending is not claimed. |
 | "Delivery and reply reporting" | Partly true | Provider events and non-simulated executions can dispatch signed callbacks; live provider integration still pending. |
 | "API-key protected service" | True for MVP scope | Optional `INSCHNEIDERGRAM_API_KEY` protects non-public routes; smoke runs with auth enabled. |
 | "Guarded callback delivery" | True for MVP scope | Webhook URLs must be public HTTPS destinations; local/private/special-use hosts are blocked and production allowlists are supported. |

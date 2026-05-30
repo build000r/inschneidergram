@@ -16,6 +16,7 @@ flowchart LR
   bounty["Bounty: managed Instagram creator outreach"]
   api["GREEN API control plane MVP"]
   creatorIntake["GREEN Creator provenance intake"]
+  followUps["GREEN Follow-up plan API"]
   store["GREEN Durable local store + idempotency"]
   approvalApi["GREEN Persisted approval + operator state API"]
   providerContract["GREEN Managed-provider contract surface"]
@@ -37,6 +38,7 @@ flowchart LR
   next["Next: real delivery ops + live pilot"]
   bounty --> api
   api --> creatorIntake
+  api --> followUps
   api --> store
   api --> approvalApi
   bounty --> providerContract
@@ -46,6 +48,7 @@ flowchart LR
   api --> proof
   creatorIntake --> proof
   creatorIntake --> readiness
+  followUps --> proofExport
   proof --> proofExport
   proof --> webhookRuntime
   webhookRuntime --> webhookGuard
@@ -66,6 +69,7 @@ flowchart LR
   ops --> beads
   runner --> beads
   creatorIntake --> beads
+  followUps --> beads
   proof --> beads
   proofExport --> beads
   webhookRuntime --> beads
@@ -79,6 +83,7 @@ flowchart LR
   beads --> next
   class api green
   class creatorIntake green
+  class followUps green
   class store green
   class approvalApi green
   class providerContract green
@@ -110,6 +115,7 @@ gantt
   section GREEN Working
   GREEN Campaign API MVP :done, 2026-05-30, 1d
   GREEN Creator provenance intake :done, 2026-05-30, 1d
+  GREEN Follow-up plan API :done, 2026-05-30, 1d
   GREEN Durable store and approvals :done, 2026-05-30, 1d
   GREEN Persisted approval + operator state API :done, 2026-05-30, 1d
   GREEN Proof pack generator :done, 2026-05-30, 1d
@@ -138,6 +144,7 @@ gantt
 flowchart TD
   api["DONE GREEN API contract"]
   creatorIntake["DONE GREEN Creator provenance intake"]
+  followUps["DONE GREEN Follow-up plan API"]
   store["DONE GREEN Persistent store + suppression"]
   approval["DONE GREEN Approval + operator workbench API/domain"]
   providerContract["DONE GREEN Managed-provider contract surface"]
@@ -158,6 +165,7 @@ flowchart TD
   pilot["FUTURE YELLOW Graphed pilot covered by inschneidergram-j8b"]
   api --> store
   api --> creatorIntake
+  api --> followUps
   api --> approval
   api --> providerContract
   providerContract --> adapter
@@ -170,6 +178,7 @@ flowchart TD
   adapter --> sender
   sender --> proof
   proof --> proofExport
+  followUps --> proofExport
   proof --> runner
   runner --> readiness
   readiness --> executionGate
@@ -189,6 +198,7 @@ flowchart TD
   serviceSmoke --> pilot
   class api green
   class creatorIntake green
+  class followUps green
   class store green
   class approval green
   class providerContract green
@@ -233,6 +243,7 @@ sequenceDiagram
   I-->>G: signed callback on delivery or reply when webhookUrl passes policy
   G->>I: GET /webhooks/dead-letters and replay if needed
   G->>I: GET /campaigns/:id/proof-pack for latest buyer-facing report
+  G->>I: GET /campaigns/:id/follow-ups for due or pending follow-up work
   G->>I: GET /operator/manual-queue for pending operator work
   G->>I: POST /manual-events for operator evidence when manual
   G->>I: npm run demo:manual-pilot rehearses the full manual path
@@ -281,7 +292,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/auth/runtime-webhooks/webhook-guard/creator-provenance/operator-proof/readiness/openapi/manual-rehearsal/runtime/domain"]
+  tests["GREEN npm test covers API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/follow-ups/auth/runtime-webhooks/webhook-guard/creator-provenance/operator-proof/readiness/openapi/manual-rehearsal/runtime/domain"]
   typecheck["GREEN typecheck green"]
   smoke["GREEN npm run smoke:service passed with API key enabled"]
   mmdx["GREEN MMDX preflight passed"]
@@ -310,7 +321,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/auth/runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/rehearsal claims"]
+  code["GREEN Code matches API/store/senders/approval/operator/manual-queue/managed-provider/atomic-evidence/execution-gating/proof-export/follow-ups/auth/runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/rehearsal claims"]
   beads["YELLOW Beads keep live ops and pilot gap open"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -326,7 +337,7 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, creator provenance intake, durable store, sender inventory, approval/operator API, operator manual queue, managed-provider outcome contract, execution readiness enforcement, latest proof export, optional API key gate, runtime webhook callbacks, webhook destination guard, service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
+  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, approval/operator API, operator manual queue, managed-provider outcome contract, execution readiness enforcement, latest proof export, optional API key gate, runtime webhook callbacks, webhook destination guard, service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, manual rehearsal, proof metrics"]
   link["Blocked next: mint public Buildooor MMDX short link (inschneidergram-j8b.7)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]
@@ -343,6 +354,8 @@ erDiagram
   CAMPAIGN ||--o{ APPROVAL_WORKBENCH : reviewed_by
   CAMPAIGN ||--o{ PILOT_PROOF_PACK : reports
   CAMPAIGN ||--o{ EXECUTION_RUN : executes
+  CAMPAIGN ||--o{ FOLLOW_UP_PLAN : plans
+  EXECUTION_RUN ||--o{ FOLLOW_UP_PLAN : derives
   SENDER_ACCOUNT ||--o{ TARGET : assigned_to
   SENDER_ACCOUNT ||--o{ SENDER_RISK_EVENT : records
   TARGET ||--o{ PROVIDER_EVENT : changes_status
@@ -407,5 +420,12 @@ erDiagram
     string proofPack
     string manualEvents
     string providerOutcomes
+  }
+  FOLLOW_UP_PLAN {
+    string campaignId
+    string executionId
+    string targetHandle
+    datetime dueAt
+    string status
   }
 ```

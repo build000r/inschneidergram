@@ -33,6 +33,7 @@ import {
   type ManualEvidenceRequirement
 } from "./domain/delivery.js";
 import { executeApprovedCampaign } from "./domain/execution.js";
+import { buildFollowUpPlan } from "./domain/followUp.js";
 import { normalizeInstagramHandle } from "./domain/handles.js";
 import {
   createTargetWebhookJob,
@@ -295,6 +296,20 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     }
 
     return report;
+  });
+
+  app.get("/campaigns/:id/follow-ups", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const campaign = await store.get(id);
+
+    if (!campaign) {
+      return reply.code(404).send({ error: "campaign_not_found" });
+    }
+
+    return buildFollowUpPlan({
+      campaign,
+      executions: await store.listExecutions(id)
+    });
   });
 
   app.post("/campaigns/:id/events", async (request, reply) => {
@@ -956,6 +971,16 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           responses: {
             "200": { description: "Latest proof pack report returned" },
             "404": { description: "Campaign or proof pack not found" }
+          }
+        }
+      },
+      "/campaigns/{id}/follow-ups": {
+        parameters: openApiPathParameters("id"),
+        get: {
+          summary: "Inspect planned follow-up work from latest execution evidence",
+          responses: {
+            "200": { description: "Follow-up plan returned" },
+            "404": { description: "Campaign not found" }
           }
         }
       },
@@ -2193,11 +2218,16 @@ async function buildLatestProofPackReport(
     proofPack: latestExecution.proofPack,
     metrics: latestExecution.proofPack.metrics,
     renewalRecommendation: latestExecution.proofPack.renewalRecommendation,
+    followUpPlan: buildFollowUpPlan({
+      campaign: campaignForReadiness,
+      executions
+    }),
     markdown: latestExecution.proofPack.markdown,
     nextActions: readiness.nextActions,
     externalInputs: readiness.externalInputs,
     source: {
       readinessUrl: `/campaigns/${campaign.id}/readiness`,
+      followUpsUrl: `/campaigns/${campaign.id}/follow-ups`,
       executionUrl: `/campaigns/${campaign.id}/executions/${latestExecution.id}`,
       executionsUrl: `/campaigns/${campaign.id}/executions`
     }

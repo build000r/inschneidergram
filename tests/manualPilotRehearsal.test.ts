@@ -24,6 +24,7 @@ describe("manual pilot rehearsal", () => {
         "/operator/manual-queue",
         "/campaigns",
         "/campaigns/{id}/readiness",
+        "/campaigns/{id}/follow-ups",
         "/campaigns/{id}/approval-workbench",
         "/campaigns/{id}/approval-workbench/candidates/{candidateId}/claim",
         "/campaigns/{id}/approval-workbench/candidates/{candidateId}/work",

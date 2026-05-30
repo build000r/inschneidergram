@@ -23,7 +23,8 @@ content collaborations, or qualified pipeline.
 - one approved first-touch message or template
 - creator approval criteria and approving actor
 - copy approval criteria and approving actor
-- optional follow-up copy
+- optional follow-up copy with delay windows; `GET /campaigns/:id/follow-ups`
+  exposes due and pending follow-up work after execution
 - managed sender account ids registered through the sender API or selected
   delivery adapter
 - stop conditions for opt-outs, complaints, sender warnings, and low quality
@@ -53,6 +54,7 @@ default proof pack should include:
 - vetted/provenance-backed targets
 - approved targets
 - approved first-touch copy
+- due and pending follow-up items when follow-up rules are configured
 - contacted targets
 - sent messages
 - delivered messages when provider can prove delivery

@@ -1841,6 +1841,12 @@ describe("API", () => {
         settings: {
           webhookUrl: "https://example.com/webhooks/inschneidergram",
           senderPool: ["sender-a"],
+          followUps: [
+            {
+              delayHours: 168,
+              message: "Checking back once before I close the loop."
+            }
+          ],
           senderAccounts: [
             {
               id: "sender-a",
@@ -2027,11 +2033,52 @@ describe("API", () => {
       },
       source: {
         readinessUrl: `/campaigns/${campaignId}/readiness`,
+        followUpsUrl: `/campaigns/${campaignId}/follow-ups`,
         executionUrl: `/campaigns/${campaignId}/executions/${executionResponse.json().executionId}`,
         executionsUrl: `/campaigns/${campaignId}/executions`
+      },
+      followUpPlan: {
+        latestExecutionId: executionResponse.json().executionId,
+        counts: {
+          total: 1,
+          due: 0,
+          pending: 1
+        },
+        items: [
+          {
+            targetHandle: "provider_sent",
+            sequence: 1,
+            message: "Checking back once before I close the loop.",
+            status: "pending"
+          }
+        ]
       }
     });
     expect(proofExport.json().markdown).toContain("Decision: renew");
+
+    const followUps = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/follow-ups`
+    });
+    expect(followUps.statusCode).toBe(200);
+    expect(followUps.json()).toMatchObject({
+      campaignId,
+      latestExecutionId: executionResponse.json().executionId,
+      counts: {
+        total: 1,
+        due: 0,
+        pending: 1
+      },
+      items: [
+        expect.objectContaining({
+          targetHandle: "provider_sent",
+          senderAccountId: "sender-a",
+          sequence: 1,
+          message: "Checking back once before I close the loop.",
+          status: "pending"
+        })
+      ]
+    });
 
     await app.close();
   });
@@ -3033,6 +3080,9 @@ describe("API", () => {
           description: "Campaign or proof pack not found"
         }
       }
+    });
+    expect(openapi.paths["/campaigns/{id}/follow-ups"].get).toMatchObject({
+      summary: "Inspect planned follow-up work from latest execution evidence"
     });
     expect(openapi.paths["/campaigns/{id}/executions"].get).toMatchObject({
       summary: "List persisted execution proof records for a campaign"
