@@ -50,8 +50,10 @@ For the first pilot, maintain a private sender inventory outside git with:
 2. Operator or approver creates an approval workbench and approves creators plus
    first-touch copy.
 3. Execution runner creates approved `SendIntent` records.
-4. Manual adapter returns `needs_manual_evidence`.
-5. Operator performs or verifies the send outside the codebase.
+4. Delivery adapter returns sent, failed, restricted, replied, or
+   `needs_manual_evidence`.
+5. Operator performs or verifies manual sends outside the codebase when the
+   adapter requires human evidence.
 6. Operator records sent, failed, restricted, skipped, or replied evidence.
 7. Campaign events update status and outgoing webhooks notify Graphed.
 8. Proof-pack generator produces the renewal report.

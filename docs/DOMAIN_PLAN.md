@@ -54,6 +54,8 @@ The current implementation covers:
 - retry/backoff, dead-letter, and replay behavior for injected webhook senders
 - pilot proof-pack metrics, incidents, sender health, reply assessment, and
   renewal recommendation
+- execution runner that connects approval, delivery adapter events, outgoing
+  webhooks, and proof-pack generation
 
 ## Acceptance Criteria
 
@@ -70,7 +72,9 @@ The current implementation covers:
    status.
 9. Outgoing webhooks can be signed, retried, dead-lettered, and replayed.
 10. A sample pilot fixture generates proof metrics and a Markdown report.
-11. Tests prove the API contract and domain rules.
+11. Approved campaign execution routes send intents through an injected adapter,
+    records events, sends webhooks, and returns proof.
+12. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -93,6 +97,13 @@ outreach through an owned managed operation. The adapter must expose health,
 rate-limit, sender, and incident state. The first live-pilot path is documented
 in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md): operator-run managed manual delivery
 with private sender inventory and explicit evidence capture.
+
+### Execution Runner
+
+Connect the current runner to persistent stores and API routes. The domain
+runner already creates approved send intents, routes through an injected
+adapter, records delivery/reply/restricted/failed events, dispatches outgoing
+webhooks, and feeds the proof-pack generator.
 
 ### Sender Account Operations
 

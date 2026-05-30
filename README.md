@@ -31,6 +31,7 @@ This repo currently contains the first API/control-plane slice:
 | Persistent local campaign store | Working MVP | `JsonFileCampaignStore`, idempotency/suppression tests |
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
+| Execution runner | Working MVP | approval to adapter to webhooks to proof pack |
 | Managed sender infrastructure | Partial | health model exists; real account operations next |
 | Pilot proof pack | Working MVP | metrics, incidents, sender health, renewal decision |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
@@ -171,7 +172,7 @@ owns that operational risk.
 
 1. Wire the managed delivery adapter contract into the campaign execution path.
 2. Connect real sender account operations to the sender health model.
-3. Wire outgoing webhook dispatch into campaign/event writes.
+3. Connect real sender account operations to the execution runner.
 4. Run a controlled pilot with a small vetted creator list.
 5. Publish live reliability evidence using the proof-pack generator.
 

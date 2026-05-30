@@ -20,14 +20,17 @@ flowchart LR
   ops["YELLOW Sender health model only"]
   beads["YELLOW Beads planning active"]
   proof["GREEN Proof pack generator"]
-  next["Next: execution routing + live pilot"]
+  runner["GREEN Execution runner"]
+  next["Next: real sender ops + live pilot"]
   bounty --> api
   api --> store
   bounty --> delivery
   bounty --> ops
   api --> proof
+  proof --> runner
   delivery --> beads
   ops --> beads
+  runner --> beads
   proof --> beads
   beads --> next
   class api green
@@ -35,6 +38,7 @@ flowchart LR
   class delivery yellow
   class ops yellow
   class proof green
+  class runner green
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -51,7 +55,8 @@ gantt
   GREEN Durable store and approvals :done, 2026-05-30, 1d
   GREEN Proof pack generator :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
-  YELLOW Execution routing :active, 2026-05-30, 2d
+  GREEN Execution runner :done, 2026-05-30, 1d
+  YELLOW Live pilot preparation :active, 2026-05-30, 2d
   section RED Unproven
   RED Real delivery adapter :crit, 2026-06-01, 5d
   RED Pilot evidence :crit, 2026-06-06, 4d
@@ -67,6 +72,7 @@ flowchart TD
   sender["PARTIAL YELLOW Sender health model"]
   webhooks["DONE GREEN Outgoing webhook retry domain"]
   proof["DONE GREEN Proof pack generator"]
+  runner["DONE GREEN Execution runner"]
   pilot["FUTURE RED Graphed pilot"]
   api --> store
   api --> approval
@@ -76,7 +82,8 @@ flowchart TD
   approval --> proof
   adapter --> sender
   sender --> proof
-  proof --> pilot
+  proof --> runner
+  runner --> pilot
   class api green
   class store green
   class approval green
@@ -84,6 +91,7 @@ flowchart TD
   class sender yellow
   class webhooks green
   class proof green
+  class runner green
   class pilot red
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -181,9 +189,9 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, approvals, webhooks, proof"]
-  first["Next: execution routing"]
-  second["Then: real sender operations"]
+  now["Current: API, durable store, approvals, webhooks, proof, runner"]
+  first["Next: real sender operations"]
+  second["Then: live Graphed pilot"]
   third["Then: real Graphed pilot"]
   now --> first --> second --> third
 ```
@@ -196,6 +204,7 @@ erDiagram
   CAMPAIGN ||--o{ SUPPRESSION_RECORD : creates
   CAMPAIGN ||--o{ APPROVAL_WORKBENCH : reviewed_by
   CAMPAIGN ||--o{ PILOT_PROOF_PACK : reports
+  CAMPAIGN ||--o{ EXECUTION_RUN : executes
   SENDER_ACCOUNT ||--o{ TARGET : assigned_to
   TARGET ||--o{ PROVIDER_EVENT : changes_status
   TARGET ||--o{ OPERATOR_EVIDENCE : records
@@ -242,5 +251,10 @@ erDiagram
     string campaignId
     datetime generatedAt
     string renewalDecision
+  }
+  EXECUTION_RUN {
+    string campaignId
+    string adapterId
+    datetime executedAt
   }
 ```
