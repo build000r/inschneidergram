@@ -52,6 +52,8 @@ The current implementation covers:
 - scheduler refusal when no healthy sender is available
 - outgoing signed webhook payloads and jobs
 - retry/backoff, dead-letter, and replay behavior for injected webhook senders
+- pilot proof-pack metrics, incidents, sender health, reply assessment, and
+  renewal recommendation
 
 ## Acceptance Criteria
 
@@ -67,7 +69,8 @@ The current implementation covers:
 8. Unhealthy senders are refused before scheduling and reported in campaign
    status.
 9. Outgoing webhooks can be signed, retried, dead-lettered, and replayed.
-10. Tests prove the API contract and domain rules.
+10. A sample pilot fixture generates proof metrics and a Markdown report.
+11. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 
@@ -104,8 +107,11 @@ tooling now exist as a domain module with injected sender tests.
 
 ### Pilot Evidence
 
-Produce a report that proves accepted targets, sent messages, delivery, replies,
-skips, duplicate prevention, failures, and operational incidents.
+Wire the current proof-pack generator to stored campaign, approval, delivery,
+webhook, and incident data. The domain module already produces accepted targets,
+sent messages, delivery, replies, qualified replies, opt-outs, complaints,
+duplicate prevention, failures, sender health, incidents, and a renewal
+recommendation from a sample fixture.
 
 ## Validation Commands
 

@@ -81,3 +81,10 @@ candidate with approval state, claim state, evidence, and audit history. Sends
 are only valid after creator approval, message approval, and operator claim.
 Operators can then record one terminal outcome per creator: sent, skipped, or
 blocked.
+
+## Proof Pack Generator
+
+The domain proof pack turns campaign status, approval state, delivery attempts,
+webhook delivery records, sender health, reply assessments, and incidents into
+metrics plus a Markdown renewal report. It is still sample-fixture proof until a
+live Graphed pilot runs through the managed delivery path.

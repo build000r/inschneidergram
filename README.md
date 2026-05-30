@@ -32,8 +32,9 @@ This repo currently contains the first API/control-plane slice:
 | Idempotent campaign creation | Working MVP | `Idempotency-Key` header tests |
 | Sender health model | Working MVP | limits, cooldowns, lockouts, reconnect state |
 | Managed sender infrastructure | Partial | health model exists; real account operations next |
+| Pilot proof pack | Working MVP | metrics, incidents, sender health, renewal decision |
 | Real Instagram delivery | Not implemented | requires provider/account operations |
-| Pilot readiness | Not yet | needs live delivery adapter, ops runbook, observability |
+| Pilot readiness | Partial | needs real delivery adapter and live pilot evidence |
 
 ## Quick Start
 
@@ -172,8 +173,7 @@ owns that operational risk.
 2. Connect real sender account operations to the sender health model.
 3. Wire outgoing webhook dispatch into campaign/event writes.
 4. Run a controlled pilot with a small vetted creator list.
-5. Publish reliability evidence: delivery counts, reply counts, duplicate
-   prevention, blocked sends, and incident log.
+5. Publish live reliability evidence using the proof-pack generator.
 
 ## Limitations
 
