@@ -66,6 +66,9 @@ The current implementation covers:
   campaign state, appends webhook delivery records, and refreshes proof packs
 - pilot launch readiness report that turns campaign, approval, sender,
   execution, and proof state into pass/fail/warn gates plus next actions
+- hardened OpenAPI contract for the no-credential pilot path, including path
+  params, idempotency headers, campaign settings, manual evidence cases, health,
+  and webhook signature preview
 
 ## Acceptance Criteria
 
@@ -95,7 +98,9 @@ The current implementation covers:
     stored proof pack.
 17. Launch readiness can be inspected from one API response before execution,
     during manual evidence collection, and after proof is ready.
-18. Tests prove the API contract and domain rules.
+18. OpenAPI documents the runtime pilot contract closely enough for a local
+    operator to run the no-credential manual flow without guessing schemas.
+19. Tests prove the API contract and domain rules.
 
 ## Next Domain Slices
 

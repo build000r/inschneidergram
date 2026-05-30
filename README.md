@@ -58,6 +58,18 @@ Override with `INSCHNEIDERGRAM_STORE_PATH=/path/to/campaigns.json`.
 delivery, simulated signed webhook delivery records, and no live Instagram
 sending.
 
+Inspect the local API contract:
+
+```bash
+curl -s http://127.0.0.1:3107/openapi.json
+```
+
+The OpenAPI document includes the no-credential pilot flow: campaign creation,
+approval workbench, readiness, manual-safe execution, manual evidence, proof
+records, health, and webhook signature preview. Templated routes document path
+parameters, and manual evidence schemas are split by event type so operators can
+see the required proof fields before a run.
+
 Create a campaign:
 
 ```bash

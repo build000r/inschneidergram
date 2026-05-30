@@ -1077,6 +1077,12 @@ describe("API", () => {
     });
     const openapi = response.json();
 
+    expect(openapi.paths["/health"].get).toMatchObject({
+      summary: "Check API health"
+    });
+    expect(openapi.paths["/webhooks/preview"].post).toMatchObject({
+      summary: "Preview a signed webhook payload"
+    });
     expect(openapi.paths["/campaigns/{id}/readiness"].get).toMatchObject({
       summary: "Get pilot launch readiness gates"
     });
@@ -1138,6 +1144,135 @@ describe("API", () => {
         }
       }
     });
+
+    await app.close();
+  });
+
+  it("documents required OpenAPI path parameters for templated routes", async () => {
+    const app = await buildServer();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/openapi.json"
+    });
+    const openapi = response.json();
+
+    for (const [path, operations] of Object.entries(openapi.paths) as Array<[string, any]>) {
+      const names = [...path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]);
+      if (names.length === 0) {
+        continue;
+      }
+
+      const parameters = operations.parameters ?? [];
+      for (const name of names) {
+        expect(parameters).toContainEqual(
+          expect.objectContaining({
+            name,
+            in: "path",
+            required: true
+          })
+        );
+      }
+    }
+
+    await app.close();
+  });
+
+  it("documents runtime campaign request fields in OpenAPI", async () => {
+    const app = await buildServer();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/openapi.json"
+    });
+    const post = response.json().paths["/campaigns"].post;
+    const schema = post.requestBody.content["application/json"].schema;
+
+    expect(post.parameters).toContainEqual(
+      expect.objectContaining({
+        name: "Idempotency-Key",
+        in: "header"
+      })
+    );
+    expect(schema).toMatchObject({
+      required: ["targets", "campaign"],
+      oneOf: [{ required: ["message"] }, { required: ["template"] }],
+      properties: {
+        template: {
+          properties: {
+            body: { type: "string" },
+            variables: {
+              additionalProperties: { type: "string" }
+            }
+          }
+        },
+        metadata: {
+          additionalProperties: true
+        },
+        settings: {
+          properties: {
+            dailyLimitPerSender: { type: "integer" },
+            minDelaySeconds: { type: "integer" },
+            maxDelaySeconds: { type: "integer" },
+            senderAccounts: {
+              items: {
+                properties: {
+                  status: {
+                    enum: ["healthy", "cooldown", "locked", "reconnect_required"]
+                  },
+                  riskEvents: expect.any(Object)
+                }
+              }
+            },
+            followUps: {
+              items: {
+                required: ["delayHours", "message"]
+              }
+            }
+          }
+        }
+      }
+    });
+
+    await app.close();
+  });
+
+  it("documents manual evidence event-specific requirements in OpenAPI", async () => {
+    const app = await buildServer();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/openapi.json"
+    });
+    const operation =
+      response.json().paths["/campaigns/{id}/executions/{executionId}/manual-events"].post;
+    const cases = operation.requestBody.content["application/json"].schema.oneOf;
+    const byType = Object.fromEntries(
+      cases.map((schema: any) => [schema.properties.type.const, schema])
+    );
+
+    expect(operation.parameters).toContainEqual(
+      expect.objectContaining({
+        name: "Idempotency-Key",
+        in: "header"
+      })
+    );
+    expect(operation.description).toContain("simulated");
+    expect(byType.sent.required).toEqual(expect.arrayContaining(["type", "evidence", "messageId"]));
+    expect(byType.sent.anyOf).toEqual([{ required: ["intentId"] }, { required: ["target"] }]);
+    expect(byType.sent.properties.evidence.required).toEqual(
+      expect.arrayContaining(["operatorId", "conversationUrl", "screenshotUrl"])
+    );
+    expect(byType.failed.required).toEqual(expect.arrayContaining(["type", "evidence", "reason"]));
+    expect(byType.restricted.properties.evidence.required).toEqual(
+      expect.arrayContaining(["operatorId", "screenshotUrl", "restrictionSource"])
+    );
+    expect(byType.replied.required).toEqual(
+      expect.arrayContaining(["type", "evidence", "messageId", "replyText"])
+    );
+    expect(byType.replied.properties.evidence.required).toEqual(
+      expect.arrayContaining(["operatorId", "conversationUrl", "screenshotUrl", "replyCapturedAt"])
+    );
 
     await app.close();
   });

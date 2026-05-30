@@ -23,7 +23,8 @@ flowchart LR
   proof["GREEN Proof pack generator"]
   runner["GREEN API-callable execution + manual evidence records"]
   readiness["GREEN Pilot readiness report"]
-  next["Next: OpenAPI contract hardening + real sender ops"]
+  contract["GREEN Hardened OpenAPI pilot contract"]
+  next["Next: real sender ops + live pilot"]
   bounty --> api
   api --> store
   api --> approvalApi
@@ -33,11 +34,13 @@ flowchart LR
   approvalApi --> runner
   proof --> runner
   runner --> readiness
+  readiness --> contract
   delivery --> beads
   ops --> beads
   runner --> beads
   proof --> beads
   readiness --> beads
+  contract --> beads
   beads --> next
   class api green
   class store green
@@ -47,6 +50,7 @@ flowchart LR
   class proof green
   class runner green
   class readiness green
+  class contract green
   class beads yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -64,9 +68,9 @@ gantt
   GREEN Persisted approval + operator state API :done, 2026-05-30, 1d
   GREEN Proof pack generator :done, 2026-05-30, 1d
   GREEN Pilot readiness report :done, 2026-05-30, 1d
+  GREEN Hardened OpenAPI contract :done, 2026-05-30, 1d
   section YELLOW Bead-covered gaps
   GREEN API-callable execution + manual evidence records :done, 2026-05-30, 1d
-  YELLOW OpenAPI contract hardening :active, 2026-05-30, 1d
   YELLOW Live pilot preparation :active, 2026-05-31, 2d
   section RED Unproven
   RED Real delivery adapter :crit, 2026-06-01, 5d
@@ -85,6 +89,7 @@ flowchart TD
   proof["DONE GREEN Proof pack generator"]
   runner["DONE GREEN API execution + manual evidence records"]
   readiness["DONE GREEN Pilot readiness report"]
+  contract["DONE GREEN OpenAPI pilot contract"]
   pilot["FUTURE RED Graphed pilot"]
   api --> store
   api --> approval
@@ -96,8 +101,10 @@ flowchart TD
   sender --> proof
   proof --> runner
   runner --> readiness
+  readiness --> contract
   runner --> pilot
   readiness --> pilot
+  contract --> pilot
   class api green
   class store green
   class approval green
@@ -107,6 +114,7 @@ flowchart TD
   class proof green
   class runner green
   class readiness green
+  class contract green
   class pilot red
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
@@ -170,7 +178,7 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/approval/operator/execution/manual-evidence/operator-proof/readiness/domain"]
+  tests["GREEN npm test covers API/store/approval/operator/execution/manual-evidence/operator-proof/readiness/openapi/domain"]
   typecheck["GREEN typecheck green"]
   mmdx["YELLOW MMDX preflight required"]
   live["RED no live Instagram delivery proof"]
@@ -193,7 +201,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/approval/operator/manual-evidence/proof claims"]
+  code["GREEN Code matches API/store/approval/operator/manual-evidence/proof/openapi claims"]
   beads["GREEN Beads closed for current scaffold"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
@@ -209,12 +217,11 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, durable store, approval/operator API, webhooks, readiness, operator-proof metrics, manual evidence records"]
-  first["Next: OpenAPI contract hardening"]
-  second["Then: real sender operations"]
-  third["Then: live Graphed pilot"]
-  fourth["Then: deployment hardening"]
-  now --> first --> second --> third --> fourth
+  now["Current: API, durable store, approval/operator API, webhooks, readiness, OpenAPI contract, operator-proof metrics, manual evidence records"]
+  first["Next: real sender operations"]
+  second["Then: live Graphed pilot"]
+  third["Then: deployment hardening"]
+  now --> first --> second --> third
 ```
 
 ## chart erd Data Model ERD

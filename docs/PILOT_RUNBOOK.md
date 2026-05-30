@@ -124,6 +124,13 @@ The current dry-run artifact is [delivery-path-dry-run.md](proof/delivery-path-d
 It proves the selected path, local API, sender-health response, and duplicate
 suppression behavior without claiming a live Instagram send.
 
+The local OpenAPI contract is available at `/openapi.json`. Use it as the
+operator contract for the credential-free pilot path: campaign creation,
+approval, readiness, manual-safe execution, manual evidence, execution proof
+records, `/health`, and `/webhooks/preview`. Manual evidence schemas are
+event-specific, so sent, failed, restricted, and replied events list the
+required evidence fields separately.
+
 For a repeatable local proof-pack demo, run:
 
 ```bash

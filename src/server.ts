@@ -476,9 +476,18 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       version: "0.1.0"
     },
     paths: {
+      "/health": {
+        get: {
+          summary: "Check API health",
+          responses: {
+            "200": { description: "Service health returned" }
+          }
+        }
+      },
       "/campaigns": {
         post: {
           summary: "Create an Instagram creator outreach campaign",
+          parameters: [openApiIdempotencyHeader()],
           requestBody: {
             required: true,
             content: {
@@ -486,6 +495,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                 schema: {
                   type: "object",
                   required: ["targets", "campaign"],
+                  oneOf: [{ required: ["message"] }, { required: ["template"] }],
                   properties: {
                     targets: {
                       type: "array",
@@ -493,16 +503,50 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                       minItems: 1
                     },
                     message: { type: "string" },
+                    template: {
+                      type: "object",
+                      required: ["body"],
+                      properties: {
+                        body: { type: "string" },
+                        variables: {
+                          type: "object",
+                          additionalProperties: { type: "string" }
+                        }
+                      }
+                    },
                     campaign: { type: "string" },
+                    metadata: {
+                      type: "object",
+                      additionalProperties: true
+                    },
                     settings: {
                       type: "object",
                       properties: {
+                        dailyLimitPerSender: { type: "integer", minimum: 1, maximum: 200 },
+                        minDelaySeconds: { type: "integer", minimum: 10, maximum: 86400 },
+                        maxDelaySeconds: { type: "integer", minimum: 10, maximum: 86400 },
                         senderPool: {
                           type: "array",
                           items: { type: "string" }
                         },
+                        senderAccounts: {
+                          type: "array",
+                          items: openApiSenderAccountSchema()
+                        },
                         webhookUrl: { type: "string", format: "uri" },
-                        dryRun: { type: "boolean" }
+                        dryRun: { type: "boolean" },
+                        followUps: {
+                          type: "array",
+                          maxItems: 5,
+                          items: {
+                            type: "object",
+                            required: ["delayHours", "message"],
+                            properties: {
+                              delayHours: { type: "integer", minimum: 1, maximum: 168 },
+                              message: { type: "string" }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -520,11 +564,13 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}": {
+        parameters: openApiPathParameters("id"),
         get: {
           summary: "Get campaign status"
         }
       },
       "/campaigns/{id}/readiness": {
+        parameters: openApiPathParameters("id"),
         get: {
           summary: "Get pilot launch readiness gates",
           responses: {
@@ -534,6 +580,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/events": {
+        parameters: openApiPathParameters("id"),
         post: {
           summary: "Record provider delivery or reply event",
           requestBody: {
@@ -565,6 +612,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/approval-workbench": {
+        parameters: openApiPathParameters("id"),
         post: {
           summary: "Create or replace a persisted approval workbench",
           requestBody: {
@@ -605,6 +653,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/approval-workbench/candidates/{candidateId}/decision": {
+        parameters: openApiPathParameters("id", "candidateId"),
         post: {
           summary: "Approve or reject one creator candidate",
           requestBody: {
@@ -631,6 +680,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/approval-workbench/messages/{messageId}/decision": {
+        parameters: openApiPathParameters("id", "messageId"),
         post: {
           summary: "Approve or reject one message candidate",
           requestBody: {
@@ -657,6 +707,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/approval-workbench/candidates/{candidateId}/claim": {
+        parameters: openApiPathParameters("id", "candidateId"),
         post: {
           summary: "Claim one approved creator candidate for operator work",
           requestBody: {
@@ -681,6 +732,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/approval-workbench/candidates/{candidateId}/work": {
+        parameters: openApiPathParameters("id", "candidateId"),
         post: {
           summary: "Mark one claimed creator candidate skipped or blocked",
           requestBody: {
@@ -715,6 +767,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/executions": {
+        parameters: openApiPathParameters("id"),
         get: {
           summary: "List persisted execution proof records for a campaign",
           responses: {
@@ -801,6 +854,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/executions/{executionId}": {
+        parameters: openApiPathParameters("id", "executionId"),
         get: {
           summary: "Get one persisted execution proof record",
           responses: {
@@ -810,35 +864,17 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         }
       },
       "/campaigns/{id}/executions/{executionId}/manual-events": {
+        parameters: openApiPathParameters("id", "executionId"),
         post: {
           summary: "Record manual evidence for one execution intent",
+          description:
+            "Records operator evidence for a manual-safe execution. Webhook delivery in this route is simulated by the API process until a live dispatcher is configured.",
+          parameters: [openApiIdempotencyHeader()],
           requestBody: {
             required: true,
             content: {
               "application/json": {
-                schema: {
-                  type: "object",
-                  required: ["type", "evidence"],
-                  properties: {
-                    eventId: { type: "string" },
-                    intentId: { type: "string" },
-                    target: { type: "string" },
-                    type: {
-                      type: "string",
-                      enum: ["sent", "failed", "restricted", "replied"]
-                    },
-                    occurredAt: { type: "string", format: "date-time" },
-                    messageId: { type: "string" },
-                    reason: { type: "string" },
-                    replyText: { type: "string" },
-                    evidence: {
-                      type: "object",
-                      additionalProperties: { type: "string" }
-                    },
-                    replyAssessment: { type: "object" },
-                    simulatedWebhookStatusCode: { type: "integer" }
-                  }
-                }
+                schema: openApiManualEvidenceSchema()
               }
             }
           },
@@ -849,11 +885,149 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
             "409": { description: "Execution or manual event state conflict" }
           }
         }
+      },
+      "/webhooks/preview": {
+        post: {
+          summary: "Preview a signed webhook payload",
+          requestBody: {
+            required: false,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  additionalProperties: true
+                }
+              }
+            }
+          },
+          responses: {
+            "200": { description: "Signature and payload returned" }
+          }
+        }
       }
     }
   }));
 
   return app;
+}
+
+function openApiPathParameters(...names: string[]) {
+  return names.map((name) => ({
+    name,
+    in: "path",
+    required: true,
+    schema: { type: "string" }
+  }));
+}
+
+function openApiIdempotencyHeader() {
+  return {
+    name: "Idempotency-Key",
+    in: "header",
+    required: false,
+    schema: { type: "string" },
+    description: "Optional retry-safe idempotency key for create or manual evidence requests."
+  };
+}
+
+function openApiSenderAccountSchema() {
+  return {
+    type: "object",
+    required: ["id", "dailyLimit"],
+    properties: {
+      id: { type: "string" },
+      status: {
+        type: "string",
+        enum: ["healthy", "cooldown", "locked", "reconnect_required"],
+        default: "healthy"
+      },
+      dailyLimit: { type: "integer", minimum: 1, maximum: 200 },
+      cooldownUntil: { type: "string", format: "date-time" },
+      warmupNote: { type: "string" },
+      riskEvents: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["kind", "at", "note"],
+          properties: {
+            kind: {
+              type: "string",
+              enum: ["warning", "restriction", "lockout", "reconnect_required", "manual_note"]
+            },
+            at: { type: "string", format: "date-time" },
+            note: { type: "string" }
+          }
+        }
+      }
+    }
+  };
+}
+
+function openApiManualEvidenceSchema() {
+  return {
+    oneOf: [
+      openApiManualEvidenceCase("sent", ["messageId"], ["operatorId", "conversationUrl", "screenshotUrl"]),
+      openApiManualEvidenceCase("failed", ["reason"], ["operatorId"]),
+      openApiManualEvidenceCase(
+        "restricted",
+        ["reason"],
+        ["operatorId", "screenshotUrl", "restrictionSource"]
+      ),
+      openApiManualEvidenceCase(
+        "replied",
+        ["messageId", "replyText"],
+        ["operatorId", "conversationUrl", "screenshotUrl", "replyCapturedAt"]
+      )
+    ]
+  };
+}
+
+function openApiManualEvidenceCase(
+  type: DeliveryEventType,
+  requiredFields: string[],
+  requiredEvidenceFields: string[]
+) {
+  return {
+    type: "object",
+    required: ["type", "evidence", ...requiredFields],
+    anyOf: [{ required: ["intentId"] }, { required: ["target"] }],
+    properties: {
+      eventId: { type: "string" },
+      intentId: { type: "string" },
+      target: { type: "string" },
+      type: { const: type },
+      occurredAt: { type: "string", format: "date-time" },
+      messageId: { type: "string" },
+      reason: { type: "string" },
+      replyText: { type: "string" },
+      evidence: {
+        type: "object",
+        required: requiredEvidenceFields,
+        additionalProperties: { type: "string" },
+        properties: Object.fromEntries(
+          requiredEvidenceFields.map((field) => [field, { type: "string" }])
+        )
+      },
+      replyAssessment: {
+        type: "object",
+        properties: {
+          disposition: {
+            type: "string",
+            enum: ["interested", "neutral", "not_interested", "opt_out", "complaint"]
+          },
+          qualified: { type: "boolean" },
+          replyText: { type: "string" },
+          note: { type: "string" }
+        }
+      },
+      simulatedWebhookStatusCode: {
+        type: "integer",
+        minimum: 100,
+        maximum: 599,
+        description: "Simulated webhook status code used by local/manual pilot proof flows."
+      }
+    }
+  };
 }
 
 function sendDomainError(reply: { code: (statusCode: number) => { send: (body: unknown) => unknown } }, error: unknown) {
