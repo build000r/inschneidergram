@@ -52,3 +52,7 @@ the local requirements doc as independently verified.
   `https://buildooor.com/mmdx/buildooor/mmdx-inschneidergram-project-status`.
 - Beads issue `inschneidergram-j8b.3` covers the remaining live pilot evidence
   gap.
+- `docs/DELIVERY_PATH_DECISION.md` records the verified 2026-05-31 five-category
+  provider-landscape survey and the operator-run manual delivery-path decision,
+  synthesizing the official-API and third-party-vendor evidence above into the
+  rationale for `officialColdDmCompliance: "not_claimed"`.

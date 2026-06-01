@@ -64,6 +64,7 @@ they must carry current real approval evidence and expiry.
 | Can a managed provider connect? | `npm run pilot:provider-bridge`, evidence-bearing provider outcomes in `examples/managed-provider-bridge.example.json` |
 | Can the service run from the public container? | `npm run smoke:docker` verifies container health, API auth, OpenAPI, and launch packet access |
 | Is the repo honest about platform risk? | [SOURCE_EVIDENCE.md](SOURCE_EVIDENCE.md), [BUILD_VS_CLONE.md](BUILD_VS_CLONE.md), adapter `officialColdDmCompliance: "not_claimed"` |
+| Why operator-run manual instead of an automated provider? | [DELIVERY_PATH_DECISION.md](DELIVERY_PATH_DECISION.md) — verified 5-category provider survey shows no compliant managed cold-DM provider exists; manual is the only managed + cold + honest-status path |
 | How does each bounty expectation map to proof? | [BOUNTY_ACCEPTANCE_MATRIX.md](BOUNTY_ACCEPTANCE_MATRIX.md) |
 | Is there any repo-side work left before live proof? | [WIKI_DUEL_BOUNTY_READINESS.md](WIKI_DUEL_BOUNTY_READINESS.md) |
 
@@ -74,8 +75,10 @@ must provide:
 
 1. A vetted creator list with source and fit rationale for each target.
 2. Approved first-touch copy and optional follow-up copy.
-3. Selected delivery path: operator-run manual proof or a managed provider that
-   can return explicit outcomes.
+3. Selected delivery path: operator-run manual proof (the chosen default — see
+   [DELIVERY_PATH_DECISION.md](DELIVERY_PATH_DECISION.md) for why no automated
+   provider is compliant) or a managed provider that can return explicit
+   outcomes.
 4. Non-secret sender inventory ids, with credentials/session material held
    outside this repo.
 5. A fresh launch authorization reference with evidence URL, expiry, selected

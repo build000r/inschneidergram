@@ -38,7 +38,7 @@ Latest local proof:
 | Message/template and campaign settings are accepted | Proven locally | campaign schema, follow-up rules, sender pool, delay/limit settings, intake validator | Graphed-approved first-touch and optional follow-up copy |
 | Sender account setup and management are part of the product | Partly proven | non-secret sender inventory, sender health, risk events, cooldown/lockout/reconnect states, sender-risk proof metrics | Private sender/provider credentials, recovery ownership, account operation outside git |
 | Safe sending limits and throttling exist | Proven locally | per-sender daily limits, delay windows, managed sender health checks, readiness/execution refusal for unhealthy senders | Real operator limit policy for the selected sender accounts |
-| Campaign execution can run without Graphed hosting browser automation | Proven locally for control plane | manual delivery adapter, managed-provider outcome contract, launch authorization gate, service smoke | Real manual operator or provider operating Instagram delivery |
+| Campaign execution can run without Graphed hosting browser automation | Proven locally for control plane | manual delivery adapter, managed-provider outcome contract, launch authorization gate, service smoke, [DELIVERY_PATH_DECISION.md](DELIVERY_PATH_DECISION.md) | Real manual operator or provider operating Instagram delivery |
 | Duplicate and policy-blocked targets are handled | Proven locally | normalized handle dedupe, suppression records, policy-blocked target counts, tests | Real list hygiene during private pilot |
 | Delivery and reply status are reportable | Proven locally for recorded evidence | manual evidence API, provider-reported outcomes, runtime webhooks, proof packs, proof packets, operator dashboard | Real sent/replied/failed/restricted evidence from the pilot |
 | Graphed can receive callbacks or inspect status | Proven locally | signed runtime callbacks, dead-letter listing/replay, `GET /operator/dashboard`, proof-pack/proof-packet APIs | Graphed public HTTPS callback URL, if callback delivery is desired |
@@ -56,7 +56,10 @@ Latest local proof:
    handoff.
 4. Inspect [PILOT_INTAKE_KIT.md](PILOT_INTAKE_KIT.md) and
    [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md) for the private pilot path.
-5. Treat [WIKI_DUEL_BOUNTY_READINESS.md](WIKI_DUEL_BOUNTY_READINESS.md) as the
+5. Read [DELIVERY_PATH_DECISION.md](DELIVERY_PATH_DECISION.md) for the verified
+   provider-landscape survey and why the pilot runs operator-run manual rather
+   than an automated provider.
+6. Treat [WIKI_DUEL_BOUNTY_READINESS.md](WIKI_DUEL_BOUNTY_READINESS.md) as the
    adversarial readiness assessment.
 
 ## Non-Claims
