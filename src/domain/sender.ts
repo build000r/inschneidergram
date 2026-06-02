@@ -118,7 +118,17 @@ export function buildSenderInventory(
   if (senderAccounts && senderAccounts.length > 0) {
     const accounts = senderAccounts.map(createSenderAccount);
     assertUnique(accounts.map((account) => account.id), "sender account id");
-    return accounts;
+    if (usesDefaultSenderPool(senderPool, accounts)) {
+      return accounts;
+    }
+
+    const byId = new Map(accounts.map((account) => [account.id, account]));
+    const missing = senderPool.filter((id) => !byId.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Unknown sender account(s) in senderPool: ${missing.join(", ")}`);
+    }
+
+    return senderPool.map((id) => byId.get(id) as SenderAccount);
   }
 
   return senderPool.map((id) =>
@@ -194,6 +204,14 @@ function assertUnique(values: string[], label: string): void {
     }
     seen.add(value);
   }
+}
+
+function usesDefaultSenderPool(senderPool: string[], accounts: SenderAccount[]): boolean {
+  return (
+    senderPool.length === 1 &&
+    senderPool[0] === "unassigned" &&
+    !accounts.some((account) => account.id === "unassigned")
+  );
 }
 
 function statusForRiskEvent(

@@ -214,6 +214,55 @@ describe("campaign domain", () => {
     });
   });
 
+  it("schedules only inline sender accounts selected by senderPool", () => {
+    const campaign = createCampaign(
+      {
+        targets: ["@one_creator", "@two_creator"],
+        message: "Hey - open to an affiliate partnership?",
+        campaign: "inline_sender_pool_pilot",
+        settings: {
+          senderPool: ["sender-a"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 35
+            },
+            {
+              id: "sender-b",
+              status: "healthy",
+              dailyLimit: 35
+            }
+          ]
+        }
+      },
+      new Date("2026-05-30T01:00:00.000Z")
+    );
+
+    expect(campaign.targets.map((target) => target.sender)).toEqual(["sender-a", "sender-a"]);
+    expect(campaign.senderHealth.accounts.map((account) => account.id)).toEqual(["sender-a"]);
+  });
+
+  it("rejects inline senderPool entries missing from provided sender accounts", () => {
+    expect(() =>
+      createCampaign({
+        targets: ["@one_creator"],
+        message: "Hey - open to an affiliate partnership?",
+        campaign: "missing_inline_sender_pilot",
+        settings: {
+          senderPool: ["sender-missing"],
+          senderAccounts: [
+            {
+              id: "sender-a",
+              status: "healthy",
+              dailyLimit: 35
+            }
+          ]
+        }
+      })
+    ).toThrow("Unknown sender account(s) in senderPool: sender-missing");
+  });
+
   it("records delivery and reply events idempotently", () => {
     const campaign = createCampaign({
       targets: ["@one_creator"],
