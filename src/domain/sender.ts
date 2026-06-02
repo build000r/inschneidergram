@@ -113,6 +113,8 @@ export function buildSenderInventory(
   defaultDailyLimit: number,
   senderAccounts: SenderAccountInput[] | undefined
 ): SenderAccount[] {
+  assertUnique(senderPool, "sender account id");
+
   if (senderAccounts && senderAccounts.length > 0) {
     const accounts = senderAccounts.map(createSenderAccount);
     assertUnique(accounts.map((account) => account.id), "sender account id");

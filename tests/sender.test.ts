@@ -143,4 +143,10 @@ describe("sender account health", () => {
       )
     ).toEqual(["sender-a"]);
   });
+
+  it("rejects duplicate sender ids before building fallback inventory", () => {
+    expect(() => buildSenderInventory(["sender-a", "sender-a"], 35, undefined)).toThrow(
+      "Duplicate sender account id: sender-a"
+    );
+  });
 });
