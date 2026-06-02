@@ -259,8 +259,10 @@ export function selectedPilotSenderAccounts(
   campaignInput: CreateCampaignInput,
   senders: z.infer<typeof senderAccountSchema>[]
 ): z.infer<typeof senderAccountSchema>[] {
-  const requested = new Set(campaignInput.settings.senderPool);
-  return senders.filter((sender) => requested.has(sender.id));
+  const byId = new Map(senders.map((sender) => [sender.id, sender]));
+  return campaignInput.settings.senderPool
+    .map((id) => byId.get(id))
+    .filter((sender): sender is z.infer<typeof senderAccountSchema> => !!sender);
 }
 
 function validateWebhookDestination(rawUrl: string, allowedHosts: string[]): string[] {

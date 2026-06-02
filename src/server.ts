@@ -4521,6 +4521,11 @@ async function withStoredSenderInventory(
   }
 
   if (requestedSenderPool) {
+    const duplicate = firstDuplicate(requestedSenderPool);
+    if (duplicate) {
+      throw new Error(`Duplicate sender account id: ${duplicate}`);
+    }
+
     const storedIds = new Set(storedAccounts.map((account) => account.id));
     const missing = requestedSenderPool.filter((id) => !storedIds.has(id));
     if (missing.length > 0) {
@@ -4558,8 +4563,21 @@ function selectStoredSenderAccounts(
     return accounts;
   }
 
-  const requested = new Set(senderPool);
-  return accounts.filter((account) => requested.has(account.id));
+  const byId = new Map(accounts.map((account) => [account.id, account]));
+  return senderPool
+    .map((id) => byId.get(id))
+    .filter((account): account is SenderAccount => !!account);
+}
+
+function firstDuplicate(values: string[]): string | null {
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) {
+      return value;
+    }
+    seen.add(value);
+  }
+  return null;
 }
 
 function withIdempotencyKey(body: unknown, headerValue: string | string[] | undefined): unknown {

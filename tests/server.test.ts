@@ -1085,6 +1085,79 @@ describe("API", () => {
     await app.close();
   });
 
+  it("preserves stored senderPool order during campaign scheduling", async () => {
+    const app = await buildServer();
+
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-b",
+      payload: {
+        dailyLimit: 20
+      }
+    });
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-a",
+      payload: {
+        dailyLimit: 20
+      }
+    });
+
+    const create = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@ordered_sender_creator_one", "@ordered_sender_creator_two"],
+        message: "Open to an affiliate pilot?",
+        campaign: "stored-sender-order-pilot",
+        settings: {
+          senderPool: ["sender-a", "sender-b"]
+        }
+      }
+    });
+
+    expect(create.statusCode).toBe(202);
+    expect(create.json().targets.map((target: { sender: string }) => target.sender)).toEqual([
+      "sender-a",
+      "sender-b"
+    ]);
+
+    await app.close();
+  });
+
+  it("rejects duplicate stored senderPool entries", async () => {
+    const app = await buildServer();
+
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-a",
+      payload: {
+        dailyLimit: 20
+      }
+    });
+
+    const create = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@duplicate_stored_sender_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "duplicate-stored-sender-pilot",
+        settings: {
+          senderPool: ["sender-a", "sender-a"]
+        }
+      }
+    });
+
+    expect(create.statusCode).toBe(400);
+    expect(create.json()).toMatchObject({
+      error: "invalid_request",
+      message: "Duplicate sender account id: sender-a"
+    });
+
+    await app.close();
+  });
+
   it("rechecks managed sender health before readiness and execution", async () => {
     const app = await buildServer();
 
