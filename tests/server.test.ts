@@ -4457,6 +4457,130 @@ describe("API", () => {
     await app.close();
   });
 
+  it("keeps manual evidence idempotency scoped to the execution", async () => {
+    const app = await buildServer({ webhookSecret: "manual-idempotency-secret" });
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@manual_retry_one", "@manual_retry_two"],
+        message: "Open to an affiliate pilot?",
+        campaign: "manual-idempotency-pilot",
+        settings: {
+          webhookUrl: "https://example.com/webhooks/manual-idempotency"
+        }
+      }
+    });
+    const campaignId = createResponse.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@manual_retry_one", "@manual_retry_two"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    const executionResponse = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "manual" },
+        launchAuthorization: launchAuthorization("manual", {
+          approvedTargetLimit: 2,
+          reference: "manual-idempotency-launch"
+        })
+      }
+    });
+    const executionId = executionResponse.json().executionId;
+    const firstPayload = {
+      target: "@manual_retry_one",
+      type: "sent",
+      messageId: "manual_msg_retry_1",
+      simulateWebhookDelivery: true,
+      evidence: {
+        operatorId: "op_1",
+        conversationUrl: "https://instagram.com/direct/t/manual_retry_one",
+        screenshotUrl: "s3://proof/manual-retry-one.png"
+      }
+    };
+
+    const first = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      headers: {
+        "idempotency-key": "manual-retry-key"
+      },
+      payload: firstPayload
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toMatchObject({
+      summary: {
+        sent: 1,
+        scheduled: 1
+      },
+      webhookDelivery: {
+        id: "manual-retry-key",
+        status: "delivered"
+      }
+    });
+
+    const retryWithChangedTarget = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      headers: {
+        "idempotency-key": "manual-retry-key"
+      },
+      payload: {
+        ...firstPayload,
+        target: "@manual_retry_two",
+        messageId: "manual_msg_retry_2",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/manual_retry_two",
+          screenshotUrl: "s3://proof/manual-retry-two.png"
+        }
+      }
+    });
+    expect(retryWithChangedTarget.statusCode).toBe(200);
+    expect(retryWithChangedTarget.json()).toMatchObject({
+      summary: {
+        sent: 1,
+        scheduled: 1
+      },
+      event: {
+        id: "manual-retry-key",
+        type: "sent",
+        messageId: "manual_msg_retry_1"
+      },
+      webhookDelivery: null,
+      proofPack: {
+        metrics: {
+          contactedTargets: 1,
+          webhookDelivered: 1
+        }
+      }
+    });
+
+    const storedExecution = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions/${executionId}`
+    });
+    const attempts = storedExecution.json().deliveryAttempts as Array<{
+      intent: { targetHandle: string };
+      events: Array<{ id: string }>;
+    }>;
+    expect(
+      attempts.find((attempt) => attempt.intent.targetHandle === "manual_retry_one")?.events
+    ).toEqual([expect.objectContaining({ id: "manual-retry-key" })]);
+    expect(
+      attempts.find((attempt) => attempt.intent.targetHandle === "manual_retry_two")?.events
+    ).toEqual([]);
+
+    await app.close();
+  });
+
   it("reconciles manual restriction evidence into managed sender risk state", async () => {
     const app = await buildServer({ webhookSecret: "manual-risk-secret" });
 

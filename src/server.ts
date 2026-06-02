@@ -3753,9 +3753,8 @@ async function recordManualEvidence(input: {
   }
 
   const deliveryAttempts = structuredClone(input.execution.deliveryAttempts);
-  const attempt = findManualAttempt(deliveryAttempts, input.request);
   const existingEvent = input.request.eventId
-    ? attempt.events.find((candidate) => candidate.id === input.request.eventId)
+    ? findManualEventById(deliveryAttempts, input.request.eventId)
     : undefined;
   if (existingEvent) {
     return {
@@ -3765,6 +3764,8 @@ async function recordManualEvidence(input: {
       webhookDelivery: null
     };
   }
+
+  const attempt = findManualAttempt(deliveryAttempts, input.request);
 
   assertManualTransition(attempt, input.request.type);
 
@@ -3926,6 +3927,20 @@ function findManualAttempt(
   }
 
   return attempt;
+}
+
+function findManualEventById(
+  attempts: DeliveryAttempt[],
+  eventId: string
+): DeliveryAttempt["events"][number] | undefined {
+  for (const attempt of attempts) {
+    const event = attempt.events.find((candidate) => candidate.id === eventId);
+    if (event) {
+      return event;
+    }
+  }
+
+  return undefined;
 }
 
 function assertManualTransition(attempt: DeliveryAttempt, type: DeliveryEventType): void {
