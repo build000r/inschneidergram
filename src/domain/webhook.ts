@@ -32,7 +32,11 @@ function sortKeys(value: unknown): unknown {
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => a.localeCompare(b))
+        // Locale-independent code-point ordering keeps the canonical form
+        // (and therefore the HMAC signature) byte-stable across environments
+        // and across any independent verifier. localeCompare would let ICU
+        // collation / LANG reorder non-ASCII keys and break verification.
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([key, entryValue]) => [key, sortKeys(entryValue)])
     );
   }

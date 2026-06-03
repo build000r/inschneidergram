@@ -49,6 +49,12 @@ export interface CampaignExecutionMutation<T> {
   result: T;
 }
 
+export interface CampaignLaunchCommit<T> {
+  campaign: Campaign;
+  execution: CampaignExecutionRecord;
+  result: T;
+}
+
 export interface CampaignStoreHealth {
   ok: boolean;
   kind: "memory" | "json_file";
@@ -84,6 +90,22 @@ export interface CampaignStore {
       execution: CampaignExecutionRecord
     ) => Promise<CampaignExecutionMutation<T>>
   ): Promise<T | null>;
+  /**
+   * Atomically launch a new execution for a campaign. The `launch` callback
+   * runs inside the store's serialized critical section and receives the
+   * campaign and its existing executions as freshly read at commit time, so
+   * the read-derive-write cycle cannot interleave with a concurrent launch.
+   * Returning `null` aborts without persisting anything. This is the launch
+   * analogue of {@link updateCampaignExecution} and is what prevents two
+   * concurrent executions from both contacting the same scheduled target.
+   */
+  commitNewExecution<T>(
+    campaignId: string,
+    launch: (
+      campaign: Campaign,
+      executions: CampaignExecutionRecord[]
+    ) => Promise<CampaignLaunchCommit<T> | null>
+  ): Promise<T | null>;
 }
 
 export function newestExecutionsFirst(
@@ -105,9 +127,22 @@ export class InMemoryCampaignStore implements CampaignStore {
   private senderAccounts = new Map<string, SenderAccount>();
   private approvalWorkbenches = new Map<string, ApprovalWorkbench>();
   private executions = new Map<string, CampaignExecutionRecord>();
+  // Serializes the compound read-modify-write operations
+  // (updateCampaignExecution, commitNewExecution) so their async callbacks
+  // cannot interleave, matching JsonFileCampaignStore's atomicity guarantee.
+  private criticalSection = Promise.resolve();
 
   async healthCheck(): Promise<CampaignStoreHealth> {
     return { ok: true, kind: "memory" };
+  }
+
+  private async locked<T>(operation: () => Promise<T>): Promise<T> {
+    const next = this.criticalSection.then(operation, operation);
+    this.criticalSection = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
   }
 
   async insert(campaign: Campaign): Promise<Campaign> {
@@ -210,17 +245,50 @@ export class InMemoryCampaignStore implements CampaignStore {
       execution: CampaignExecutionRecord
     ) => Promise<CampaignExecutionMutation<T>>
   ): Promise<T | null> {
-    const campaign = this.campaigns.get(campaignId);
-    const execution = this.executions.get(executionId);
-    if (!campaign || !execution || execution.campaignId !== campaignId) {
-      return null;
-    }
+    return this.locked(async () => {
+      const campaign = this.campaigns.get(campaignId);
+      const execution = this.executions.get(executionId);
+      if (!campaign || !execution || execution.campaignId !== campaignId) {
+        return null;
+      }
 
-    const mutation = await updater(structuredClone(campaign), structuredClone(execution));
-    this.campaigns.set(mutation.campaign.id, structuredClone(mutation.campaign));
-    this.executions.set(mutation.execution.id, structuredClone(mutation.execution));
-    this.mergeSuppressions(suppressionRecordsForCampaign(mutation.campaign));
-    return structuredClone(mutation.result);
+      const mutation = await updater(structuredClone(campaign), structuredClone(execution));
+      this.campaigns.set(mutation.campaign.id, structuredClone(mutation.campaign));
+      this.executions.set(mutation.execution.id, structuredClone(mutation.execution));
+      this.mergeSuppressions(suppressionRecordsForCampaign(mutation.campaign));
+      return structuredClone(mutation.result);
+    });
+  }
+
+  async commitNewExecution<T>(
+    campaignId: string,
+    launch: (
+      campaign: Campaign,
+      executions: CampaignExecutionRecord[]
+    ) => Promise<CampaignLaunchCommit<T> | null>
+  ): Promise<T | null> {
+    return this.locked(async () => {
+      const campaign = this.campaigns.get(campaignId);
+      if (!campaign) {
+        return null;
+      }
+
+      const executions = [...this.executions.values()].filter(
+        (record) => record.campaignId === campaignId
+      );
+      const commit = await launch(
+        structuredClone(campaign),
+        executions.map((record) => structuredClone(record))
+      );
+      if (!commit) {
+        return null;
+      }
+
+      this.campaigns.set(commit.campaign.id, structuredClone(commit.campaign));
+      this.executions.set(commit.execution.id, structuredClone(commit.execution));
+      this.mergeSuppressions(suppressionRecordsForCampaign(commit.campaign));
+      return structuredClone(commit.result);
+    });
   }
 
   private findByIdempotencyKey(idempotencyKey: string | undefined): Campaign | null {
@@ -483,6 +551,51 @@ export class JsonFileCampaignStore implements CampaignStore {
       );
       await this.writeSnapshot(snapshot);
       return structuredClone(mutation.result);
+    });
+  }
+
+  async commitNewExecution<T>(
+    campaignId: string,
+    launch: (
+      campaign: Campaign,
+      executions: CampaignExecutionRecord[]
+    ) => Promise<CampaignLaunchCommit<T> | null>
+  ): Promise<T | null> {
+    return this.locked(async () => {
+      const snapshot = await this.readSnapshot();
+      const campaignIndex = snapshot.campaigns.findIndex(
+        (candidate) => candidate.id === campaignId
+      );
+      if (campaignIndex === -1) {
+        return null;
+      }
+
+      const executions = snapshot.executions.filter(
+        (record) => record.campaignId === campaignId
+      );
+      const commit = await launch(
+        structuredClone(snapshot.campaigns[campaignIndex]),
+        executions.map((record) => structuredClone(record))
+      );
+      if (!commit) {
+        return null;
+      }
+
+      snapshot.campaigns[campaignIndex] = structuredClone(commit.campaign);
+      const executionIndex = snapshot.executions.findIndex(
+        (candidate) => candidate.id === commit.execution.id
+      );
+      if (executionIndex === -1) {
+        snapshot.executions.push(structuredClone(commit.execution));
+      } else {
+        snapshot.executions[executionIndex] = structuredClone(commit.execution);
+      }
+      snapshot.suppressions = mergeSuppressionRecords(
+        snapshot.suppressions,
+        suppressionRecordsForCampaign(commit.campaign)
+      );
+      await this.writeSnapshot(snapshot);
+      return structuredClone(commit.result);
     });
   }
 

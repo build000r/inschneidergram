@@ -616,7 +616,10 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
     try {
       const executionRequest = executionRequestSchema.parse(request.body ?? {});
-      const campaignForExecution = await withCurrentSenderInventorySnapshot(store, campaign);
+      const senderAccountsSnapshot = await currentSenderAccountsForCampaign(store, campaign);
+      const campaignForExecution = senderAccountsSnapshot
+        ? withSenderInventorySnapshot(campaign, senderAccountsSnapshot)
+        : campaign;
       const storedWorkbench = await store.getApprovalWorkbench(id);
       const existingExecutions = await store.listExecutions(id);
       if (!storedWorkbench && !hasInlineApprovalOverrides(executionRequest)) {
@@ -649,19 +652,37 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
             })
           })
         : runtimeWebhookDispatcher;
-      const result = await executeApprovedCampaign({
-        campaign: campaignForExecution,
-        workbench,
-        adapter: buildDeliveryAdapter(executionRequest),
-        webhookDispatcher: dispatcher,
-        replyAssessments: executionRequest.replyAssessments,
-        incidents: executionRequest.incidents,
-        launchAuthorization: executionRequest.launchAuthorization
-      });
-      const updated = await store.update(result.campaign);
-      const execution = await store.insertExecution(
-        createCampaignExecutionRecord({
-          campaignId: updated.id,
+
+      // Persist the launch atomically. The campaign and existing executions
+      // are re-read inside the store's critical section, and the send
+      // computation is re-derived against that fresh state, so a concurrent
+      // execution that already contacted a scheduled target leaves it as
+      // "sent" here and it is not contacted twice. If nothing executable
+      // remains the launch was superseded by a concurrent run -> 409.
+      const committed = await store.commitNewExecution(id, async (freshCampaign) => {
+        const launchCampaign = senderAccountsSnapshot
+          ? withSenderInventorySnapshot(freshCampaign, senderAccountsSnapshot)
+          : freshCampaign;
+        if (!hasExecutableApprovedTarget(launchCampaign, workbench)) {
+          return null;
+        }
+
+        const result = await executeApprovedCampaign({
+          campaign: launchCampaign,
+          workbench,
+          adapter: buildDeliveryAdapter(executionRequest),
+          webhookDispatcher: dispatcher,
+          replyAssessments: executionRequest.replyAssessments,
+          incidents: executionRequest.incidents,
+          launchAuthorization: executionRequest.launchAuthorization
+        });
+
+        if (result.intents.length === 0) {
+          return null;
+        }
+
+        const execution = createCampaignExecutionRecord({
+          campaignId: result.campaign.id,
           adapterRiskPosture: result.deliveryAttempts[0]?.riskPosture ?? null,
           intents: result.intents,
           deliveryAttempts: result.deliveryAttempts,
@@ -671,15 +692,28 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
           incidents: executionRequest.incidents,
           launchAuthorization: executionRequest.launchAuthorization,
           proofPack: result.proofPack
-        })
-      );
+        });
 
+        return {
+          campaign: result.campaign,
+          execution,
+          result: { result, execution }
+        };
+      });
+
+      if (!committed) {
+        throw new ConflictError(
+          "Campaign has no executable approved targets remaining; a concurrent execution already contacted them"
+        );
+      }
+
+      const { result, execution } = committed;
       return {
-        campaignId: updated.id,
+        campaignId: result.campaign.id,
         executionId: execution.id,
-        status: updated.status,
-        summary: updated.summary,
-        senderHealth: updated.senderHealth,
+        status: result.campaign.status,
+        summary: result.campaign.summary,
+        senderHealth: result.campaign.senderHealth,
         adapterRiskPosture: execution.adapterRiskPosture,
         launchAuthorization: execution.launchAuthorization ?? null,
         intents: result.intents,
@@ -4388,6 +4422,27 @@ function scheduledTargetHandles(campaign: Campaign): string[] {
   return campaign.targets
     .filter((target) => target.status === "scheduled" && target.handle)
     .map((target) => target.handle as string);
+}
+
+/**
+ * True when at least one target is still executable for this workbench:
+ * scheduled, fully wired (handle/sender/scheduledAt), and an approved,
+ * actionable candidate. Mirrors the per-target guard inside
+ * executeApprovedCampaign so the atomic launch can fail closed when a
+ * concurrent execution already consumed every approved scheduled target.
+ */
+function hasExecutableApprovedTarget(
+  campaign: Campaign,
+  workbench: ApprovalWorkbench
+): boolean {
+  return campaign.targets.some(
+    (target) =>
+      target.status === "scheduled" &&
+      !!target.handle &&
+      !!target.sender &&
+      !!target.scheduledAt &&
+      isApprovedExecutionTarget(workbench, target.handle)
+  );
 }
 
 function uniqueTargets(targets: string[]): string[] {
