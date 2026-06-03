@@ -129,7 +129,12 @@ function latestSentAt(attempt: DeliveryAttempt): string | null {
   return attempt.events
     .filter((event) => event.type === "sent")
     .map((event) => event.occurredAt)
-    .sort((left, right) => right.localeCompare(left))[0] ?? null;
+    .sort((left, right) => instant(right) - instant(left))[0] ?? null;
+}
+
+function instant(iso: string): number {
+  const parsed = Date.parse(iso);
+  return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
 
 function hasTerminalOrReplyEvent(attempt: DeliveryAttempt): boolean {

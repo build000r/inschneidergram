@@ -165,4 +165,106 @@ describe("follow-up planning", () => {
     expect(plan.items.map((item) => item.targetHandle)).not.toContain("already_replied");
     expect(plan.items.map((item) => item.targetHandle)).not.toContain("restricted_creator");
   });
+
+  it("derives follow-up timing from the chronologically latest sent event across timezone offsets", () => {
+    const campaign = createCampaign(
+      {
+        targets: ["@offset_creator"],
+        message: "Open to an affiliate pilot?",
+        campaign: "follow-up-offset-pilot",
+        settings: {
+          followUps: [
+            {
+              delayHours: 24,
+              message: "Circling back."
+            }
+          ]
+        }
+      },
+      new Date("2026-06-03T00:00:00.000Z")
+    );
+
+    // Two "sent" events for the same target. The offset-bearing timestamp
+    // (18:00Z) is chronologically earlier than the Z timestamp (19:00Z), but it
+    // sorts *later* lexically. Such non-Z values can arrive from the persisted
+    // store, which is re-read without re-validating the datetime format.
+    const intent = {
+      id: "intent_offset_1",
+      campaignId: campaign.id,
+      target: "offset_creator",
+      targetHandle: "offset_creator",
+      senderAccountId: "unassigned",
+      message: "Open to an affiliate pilot?",
+      scheduledAt: "2026-06-03T00:00:00.000Z",
+      approvedAt: null,
+      metadata: {}
+    };
+    const execution = createCampaignExecutionRecord(
+      {
+        campaignId: campaign.id,
+        adapterRiskPosture: null,
+        intents: [intent],
+        deliveryAttempts: [
+          {
+            adapterId: "manual_delivery",
+            outcome: "accepted",
+            intent,
+            events: [
+              {
+                id: "sent_z",
+                intentId: intent.id,
+                adapterId: "manual_delivery",
+                type: "sent",
+                occurredAt: "2026-06-03T19:00:00.000Z",
+                evidence: {}
+              },
+              {
+                id: "sent_offset",
+                intentId: intent.id,
+                adapterId: "manual_delivery",
+                type: "sent",
+                occurredAt: "2026-06-03T23:00:00.000+05:00",
+                evidence: {}
+              }
+            ],
+            requiredEvidence: [],
+            riskPosture: {
+              kind: "manual",
+              officialColdDmCompliance: "not_claimed",
+              accountRiskOwner: "operator",
+              requiresHumanEvidence: true,
+              posture: "human_operated",
+              notes: []
+            }
+          }
+        ],
+        webhookDeliveries: [],
+        proofPack: {
+          generatedAt: "2026-06-03T19:00:00.000Z",
+          campaignId: campaign.id,
+          campaignName: campaign.campaign,
+          metrics: {} as never,
+          senderHealth: campaign.senderHealth,
+          incidents: [],
+          replies: [],
+          renewalRecommendation: { decision: "iterate", reasons: [] },
+          markdown: ""
+        }
+      },
+      new Date("2026-06-03T19:00:00.000Z")
+    );
+
+    const plan = buildFollowUpPlan({
+      campaign,
+      executions: [execution],
+      // 18:30Z is after the wrong base (18:00Z + 24h = next-day 18:00Z would be
+      // "due") but before the correct base (19:00Z + 24h = next-day 19:00Z).
+      generatedAt: "2026-06-04T18:30:00.000Z"
+    });
+
+    expect(plan.items).toHaveLength(1);
+    expect(plan.items[0]?.lastSentAt).toBe("2026-06-03T19:00:00.000Z");
+    expect(plan.items[0]?.dueAt).toBe("2026-06-04T19:00:00.000Z");
+    expect(plan.items[0]?.status).toBe("pending");
+  });
 });
