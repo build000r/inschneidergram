@@ -354,7 +354,8 @@ function isBlockedIpHost(hostname: string): boolean {
       hostname.startsWith("::ffff:") ||
       hostname.startsWith("fc") ||
       hostname.startsWith("fd") ||
-      hostname.startsWith("fe80:")
+      hostname.startsWith("fe80:") ||
+      hostname.startsWith("ff")
     );
   }
 
