@@ -144,6 +144,92 @@ describe("sender account health", () => {
     ).toEqual(["sender-a"]);
   });
 
+  it("marks senders unavailable after their dailyLimit usage is reached", () => {
+    const inventory = buildSenderInventory(
+      ["sender-a"],
+      35,
+      [
+        {
+          id: "sender-a",
+          status: "healthy",
+          dailyLimit: 2
+        }
+      ]
+    );
+    const usage = new Map([
+      [
+        "sender-a",
+        {
+          day: "2026-05-30",
+          count: 2
+        }
+      ]
+    ]);
+    const now = new Date("2026-05-30T12:00:00.000Z");
+
+    expect(summarizeSenderInventory(inventory, now, usage)).toMatchObject({
+      available: 0,
+      blocked: 1,
+      accounts: [
+        {
+          id: "sender-a",
+          available: false,
+          dailyUsage: {
+            day: "2026-05-30",
+            used: 2,
+            remaining: 0
+          },
+          blockers: ["daily_limit_reached:2026-05-30"]
+        }
+      ]
+    });
+    expect(availableSenderAccounts(inventory, now, usage)).toEqual([]);
+  });
+
+  it("does not carry stale dailyLimit usage into a new UTC day", () => {
+    const inventory = buildSenderInventory(
+      ["sender-a"],
+      35,
+      [
+        {
+          id: "sender-a",
+          status: "healthy",
+          dailyLimit: 2
+        }
+      ]
+    );
+    const staleUsage = new Map([
+      [
+        "sender-a",
+        {
+          day: "2026-05-30",
+          count: 2
+        }
+      ]
+    ]);
+    const now = new Date("2026-05-31T00:00:00.000Z");
+
+    expect(summarizeSenderInventory(inventory, now, staleUsage)).toMatchObject({
+      available: 1,
+      blocked: 0,
+      accounts: [
+        {
+          id: "sender-a",
+          available: true,
+          dailyUsage: {
+            day: "2026-05-31",
+            used: 0,
+            remaining: 2
+          },
+          blockers: []
+        }
+      ]
+    });
+    expect(
+      availableSenderAccounts(inventory, now, staleUsage).map((account) => account.id)
+    ).toEqual(["sender-a"]);
+  });
+
   it("rejects duplicate sender ids before building fallback inventory", () => {
     expect(() => buildSenderInventory(["sender-a", "sender-a"], 35, undefined)).toThrow(
       "Duplicate sender account id: sender-a"

@@ -64,9 +64,15 @@ import {
 } from "./domain/store.js";
 import { buildPilotReadinessReport } from "./domain/readiness.js";
 import {
+  addSenderDailyLimitUsage,
+  senderDailyLimitUsageFromExecutions
+} from "./domain/senderDailyLimit.js";
+import {
   createSenderAccount,
+  senderDailyLimitDay,
   summarizeSenderInventory,
   type SenderAccount,
+  type SenderDailyLimitUsage,
   type SenderRiskEventInput
 } from "./domain/sender.js";
 import { signWebhookPayload } from "./domain/webhook.js";
@@ -168,12 +174,12 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
     const senderAccounts = await store.listSenderAccounts();
     return {
       senderAccounts,
-      senderHealth: summarizeSenderInventory(senderAccounts)
+      senderHealth: await summarizeSenderInventoryFromStore(store, senderAccounts)
     };
   });
 
   app.get("/senders/health", async () => ({
-    senderHealth: summarizeSenderInventory(await store.listSenderAccounts())
+    senderHealth: await summarizeSenderInventoryFromStore(store)
   }));
 
   app.get("/senders/:id", async (request, reply) => {
@@ -186,7 +192,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
     return {
       senderAccount,
-      senderHealth: summarizeSenderInventory([senderAccount])
+      senderHealth: await summarizeSenderInventoryFromStore(store, [senderAccount])
     };
   });
 
@@ -211,7 +217,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       );
       return {
         senderAccount: saved,
-        senderHealth: summarizeSenderInventory(await store.listSenderAccounts())
+        senderHealth: await summarizeSenderInventoryFromStore(store)
       };
     } catch (error) {
       return sendDomainError(reply, error);
@@ -231,7 +237,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       }
       return {
         senderAccount: saved,
-        senderHealth: summarizeSenderInventory(await store.listSenderAccounts())
+        senderHealth: await summarizeSenderInventoryFromStore(store)
       };
     } catch (error) {
       return sendDomainError(reply, error);
@@ -245,8 +251,10 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
         withIdempotencyKey(request.body, request.headers["idempotency-key"])
       );
       assertWebhookDestinationFromCampaignInput(campaignInput, webhookDestinationPolicy);
+      const now = new Date();
+      const senderDailyUsage = await senderDailyLimitUsageForStore(store, now);
       const campaign = await store.insert(
-        createCampaign(campaignInput)
+        createCampaign(campaignInput, now, senderDailyUsage)
       );
       const response = {
         campaignId: campaign.id,
@@ -616,10 +624,17 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
     try {
       const executionRequest = executionRequestSchema.parse(request.body ?? {});
+      const launchedAt = new Date();
       const senderAccountsSnapshot = await currentSenderAccountsForCampaign(store, campaign);
+      const senderDailyUsage = await senderDailyLimitUsageForStore(store, launchedAt);
       const campaignForExecution = senderAccountsSnapshot
-        ? withSenderInventorySnapshot(campaign, senderAccountsSnapshot)
-        : campaign;
+        ? withSenderInventorySnapshot(campaign, senderAccountsSnapshot, launchedAt, senderDailyUsage)
+        : withSenderInventorySnapshot(
+            campaign,
+            campaign.settings.senderAccounts,
+            launchedAt,
+            senderDailyUsage
+          );
       const storedWorkbench = await store.getApprovalWorkbench(id);
       const existingExecutions = await store.listExecutions(id);
       if (!storedWorkbench && !hasInlineApprovalOverrides(executionRequest)) {
@@ -659,47 +674,101 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       // execution that already contacted a scheduled target leaves it as
       // "sent" here and it is not contacted twice. If nothing executable
       // remains the launch was superseded by a concurrent run -> 409.
-      const committed = await store.commitNewExecution(id, async (freshCampaign) => {
-        const launchCampaign = senderAccountsSnapshot
-          ? withSenderInventorySnapshot(freshCampaign, senderAccountsSnapshot)
-          : freshCampaign;
-        if (!hasExecutableApprovedTarget(launchCampaign, workbench)) {
-          return null;
+      const committed = await store.commitNewExecution(
+        id,
+        async (freshCampaign, _freshExecutions, allExecutions) => {
+          const freshDailyUsage = senderDailyLimitUsageFromExecutions(
+            allExecutions,
+            launchedAt
+          );
+          const launchCampaign = senderAccountsSnapshot
+            ? withSenderInventorySnapshot(
+                freshCampaign,
+                senderAccountsSnapshot,
+                launchedAt,
+                freshDailyUsage
+              )
+            : withSenderInventorySnapshot(
+                freshCampaign,
+                freshCampaign.settings.senderAccounts,
+                launchedAt,
+                freshDailyUsage
+              );
+          assertCurrentSenderAvailability(launchCampaign, workbench);
+          assertSenderDailyLimitCapacity(
+            launchCampaign,
+            workbench,
+            freshDailyUsage,
+            launchedAt
+          );
+          if (!hasExecutableApprovedTarget(launchCampaign, workbench)) {
+            return null;
+          }
+
+          const result = await executeApprovedCampaign({
+            campaign: launchCampaign,
+            workbench,
+            adapter: buildDeliveryAdapter(executionRequest),
+            webhookDispatcher: dispatcher,
+            replyAssessments: executionRequest.replyAssessments,
+            incidents: executionRequest.incidents,
+            launchAuthorization: executionRequest.launchAuthorization,
+            now: launchedAt
+          });
+
+          if (result.intents.length === 0) {
+            return null;
+          }
+
+          const dailyUsageAfterLaunch = addSenderDailyLimitUsage(
+            freshDailyUsage,
+            result.intents,
+            launchedAt
+          );
+          const campaignAfterLaunch = withSenderInventorySnapshot(
+            result.campaign,
+            result.campaign.settings.senderAccounts,
+            launchedAt,
+            dailyUsageAfterLaunch
+          );
+          const proofPack = generatePilotProofPack({
+            campaign: campaignAfterLaunch,
+            approvalWorkbench: workbench,
+            deliveryAttempts: result.deliveryAttempts,
+            webhookDeliveries: result.webhookDeliveries,
+            replyAssessments: executionRequest.replyAssessments,
+            incidents: executionRequest.incidents,
+            launchAuthorization: executionRequest.launchAuthorization,
+            generatedAt: launchedAt
+          });
+          const resultAfterLaunch = {
+            ...result,
+            campaign: campaignAfterLaunch,
+            proofPack
+          };
+          const execution = createCampaignExecutionRecord(
+            {
+              campaignId: resultAfterLaunch.campaign.id,
+              adapterRiskPosture: result.deliveryAttempts[0]?.riskPosture ?? null,
+              intents: result.intents,
+              deliveryAttempts: result.deliveryAttempts,
+              webhookDeliveries: result.webhookDeliveries,
+              approvalWorkbench: workbench,
+              replyAssessments: executionRequest.replyAssessments,
+              incidents: executionRequest.incidents,
+              launchAuthorization: executionRequest.launchAuthorization,
+              proofPack: resultAfterLaunch.proofPack
+            },
+            launchedAt
+          );
+
+          return {
+            campaign: resultAfterLaunch.campaign,
+            execution,
+            result: { result: resultAfterLaunch, execution }
+          };
         }
-
-        const result = await executeApprovedCampaign({
-          campaign: launchCampaign,
-          workbench,
-          adapter: buildDeliveryAdapter(executionRequest),
-          webhookDispatcher: dispatcher,
-          replyAssessments: executionRequest.replyAssessments,
-          incidents: executionRequest.incidents,
-          launchAuthorization: executionRequest.launchAuthorization
-        });
-
-        if (result.intents.length === 0) {
-          return null;
-        }
-
-        const execution = createCampaignExecutionRecord({
-          campaignId: result.campaign.id,
-          adapterRiskPosture: result.deliveryAttempts[0]?.riskPosture ?? null,
-          intents: result.intents,
-          deliveryAttempts: result.deliveryAttempts,
-          webhookDeliveries: result.webhookDeliveries,
-          approvalWorkbench: workbench,
-          replyAssessments: executionRequest.replyAssessments,
-          incidents: executionRequest.incidents,
-          launchAuthorization: executionRequest.launchAuthorization,
-          proofPack: result.proofPack
-        });
-
-        return {
-          campaign: result.campaign,
-          execution,
-          result: { result, execution }
-        };
-      });
+      );
 
       if (!committed) {
         throw new ConflictError(
@@ -1046,7 +1115,13 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
                     settings: {
                       type: "object",
                       properties: {
-                        dailyLimitPerSender: { type: "integer", minimum: 1, maximum: 200 },
+                        dailyLimitPerSender: {
+                          type: "integer",
+                          minimum: 1,
+                          maximum: 200,
+                          description:
+                            "Fallback per-sender UTC-day limit for synthetic sender accounts. Stored sender dailyLimit values override this and are enforced against persisted execution intent counts."
+                        },
                         minDelaySeconds: { type: "integer", minimum: 10, maximum: 86400 },
                         maxDelaySeconds: { type: "integer", minimum: 10, maximum: 86400 },
                         senderPool: {
@@ -2436,7 +2511,13 @@ function openApiSenderAccountSchema() {
         enum: ["healthy", "cooldown", "locked", "reconnect_required"],
         default: "healthy"
       },
-      dailyLimit: { type: "integer", minimum: 1, maximum: 200 },
+      dailyLimit: {
+        type: "integer",
+        minimum: 1,
+        maximum: 200,
+        description:
+          "Maximum execution intents this sender may launch per UTC day. Persisted execution records are counted and exhausted senders are unavailable until the next day."
+      },
       cooldownUntil: { type: "string", format: "date-time" },
       warmupNote: { type: "string" },
       riskEvents: {
@@ -2505,7 +2586,13 @@ function openApiSenderAccountRequestSchema() {
         enum: ["healthy", "cooldown", "locked", "reconnect_required"],
         default: "healthy"
       },
-      dailyLimit: { type: "integer", minimum: 1, maximum: 200 },
+      dailyLimit: {
+        type: "integer",
+        minimum: 1,
+        maximum: 200,
+        description:
+          "Maximum execution intents this sender may launch per UTC day. Persisted execution records are counted and exhausted senders are unavailable until the next day."
+      },
       cooldownUntil: { type: "string", format: "date-time" },
       warmupNote: { type: "string" },
       riskEvents: openApiSenderAccountSchema().properties.riskEvents
@@ -3391,7 +3478,7 @@ async function buildOperatorDashboard(
   const generatedAt = now.toISOString();
   const campaigns = await store.list();
   const senderAccounts = await store.listSenderAccounts();
-  const senderHealth = summarizeSenderInventory(senderAccounts);
+  const senderHealth = await summarizeSenderInventoryFromStore(store, senderAccounts, now);
   const manualQueue = await buildOperatorManualQueue(
     store,
     {
@@ -4455,19 +4542,28 @@ function normalizeHandle(target: string): string {
 
 async function withCurrentSenderInventorySnapshot(
   store: CampaignStore,
-  campaign: Campaign
+  campaign: Campaign,
+  now = new Date()
 ): Promise<Campaign> {
+  const senderDailyUsage = await senderDailyLimitUsageForStore(store, now);
   const senderAccounts = await currentSenderAccountsForCampaign(store, campaign);
-  if (!senderAccounts) {
+  if (!senderAccounts && campaign.settings.senderAccounts.length === 0) {
     return campaign;
   }
 
-  return withSenderInventorySnapshot(campaign, senderAccounts);
+  return withSenderInventorySnapshot(
+    campaign,
+    senderAccounts ?? campaign.settings.senderAccounts,
+    now,
+    senderDailyUsage
+  );
 }
 
 function withSenderInventorySnapshot(
   campaign: Campaign,
-  senderAccounts: SenderAccount[]
+  senderAccounts: SenderAccount[],
+  now = new Date(),
+  senderDailyUsage: ReadonlyMap<string, SenderDailyLimitUsage> = new Map()
 ): Campaign {
   return {
     ...campaign,
@@ -4476,8 +4572,28 @@ function withSenderInventorySnapshot(
       senderPool: senderAccounts.map((account) => account.id),
       senderAccounts
     },
-    senderHealth: summarizeSenderInventory(senderAccounts)
+    senderHealth: summarizeSenderInventory(senderAccounts, now, senderDailyUsage)
   };
+}
+
+async function summarizeSenderInventoryFromStore(
+  store: CampaignStore,
+  senderAccounts?: SenderAccount[],
+  now = new Date()
+) {
+  const accounts = senderAccounts ?? (await store.listSenderAccounts());
+  return summarizeSenderInventory(accounts, now, await senderDailyLimitUsageForStore(store, now));
+}
+
+async function senderDailyLimitUsageForStore(
+  store: CampaignStore,
+  now = new Date()
+): Promise<Map<string, SenderDailyLimitUsage>> {
+  const campaigns = await store.list();
+  const executions = (
+    await Promise.all(campaigns.map((campaign) => store.listExecutions(campaign.id)))
+  ).flat();
+  return senderDailyLimitUsageFromExecutions(executions, now);
 }
 
 async function currentSenderAccountsForCampaign(
@@ -4531,6 +4647,56 @@ function assertCurrentSenderAvailability(
     throw new ConflictError(
       `Sender account(s) unavailable for execution: ${[...unavailable].join(", ")}`
     );
+  }
+}
+
+function assertSenderDailyLimitCapacity(
+  campaign: Campaign,
+  workbench: ApprovalWorkbench,
+  senderDailyUsage: ReadonlyMap<string, SenderDailyLimitUsage>,
+  now = new Date()
+): void {
+  const plannedBySender = new Map<string, number>();
+  const accountsById = new Map(
+    campaign.settings.senderAccounts.map((account) => [account.id, account])
+  );
+  const day = senderDailyLimitDay(now);
+
+  for (const target of campaign.targets) {
+    if (
+      target.status !== "scheduled" ||
+      !target.handle ||
+      !target.sender ||
+      !isApprovedExecutionTarget(workbench, target.handle)
+    ) {
+      continue;
+    }
+
+    plannedBySender.set(target.sender, (plannedBySender.get(target.sender) ?? 0) + 1);
+  }
+
+  const violations = [...plannedBySender.entries()]
+    .map(([senderId, planned]) => {
+      const account = accountsById.get(senderId);
+      if (!account) {
+        return null;
+      }
+
+      const usage = senderDailyUsage.get(senderId);
+      const used = usage?.count ?? 0;
+      const remaining = Math.max(account.dailyLimit - used, 0);
+      if (planned <= remaining) {
+        return null;
+      }
+
+      return `${senderId} has ${remaining}/${account.dailyLimit} remaining for ${
+        usage?.day ?? day
+      } but execution would schedule ${planned}`;
+    })
+    .filter((violation): violation is string => !!violation);
+
+  if (violations.length > 0) {
+    throw new ConflictError(`Sender dailyLimit would be exceeded: ${violations.join("; ")}`);
   }
 }
 

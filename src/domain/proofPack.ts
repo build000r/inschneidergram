@@ -311,7 +311,7 @@ function recommendRenewal(
     reasons.push("Critical incident present in the pilot evidence.");
   }
   if (senderHealth.available === 0) {
-    reasons.push("No sender accounts are currently healthy.");
+    reasons.push("No sender accounts are currently available for sending.");
   }
 
   if (reasons.length > 0) {

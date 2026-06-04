@@ -93,8 +93,9 @@ export interface CampaignStore {
   /**
    * Atomically launch a new execution for a campaign. The `launch` callback
    * runs inside the store's serialized critical section and receives the
-   * campaign and its existing executions as freshly read at commit time, so
-   * the read-derive-write cycle cannot interleave with a concurrent launch.
+   * campaign, its campaign executions, and all executions as freshly read at
+   * commit time, so the read-derive-write cycle cannot interleave with a
+   * concurrent launch.
    * Returning `null` aborts without persisting anything. This is the launch
    * analogue of {@link updateCampaignExecution} and is what prevents two
    * concurrent executions from both contacting the same scheduled target.
@@ -103,7 +104,8 @@ export interface CampaignStore {
     campaignId: string,
     launch: (
       campaign: Campaign,
-      executions: CampaignExecutionRecord[]
+      executions: CampaignExecutionRecord[],
+      allExecutions: CampaignExecutionRecord[]
     ) => Promise<CampaignLaunchCommit<T> | null>
   ): Promise<T | null>;
 }
@@ -264,7 +266,8 @@ export class InMemoryCampaignStore implements CampaignStore {
     campaignId: string,
     launch: (
       campaign: Campaign,
-      executions: CampaignExecutionRecord[]
+      executions: CampaignExecutionRecord[],
+      allExecutions: CampaignExecutionRecord[]
     ) => Promise<CampaignLaunchCommit<T> | null>
   ): Promise<T | null> {
     return this.locked(async () => {
@@ -276,9 +279,11 @@ export class InMemoryCampaignStore implements CampaignStore {
       const executions = [...this.executions.values()].filter(
         (record) => record.campaignId === campaignId
       );
+      const allExecutions = [...this.executions.values()];
       const commit = await launch(
         structuredClone(campaign),
-        executions.map((record) => structuredClone(record))
+        executions.map((record) => structuredClone(record)),
+        allExecutions.map((record) => structuredClone(record))
       );
       if (!commit) {
         return null;
@@ -558,7 +563,8 @@ export class JsonFileCampaignStore implements CampaignStore {
     campaignId: string,
     launch: (
       campaign: Campaign,
-      executions: CampaignExecutionRecord[]
+      executions: CampaignExecutionRecord[],
+      allExecutions: CampaignExecutionRecord[]
     ) => Promise<CampaignLaunchCommit<T> | null>
   ): Promise<T | null> {
     return this.locked(async () => {
@@ -575,7 +581,8 @@ export class JsonFileCampaignStore implements CampaignStore {
       );
       const commit = await launch(
         structuredClone(snapshot.campaigns[campaignIndex]),
-        executions.map((record) => structuredClone(record))
+        executions.map((record) => structuredClone(record)),
+        snapshot.executions.map((record) => structuredClone(record))
       );
       if (!commit) {
         return null;

@@ -1085,6 +1085,237 @@ describe("API", () => {
     await app.close();
   });
 
+  it("enforces stored sender dailyLimit across scheduled executions", async () => {
+    const app = await buildServer();
+    const today = new Date().toISOString().slice(0, 10);
+
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-a",
+      payload: {
+        dailyLimit: 1
+      }
+    });
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@daily_limit_first"],
+        message: "Open to an affiliate pilot?",
+        campaign: "daily-limit-first",
+        settings: {
+          senderPool: ["sender-a"]
+        }
+      }
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@daily_limit_second"],
+        message: "Open to an affiliate pilot?",
+        campaign: "daily-limit-second",
+        settings: {
+          senderPool: ["sender-a"]
+        }
+      }
+    });
+    const firstCampaignId = first.json().campaignId;
+    const secondCampaignId = second.json().campaignId;
+    expect(first.json().targets[0]).toMatchObject({
+      handle: "daily_limit_first",
+      status: "scheduled",
+      sender: "sender-a"
+    });
+    expect(second.json().targets[0]).toMatchObject({
+      handle: "daily_limit_second",
+      status: "scheduled",
+      sender: "sender-a"
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${firstCampaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@daily_limit_first"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${secondCampaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@daily_limit_second"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+
+    const firstExecution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${firstCampaignId}/executions`,
+      payload: {
+        adapter: { kind: "mock" }
+      }
+    });
+    expect(firstExecution.statusCode).toBe(200);
+    expect(firstExecution.json()).toMatchObject({
+      senderHealth: {
+        available: 0,
+        blocked: 1,
+        accounts: [
+          expect.objectContaining({
+            id: "sender-a",
+            available: false,
+            dailyUsage: {
+              day: today,
+              used: 1,
+              remaining: 0
+            },
+            blockers: [`daily_limit_reached:${today}`]
+          })
+        ]
+      }
+    });
+
+    const senderHealth = await app.inject({
+      method: "GET",
+      url: "/senders/health"
+    });
+    expect(senderHealth.json()).toMatchObject({
+      senderHealth: {
+        available: 0,
+        accounts: [
+          expect.objectContaining({
+            id: "sender-a",
+            dailyUsage: {
+              day: today,
+              used: 1,
+              remaining: 0
+            },
+            blockers: [`daily_limit_reached:${today}`]
+          })
+        ]
+      }
+    });
+
+    const blockedExecution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${secondCampaignId}/executions`,
+      payload: {
+        adapter: { kind: "mock" }
+      }
+    });
+    expect(blockedExecution.statusCode).toBe(409);
+    expect(blockedExecution.json()).toMatchObject({
+      error: "conflict"
+    });
+    expect(blockedExecution.json().message).toContain("Sender health");
+
+    const afterLimitCreate = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@daily_limit_third"],
+        message: "Open to an affiliate pilot?",
+        campaign: "daily-limit-third",
+        settings: {
+          senderPool: ["sender-a"]
+        }
+      }
+    });
+    expect(afterLimitCreate.statusCode).toBe(202);
+    expect(afterLimitCreate.json()).toMatchObject({
+      status: "failed",
+      summary: {
+        blockedPolicy: 1
+      },
+      senderHealth: {
+        available: 0,
+        accounts: [
+          expect.objectContaining({
+            blockers: [`daily_limit_reached:${today}`]
+          })
+        ]
+      },
+      targets: [
+        expect.objectContaining({
+          handle: "daily_limit_third",
+          status: "blocked_policy",
+          error: "No healthy sender account available"
+        })
+      ]
+    });
+
+    await app.close();
+  });
+
+  it("rejects a single execution that would exceed sender dailyLimit", async () => {
+    const app = await buildServer();
+
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-a",
+      payload: {
+        dailyLimit: 1
+      }
+    });
+    const create = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@daily_limit_batch_one", "@daily_limit_batch_two"],
+        message: "Open to an affiliate pilot?",
+        campaign: "daily-limit-batch",
+        settings: {
+          senderPool: ["sender-a"],
+          minDelaySeconds: 60,
+          maxDelaySeconds: 60
+        }
+      }
+    });
+    const campaignId = create.json().campaignId;
+    expect(create.json().targets.map((target: { status: string }) => target.status)).toEqual([
+      "scheduled",
+      "scheduled"
+    ]);
+    expect(
+      new Date(create.json().targets[1].scheduledAt).getTime() -
+        new Date(create.json().targets[0].scheduledAt).getTime()
+    ).toBe(24 * 60 * 60 * 1000);
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@daily_limit_batch_one", "@daily_limit_batch_two"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+
+    const execution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "mock" }
+      }
+    });
+    expect(execution.statusCode).toBe(409);
+    expect(execution.json().message).toContain("Sender dailyLimit would be exceeded");
+    expect(execution.json().message).toContain("sender-a has 1/1 remaining");
+
+    const executions = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions`
+    });
+    expect(executions.json().executions).toEqual([]);
+
+    await app.close();
+  });
+
   it("preserves stored senderPool order during campaign scheduling", async () => {
     const app = await buildServer();
 

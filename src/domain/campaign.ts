@@ -5,8 +5,10 @@ import {
   availableSenderAccounts,
   buildSenderInventory,
   senderAccountSchema,
+  senderDailyLimitDay,
   summarizeSenderInventory,
   type SenderAccount,
+  type SenderDailyLimitUsage,
   type SenderInventoryHealth
 } from "./sender.js";
 
@@ -180,7 +182,8 @@ export interface CampaignSummary {
 
 export function createCampaign(
   input: unknown,
-  now = new Date()
+  now = new Date(),
+  senderDailyUsage: ReadonlyMap<string, SenderDailyLimitUsage> = new Map()
 ): Campaign {
   const parsed = createCampaignSchema.parse(input);
   const nowIso = now.toISOString();
@@ -190,7 +193,7 @@ export function createCampaign(
     parsed.settings.dailyLimitPerSender,
     parsed.settings.senderAccounts
   );
-  const targets = buildTargets(parsed, senderInventory, now);
+  const targets = buildTargets(parsed, senderInventory, now, senderDailyUsage);
 
   return summarizeCampaign({
     id: `camp_${randomUUID()}`,
@@ -214,7 +217,7 @@ export function createCampaign(
     updatedAt: nowIso,
     targets,
     summary: emptySummary(),
-    senderHealth: summarizeSenderInventory(senderInventory, now)
+    senderHealth: summarizeSenderInventory(senderInventory, now, senderDailyUsage)
   });
 }
 
@@ -271,11 +274,13 @@ export function recordTargetEvent(
 function buildTargets(
   input: CreateCampaignInput,
   senderInventory: SenderAccount[],
-  now: Date
+  now: Date,
+  senderDailyUsage: ReadonlyMap<string, SenderDailyLimitUsage>
 ): CampaignTarget[] {
   const seen = new Set<string>();
   const senderSlots = new Map<string, number>();
-  const availableSenders = availableSenderAccounts(senderInventory, now);
+  const availableSenders = availableSenderAccounts(senderInventory, now, senderDailyUsage);
+  const usageDay = senderDailyLimitDay(now);
   const spacingSeconds = Math.round(
     (input.settings.minDelaySeconds + input.settings.maxDelaySeconds) / 2
   );
@@ -341,7 +346,9 @@ function buildTargets(
     }
 
     const sender = chooseSender(availableSenders, seen.size - 1);
-    const senderSlot = senderSlots.get(sender.id) ?? 0;
+    const senderUsage = senderDailyUsage.get(sender.id);
+    const usedToday = senderUsage?.day === usageDay ? senderUsage.count : 0;
+    const senderSlot = senderSlots.get(sender.id) ?? usedToday;
     senderSlots.set(sender.id, senderSlot + 1);
 
     return {

@@ -43,14 +43,15 @@ class BarrierExecutionStore extends InMemoryCampaignStore {
     campaignId: string,
     launch: (
       campaign: Campaign,
-      executions: CampaignExecutionRecord[]
+      executions: CampaignExecutionRecord[],
+      allExecutions: CampaignExecutionRecord[]
     ) => Promise<CampaignLaunchCommit<T> | null>
   ): Promise<T | null> {
     this.entries += 1;
     if (this.entries === 2) {
       this.signalSecondEntered();
     }
-    return super.commitNewExecution(campaignId, async (campaign, executions) => {
+    return super.commitNewExecution(campaignId, async (campaign, executions, allExecutions) => {
       if (!this.firstHeld) {
         this.firstHeld = true;
         // Hold the first committer open until the second launch has at least
@@ -62,7 +63,7 @@ class BarrierExecutionStore extends InMemoryCampaignStore {
           new Promise<void>((resolve) => setTimeout(resolve, 200))
         ]);
       }
-      return launch(campaign, executions);
+      return launch(campaign, executions, allExecutions);
     });
   }
 }

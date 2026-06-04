@@ -28,7 +28,7 @@ This repo currently contains the API/control-plane MVP:
 | Target normalization | Working MVP | `src/domain/handles.ts`, `tests/campaign.test.ts` |
 | Creator provenance intake | Working MVP | target profile objects, opt-in provenance gate, readiness/proof metrics |
 | Duplicate prevention | Working MVP | in-campaign dedupe plus persisted suppression records |
-| Sender limits and scheduling | Working MVP | per-sender limits, delay windows, domain tests |
+| Sender limits and scheduling | Working MVP | per-sender UTC-day limits, delay windows, execution-limit tests |
 | Delivery/reply status tracking | Working MVP | `POST /campaigns/:id/events`, including late provider proof refresh |
 | Webhook signing helper | Working MVP | `src/domain/webhook.ts` |
 | Runtime webhook callbacks | Working MVP | provider events and non-simulated executions dispatch signed callbacks |
@@ -533,6 +533,13 @@ campaigns also consult the persisted suppression records created by earlier
 campaigns, so previously scheduled handles are returned as `skipped_duplicate`.
 Responses include `senderHealth`; locked, cooling-down, or reconnect-required
 senders are blocked from scheduling and surfaced as account-health blockers.
+Sender `dailyLimit` is enforced as a UTC-day execution-intent budget: persisted
+execution records are counted per sender, exhausted senders return
+`daily_limit_reached:<YYYY-MM-DD>` in `senderHealth.accounts[].blockers`, and
+new scheduling or execution is blocked until the next UTC day. Campaign
+`settings.dailyLimitPerSender` is the fallback limit for synthetic inline
+senders; managed inventory `dailyLimit` values are the source of truth when
+stored senders are used.
 Responses also preserve `targets[].profile` for object targets, so the campaign
 record remains the source of truth for creator provenance and fit rationale.
 When a campaign omits inline `settings.senderAccounts`, the API uses the stored
@@ -609,7 +616,8 @@ cannot remain due for a creator who already replied or failed.
 `POST /campaigns/:id/executions` is the pilot-demo workflow. It refuses to
 create proof records until readiness approval gates pass through a stored
 approval workbench or explicit inline execution approvals, rechecks current
-managed sender health for assigned approved targets, requires a structured
+managed sender health and remaining dailyLimit capacity for assigned approved
+targets, requires a structured
 `launchAuthorization` for `manual` and `managed_provider` adapters, routes approved targets
 through a safe
 `mock`, `manual`, or `managed_provider` adapter, records campaign events,

@@ -33,11 +33,21 @@ export interface SenderAccount {
   riskEvents: SenderRiskEvent[];
 }
 
+export interface SenderDailyLimitUsage {
+  day: string;
+  count: number;
+}
+
 export interface SenderAccountHealth {
   id: string;
   status: SenderAccountStatus;
   available: boolean;
   dailyLimit: number;
+  dailyUsage: {
+    day: string;
+    used: number;
+    remaining: number;
+  };
   cooldownUntil?: string;
   warmupNote?: string;
   blockers: string[];
@@ -143,9 +153,12 @@ export function buildSenderInventory(
 
 export function summarizeSenderInventory(
   accounts: SenderAccount[],
-  now = new Date()
+  now = new Date(),
+  dailyUsage: ReadonlyMap<string, SenderDailyLimitUsage> = new Map()
 ): SenderInventoryHealth {
-  const accountHealth = accounts.map((account) => summarizeSenderAccount(account, now));
+  const accountHealth = accounts.map((account) =>
+    summarizeSenderAccount(account, now, dailyUsage.get(account.id))
+  );
   const available = accountHealth.filter((account) => account.available).length;
 
   return {
@@ -158,12 +171,23 @@ export function summarizeSenderInventory(
 
 export function summarizeSenderAccount(
   account: SenderAccount,
-  now = new Date()
+  now = new Date(),
+  usage: SenderDailyLimitUsage = { day: senderDailyLimitDay(now), count: 0 }
 ): SenderAccountHealth {
+  const usageDay = senderDailyLimitDay(now);
+  const usageForDay =
+    usage.day === usageDay
+      ? usage
+      : {
+          day: usageDay,
+          count: 0
+        };
   const blockers: string[] = [];
   const cooldownActive =
     account.status === "cooldown" &&
     (!account.cooldownUntil || Date.parse(account.cooldownUntil) > now.getTime());
+  const used = Math.max(0, usageForDay.count);
+  const remaining = Math.max(account.dailyLimit - used, 0);
 
   if (cooldownActive) {
     blockers.push(account.cooldownUntil ? `cooldown_until:${account.cooldownUntil}` : "cooldown");
@@ -177,11 +201,20 @@ export function summarizeSenderAccount(
     blockers.push("reconnect_required");
   }
 
+  if (used >= account.dailyLimit) {
+    blockers.push(`daily_limit_reached:${usageForDay.day}`);
+  }
+
   return {
     id: account.id,
     status: account.status,
     available: blockers.length === 0,
     dailyLimit: account.dailyLimit,
+    dailyUsage: {
+      day: usageForDay.day,
+      used,
+      remaining
+    },
     cooldownUntil: account.cooldownUntil,
     warmupNote: account.warmupNote,
     blockers,
@@ -191,9 +224,16 @@ export function summarizeSenderAccount(
 
 export function availableSenderAccounts(
   accounts: SenderAccount[],
-  now = new Date()
+  now = new Date(),
+  dailyUsage: ReadonlyMap<string, SenderDailyLimitUsage> = new Map()
 ): SenderAccount[] {
-  return accounts.filter((account) => summarizeSenderAccount(account, now).available);
+  return accounts.filter((account) =>
+    summarizeSenderAccount(account, now, dailyUsage.get(account.id)).available
+  );
+}
+
+export function senderDailyLimitDay(value: Date): string {
+  return value.toISOString().slice(0, 10);
 }
 
 function assertUnique(values: string[], label: string): void {
