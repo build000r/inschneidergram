@@ -10,7 +10,13 @@ coverage/
 .claude/skills/
 .codex/skills/
 
+# Local multi-agent runtime state.
+.ntm/
+
 # Editor and OS noise.
 .DS_Store
 .idea/
 .vscode/
+
+# bv (beads viewer) local config and caches
+.bv/
