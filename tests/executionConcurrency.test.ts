@@ -6,6 +6,7 @@ import type {
   CampaignLaunchCommit
 } from "../src/domain/store.js";
 import type { Campaign } from "../src/domain/campaign.js";
+import type { SenderAccount } from "../src/domain/sender.js";
 
 // Regression guard for the concurrent-execution double-send race.
 //
@@ -44,27 +45,55 @@ class BarrierExecutionStore extends InMemoryCampaignStore {
     launch: (
       campaign: Campaign,
       executions: CampaignExecutionRecord[],
-      allExecutions: CampaignExecutionRecord[]
+      allExecutions: CampaignExecutionRecord[],
+      senderAccounts: SenderAccount[]
     ) => Promise<CampaignLaunchCommit<T> | null>
   ): Promise<T | null> {
     this.entries += 1;
     if (this.entries === 2) {
       this.signalSecondEntered();
     }
-    return super.commitNewExecution(campaignId, async (campaign, executions, allExecutions) => {
-      if (!this.firstHeld) {
-        this.firstHeld = true;
-        // Hold the first committer open until the second launch has at least
-        // tried to enter. A non-atomic store lets the second proceed here and
-        // double-send; a serialized store keeps the second outside until the
-        // first commit completes.
-        await Promise.race([
-          this.secondEntered,
-          new Promise<void>((resolve) => setTimeout(resolve, 200))
-        ]);
+    return super.commitNewExecution(
+      campaignId,
+      async (campaign, executions, allExecutions, senderAccounts) => {
+        if (!this.firstHeld) {
+          this.firstHeld = true;
+          // Hold the first committer open until the second launch has at least
+          // tried to enter. A non-atomic store lets the second proceed here and
+          // double-send; a serialized store keeps the second outside until the
+          // first commit completes.
+          await Promise.race([
+            this.secondEntered,
+            new Promise<void>((resolve) => setTimeout(resolve, 200))
+          ]);
+        }
+        return launch(campaign, executions, allExecutions, senderAccounts);
       }
-      return launch(campaign, executions, allExecutions);
-    });
+    );
+  }
+}
+
+class SenderRestrictedBeforeCommitStore extends InMemoryCampaignStore {
+  private restricted = false;
+
+  override async commitNewExecution<T>(
+    campaignId: string,
+    launch: (
+      campaign: Campaign,
+      executions: CampaignExecutionRecord[],
+      allExecutions: CampaignExecutionRecord[],
+      senderAccounts: SenderAccount[]
+    ) => Promise<CampaignLaunchCommit<T> | null>
+  ): Promise<T | null> {
+    if (!this.restricted) {
+      this.restricted = true;
+      await this.appendSenderRiskEvent("sender-a", {
+        kind: "restriction",
+        note: "Sender became restricted immediately before execution commit"
+      });
+    }
+
+    return super.commitNewExecution(campaignId, launch);
   }
 }
 
@@ -169,6 +198,65 @@ describe("concurrent campaign executions", () => {
     expect(second.statusCode).toBe(200);
     expect(second.json().intents).toHaveLength(1);
     expect(second.json().intents[0].targetHandle).toBe("second_target");
+
+    await app.close();
+  });
+
+  it("rechecks managed sender health from the fresh commit snapshot", async () => {
+    const app = await buildServer({
+      store: new SenderRestrictedBeforeCommitStore(),
+      webhookSecret: "x".repeat(16)
+    });
+
+    await app.inject({
+      method: "PUT",
+      url: "/senders/sender-a",
+      payload: {
+        dailyLimit: 20
+      }
+    });
+    const create = await app.inject({
+      method: "POST",
+      url: "/campaigns",
+      payload: {
+        targets: ["@just_restricted_creator"],
+        message: "Hey - loved your content.",
+        campaign: "sender-restricted-before-commit",
+        settings: {
+          senderPool: ["sender-a"]
+        }
+      }
+    });
+    expect(create.statusCode).toBe(202);
+    const campaignId = create.json().campaignId;
+
+    await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/approval-workbench`,
+      payload: {
+        approvedTargets: ["@just_restricted_creator"],
+        approveMessage: true,
+        actor: "approver"
+      }
+    });
+
+    const execution = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions`,
+      payload: {
+        adapter: { kind: "mock" }
+      }
+    });
+
+    expect(execution.statusCode).toBe(409);
+    expect(execution.json().message).toContain("Sender account(s) unavailable");
+    expect(execution.json().message).toContain("sender-a");
+
+    const executions = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/executions`
+    });
+    expect(executions.json().executions).toEqual([]);
 
     await app.close();
   });

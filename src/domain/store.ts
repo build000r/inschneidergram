@@ -105,7 +105,8 @@ export interface CampaignStore {
     launch: (
       campaign: Campaign,
       executions: CampaignExecutionRecord[],
-      allExecutions: CampaignExecutionRecord[]
+      allExecutions: CampaignExecutionRecord[],
+      senderAccounts: SenderAccount[]
     ) => Promise<CampaignLaunchCommit<T> | null>
   ): Promise<T | null>;
 }
@@ -267,7 +268,8 @@ export class InMemoryCampaignStore implements CampaignStore {
     launch: (
       campaign: Campaign,
       executions: CampaignExecutionRecord[],
-      allExecutions: CampaignExecutionRecord[]
+      allExecutions: CampaignExecutionRecord[],
+      senderAccounts: SenderAccount[]
     ) => Promise<CampaignLaunchCommit<T> | null>
   ): Promise<T | null> {
     return this.locked(async () => {
@@ -283,7 +285,8 @@ export class InMemoryCampaignStore implements CampaignStore {
       const commit = await launch(
         structuredClone(campaign),
         executions.map((record) => structuredClone(record)),
-        allExecutions.map((record) => structuredClone(record))
+        allExecutions.map((record) => structuredClone(record)),
+        [...this.senderAccounts.values()].map((account) => structuredClone(account))
       );
       if (!commit) {
         return null;
@@ -564,7 +567,8 @@ export class JsonFileCampaignStore implements CampaignStore {
     launch: (
       campaign: Campaign,
       executions: CampaignExecutionRecord[],
-      allExecutions: CampaignExecutionRecord[]
+      allExecutions: CampaignExecutionRecord[],
+      senderAccounts: SenderAccount[]
     ) => Promise<CampaignLaunchCommit<T> | null>
   ): Promise<T | null> {
     return this.locked(async () => {
@@ -582,7 +586,8 @@ export class JsonFileCampaignStore implements CampaignStore {
       const commit = await launch(
         structuredClone(snapshot.campaigns[campaignIndex]),
         executions.map((record) => structuredClone(record)),
-        snapshot.executions.map((record) => structuredClone(record))
+        snapshot.executions.map((record) => structuredClone(record)),
+        snapshot.senderAccounts.map((account) => structuredClone(account))
       );
       if (!commit) {
         return null;

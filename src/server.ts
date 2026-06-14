@@ -676,15 +676,19 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       // remains the launch was superseded by a concurrent run -> 409.
       const committed = await store.commitNewExecution(
         id,
-        async (freshCampaign, _freshExecutions, allExecutions) => {
+        async (freshCampaign, _freshExecutions, allExecutions, freshSenderAccounts) => {
           const freshDailyUsage = senderDailyLimitUsageFromExecutions(
             allExecutions,
             launchedAt
           );
-          const launchCampaign = senderAccountsSnapshot
+          const freshSenderAccountsSnapshot = senderAccountsForCampaignFromInventory(
+            freshCampaign,
+            freshSenderAccounts
+          );
+          const launchCampaign = freshSenderAccountsSnapshot
             ? withSenderInventorySnapshot(
                 freshCampaign,
-                senderAccountsSnapshot,
+                freshSenderAccountsSnapshot,
                 launchedAt,
                 freshDailyUsage
               )
@@ -4600,11 +4604,20 @@ async function currentSenderAccountsForCampaign(
   store: CampaignStore,
   campaign: Campaign
 ): Promise<SenderAccount[] | null> {
+  return senderAccountsForCampaignFromInventory(
+    campaign,
+    await store.listSenderAccounts()
+  );
+}
+
+function senderAccountsForCampaignFromInventory(
+  campaign: Campaign,
+  storedAccounts: SenderAccount[]
+): SenderAccount[] | null {
   if (campaign.metadata.senderInventorySource !== "managed_store") {
     return null;
   }
 
-  const storedAccounts = await store.listSenderAccounts();
   if (storedAccounts.length === 0) {
     return null;
   }
