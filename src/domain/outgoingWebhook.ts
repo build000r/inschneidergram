@@ -212,6 +212,7 @@ export class OutgoingWebhookDispatcher {
   private readonly maxAttempts: number;
   private readonly backoffMs: (attempt: number, record: WebhookDeliveryRecord) => number;
   private readonly retryableStatusCodes: (statusCode: number) => boolean;
+  private drainQueue = Promise.resolve();
 
   constructor(options: OutgoingWebhookDispatcherOptions) {
     this.secret = options.secret;
@@ -247,6 +248,18 @@ export class OutgoingWebhookDispatcher {
   }
 
   async drainDue(now = new Date()): Promise<WebhookDeliveryRecord[]> {
+    const next = this.drainQueue.then(
+      () => this.drainDueUnlocked(now),
+      () => this.drainDueUnlocked(now)
+    );
+    this.drainQueue = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
+  }
+
+  private async drainDueUnlocked(now = new Date()): Promise<WebhookDeliveryRecord[]> {
     const processed: WebhookDeliveryRecord[] = [];
     const nowTime = now.getTime();
 

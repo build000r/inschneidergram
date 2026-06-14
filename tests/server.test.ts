@@ -4597,6 +4597,22 @@ describe("API", () => {
     expect(incompleteEvidence.statusCode).toBe(400);
     expect(incompleteEvidence.json().message).toContain("Missing manual evidence for sent");
 
+    const missingMessageId = await app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,
+      payload: {
+        target: "@manual_creator",
+        type: "sent",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/manual_creator",
+          screenshotUrl: "s3://proof/manual-sent.png"
+        }
+      }
+    });
+    expect(missingMessageId.statusCode).toBe(400);
+    expect(missingMessageId.json().message).toContain("sent events require a messageId");
+
     const sentEvidence = await app.inject({
       method: "POST",
       url: `/campaigns/${campaignId}/executions/${executionId}/manual-events`,

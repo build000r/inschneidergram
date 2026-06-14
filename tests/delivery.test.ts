@@ -121,6 +121,17 @@ describe("managed delivery adapter contract", () => {
       })
     ).toThrow("Missing manual evidence for sent: conversationUrl, screenshotUrl");
 
+    expect(() =>
+      recordManualDeliveryEvent(adapter, intent, {
+        type: "sent",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/123",
+          screenshotUrl: "s3://proof/sent.png"
+        }
+      })
+    ).toThrow("sent events require a messageId");
+
     const sent = recordManualDeliveryEvent(
       adapter,
       intent,
@@ -158,6 +169,7 @@ describe("managed delivery adapter contract", () => {
     expect(() =>
       recordManualDeliveryEvent(adapter, intent, {
         type: "replied",
+        messageId: "manual_msg_1",
         evidence: {
           operatorId: "op_1",
           conversationUrl: "https://instagram.com/direct/t/123",
@@ -167,7 +179,7 @@ describe("managed delivery adapter contract", () => {
       })
     ).toThrow("replied events require replyText");
 
-    expect(
+    expect(() =>
       recordManualDeliveryEvent(adapter, intent, {
         type: "replied",
         replyText: "Interested - send details",
@@ -178,8 +190,23 @@ describe("managed delivery adapter contract", () => {
           replyCapturedAt: "2026-05-30T01:20:00.000Z"
         }
       })
+    ).toThrow("replied events require a messageId");
+
+    expect(
+      recordManualDeliveryEvent(adapter, intent, {
+        type: "replied",
+        messageId: "manual_msg_1",
+        replyText: "Interested - send details",
+        evidence: {
+          operatorId: "op_1",
+          conversationUrl: "https://instagram.com/direct/t/123",
+          screenshotUrl: "s3://proof/reply.png",
+          replyCapturedAt: "2026-05-30T01:20:00.000Z"
+        }
+      })
     ).toMatchObject({
       type: "replied",
+      messageId: "manual_msg_1",
       replyText: "Interested - send details"
     });
   });

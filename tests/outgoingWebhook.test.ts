@@ -130,6 +130,51 @@ describe("outgoing signed webhooks", () => {
     ]);
   });
 
+  it("does not send the same pending delivery twice when dispatch is concurrent", async () => {
+    const requests: OutgoingWebhookRequest[] = [];
+    let releaseSender: (() => void) | undefined;
+    let markSenderStarted: (() => void) | undefined;
+    const senderStarted = new Promise<void>((resolve) => {
+      markSenderStarted = resolve;
+    });
+    const senderReleased = new Promise<void>((resolve) => {
+      releaseSender = resolve;
+    });
+    const dispatcher = new OutgoingWebhookDispatcher({
+      secret: "concurrent-secret",
+      async sender(request) {
+        requests.push(request);
+        markSenderStarted?.();
+        await senderReleased;
+        return { statusCode: 204 };
+      }
+    });
+    const job = {
+      id: "evt_concurrent",
+      url: "https://example.com/webhooks/concurrent",
+      payload: createCampaignWebhookPayload(baseCampaign(), "campaign.updated", {
+        id: "evt_concurrent",
+        occurredAt: "2026-05-30T01:07:00.000Z"
+      })
+    };
+
+    const firstDispatch = dispatcher.dispatch(job, new Date("2026-05-30T01:07:00.000Z"));
+    await senderStarted;
+
+    const secondDispatch = dispatcher.dispatch(job, new Date("2026-05-30T01:07:00.000Z"));
+    await Promise.resolve();
+
+    expect(requests).toHaveLength(1);
+
+    releaseSender?.();
+    const [first, second] = await Promise.all([firstDispatch, secondDispatch]);
+
+    expect(requests).toHaveLength(1);
+    expect(first).toMatchObject({ id: "evt_concurrent", status: "delivered" });
+    expect(second).toMatchObject({ id: "evt_concurrent", status: "delivered" });
+    expect(dispatcher.get("evt_concurrent")?.attempts).toHaveLength(1);
+  });
+
   it("moves non-retryable permanent failures to dead letter state", async () => {
     const dispatcher = new OutgoingWebhookDispatcher({
       secret: "dead-letter-secret",

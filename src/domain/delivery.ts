@@ -297,6 +297,10 @@ export function recordManualDeliveryEvent(
     throw new Error(`Missing manual evidence for ${parsed.type}: ${missing.join(", ")}`);
   }
 
+  if ((parsed.type === "sent" || parsed.type === "replied") && !parsed.messageId) {
+    throw new Error(`${parsed.type} events require a messageId`);
+  }
+
   if ((parsed.type === "failed" || parsed.type === "restricted") && !parsed.reason) {
     throw new Error(`${parsed.type} events require a reason`);
   }
