@@ -23,7 +23,7 @@ flowchart LR
   delivery["YELLOW Real provider/account operations open in inschneidergram-j8b"]
   ops["GREEN Managed sender inventory + risk events"]
   riskReconcile["GREEN Manual restriction risk reconciliation"]
-  beads["YELLOW Beads planning active"]
+  beads["YELLOW Open beads: j8b.3 live pilot + ier.1-4 evaluator receipts"]
   proof["GREEN Proof pack generator"]
   proofExport["GREEN Latest proof export API"]
   proofPacket["GREEN Canonical proof-packet API + stable SHA-256"]
@@ -47,6 +47,7 @@ flowchart LR
   intakeKit["GREEN Live pilot intake kit + schema-backed validation/API rehearsal + non-expiring local examples"]
   providerBridge["GREEN Evidence-bearing managed-provider bridge rehearsal"]
   statusLink["GREEN Public Buildooor short link live-verified"]
+  evaluatorReceipts["YELLOW Evaluator receipts/packet open in ier.1-4"]
   next["Next: real delivery ops + live pilot"]
   bounty --> api
   api --> creatorIntake
@@ -134,6 +135,9 @@ flowchart LR
   acceptanceMatrix --> beads
   intakeKit --> beads
   providerBridge --> beads
+  acceptanceMatrix --> evaluatorReceipts
+  evaluatorPacket --> evaluatorReceipts
+  evaluatorReceipts --> beads
   beads --> next
   class api green
   class creatorIntake green
@@ -168,6 +172,7 @@ flowchart LR
   class providerBridge green
   class statusLink green
   class beads yellow
+  class evaluatorReceipts yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
   classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
@@ -210,8 +215,13 @@ gantt
   GREEN Public MMDX short link live-verified :done, 2026-05-30, 1d
   YELLOW Real provider/account operations in inschneidergram-j8b :active, 2026-05-31, 5d
   YELLOW Live pilot preparation in inschneidergram-j8b :active, 2026-06-04, 2d
-  section RED Unproven
-  RED Live delivery evidence not captured yet :crit, 2026-06-06, 3d
+  YELLOW Live delivery proof externally blocked in inschneidergram-j8b.3 :active, 2026-06-06, 4d
+  YELLOW Local bounty proof receipt in ier.1 :active, 2026-07-04, 2d
+  YELLOW Live-pilot operator handoff receipt in ier.2 :active, 2026-07-04, 2d
+  YELLOW Manual delivery trust boundary in ier.3 :active, 2026-07-04, 2d
+  YELLOW Bounty evaluator launch packet in ier.4 :active, 2026-07-06, 2d
+  section RED No Bead
+  RED Live Instagram delivery record not yet captured (tracked, blocked j8b.3) :crit, 2026-07-08, 3d
 ```
 
 ## chart epic-map Epic Dependency Map
@@ -430,22 +440,23 @@ flowchart LR
 ## chart proof-status Proof Status
 ```mermaid
 flowchart TD
-  tests["GREEN npm test covers API/store/senders/sender-risk-reconciliation/approval/operator-dashboard/operator/manual-queue/managed-provider-evidence/atomic-evidence/execution-gating/fresh-evidence-backed-launch-authorization-gating/pending-manual-evidence-gating/proof-export/proof-freshness/pilot-handoff/pre-campaign-launch-packet/follow-ups/auth/runtime-webhooks/manual-evidence-runtime-webhooks/webhook-guard/creator-provenance/operator-proof/readiness/openapi/provenance-sender-manual-rehearsal/runtime/domain"]
+  tests["GREEN npm test green across API/store/senders/risk/approval/dashboard/manual-queue/provider-evidence/gating/proof/webhooks/auth/readiness/openapi/domain"]
   typecheck["GREEN typecheck green"]
-  smoke["GREEN npm run smoke:service builds first and passed provider + manual paths plus operator dashboard with API key enabled"]
-  dockerSmoke["GREEN npm run smoke:docker builds the image and verifies container health/auth/launch packet"]
-  sourceDoc["GREEN source evidence doc separates public sources from operator-provided bounty interpretation"]
-  proofDoc["GREEN current local proof dossier refreshed"]
-  evaluatorProof["GREEN npm run proof:bounty-local wraps local evaluator gates; proof:bounty-local:docker adds container proof"]
-  acceptanceMatrix["GREEN bounty acceptance matrix maps requirements to evidence and blockers"]
-  intakeValidation["GREEN npm run pilot:intake:validate checks live pilot campaign/sender/auth/webhook inputs and renews only bundled example auth windows"]
-  intakeRehearsal["GREEN npm run pilot:intake:rehearse creates sender/campaign/approval/manual queue state"]
-  providerBridgeProof["GREEN npm run pilot:provider-bridge creates provider handoff and proof from evidence-bearing provider outcomes"]
+  smoke["GREEN smoke:service passes provider + manual + dashboard paths with API key"]
+  dockerSmoke["GREEN smoke:docker verifies container health/auth/launch packet"]
+  sourceDoc["GREEN source evidence doc separates public sources from operator interpretation"]
+  proofDoc["GREEN local proof dossier refreshed"]
+  evaluatorProof["GREEN proof:bounty-local wraps evaluator gates; :docker adds container proof"]
+  acceptanceMatrix["GREEN acceptance matrix maps requirements to evidence and blockers"]
+  intakeValidation["GREEN pilot:intake:validate checks campaign/sender/auth/webhook inputs, renews example auth windows"]
+  intakeRehearsal["GREEN pilot:intake:rehearse creates sender/campaign/approval/manual queue state"]
+  providerBridgeProof["GREEN pilot:provider-bridge creates provider handoff + proof from provider outcomes"]
   proofPacket["GREEN proof-packet export carries redacted replay data and canonical SHA-256"]
   mmdx["GREEN MMDX preflight passed"]
   statusLink["GREEN Public Buildooor short link live-verified"]
-  live["YELLOW no live Instagram delivery proof yet; covered by inschneidergram-j8b"]
-  pilot["YELLOW no Graphed pilot evidence yet; covered by inschneidergram-j8b"]
+  live["YELLOW no live Instagram delivery proof yet; covered by inschneidergram-j8b.3"]
+  pilot["YELLOW no Graphed pilot evidence yet; covered by inschneidergram-j8b.3"]
+  receipts["YELLOW evaluator/local-proof receipts not yet assembled; covered by ier.1-4"]
   tests --> typecheck
   typecheck --> smoke
   smoke --> dockerSmoke
@@ -461,6 +472,7 @@ flowchart TD
   mmdx --> statusLink
   statusLink --> live
   live --> pilot
+  pilot --> receipts
   class tests green
   class typecheck green
   class smoke green
@@ -477,6 +489,7 @@ flowchart TD
   class statusLink green
   class live yellow
   class pilot yellow
+  class receipts yellow
   classDef green fill:#dff7df,stroke:#20833a,stroke-width:2px,color:#0f2f18
   classDef yellow fill:#fff3bf,stroke:#b7791f,stroke-width:2px,color:#3a2a00
   classDef red fill:#ffd6d6,stroke:#c53030,stroke-width:2px,color:#3a0505
@@ -486,8 +499,8 @@ flowchart TD
 ```mermaid
 flowchart LR
   docs["GREEN Docs admit live delivery gap"]
-  code["GREEN Code matches API/store/senders/sender-risk-reconciliation/approval/operator-dashboard/operator/manual-queue/managed-provider-evidence/managed-provider-bridge/atomic-evidence/execution-gating/fresh-evidence-backed-launch-authorization-gating/example-authorization-renewal/pending-manual-evidence-gating/proof-export/proof-freshness/pilot-handoff/pre-campaign-launch-packet/live-pilot-intake/live-pilot-rehearsal/follow-ups/auth/runtime-webhooks/manual-evidence-runtime-webhooks/webhook-guard/creator-provenance/service-smoke/proof/openapi/provenance-sender-rehearsal claims"]
-  beads["YELLOW Beads keep live ops and pilot gap open"]
+  code["GREEN Code matches claims across API/store/senders/approval/dashboard/manual-queue/provider-bridge/gating/proof/intake/webhooks/auth/openapi"]
+  beads["YELLOW Beads keep gaps open: j8b/j8b.3 live pilot + ier.1-4 evaluator receipts"]
   bounty["RED Bounty complete claim would be false today"]
   docs --> code --> beads --> bounty
   class docs green
@@ -502,12 +515,13 @@ flowchart LR
 ## chart next-move Next Move
 ```mermaid
 flowchart TD
-  now["Current: API, creator provenance intake, follow-up plan API, durable store, sender inventory, manual restriction risk reconciliation, approval/operator API, operator manual queue, operator dashboard, evidence-bearing managed-provider outcome contract, managed-provider bridge rehearsal, execution readiness, fresh evidence-backed launch authorization, runtime renewal for bundled example authorization windows, pending-manual-evidence enforcement, latest proof export, canonical proof-packet export with stable SHA-256, late provider proof/follow-up refresh, pre-campaign launch packet, live pilot intake validation/rehearsal, pilot handoff packet, strong API/webhook secret gate, runtime webhook callbacks for provider/execution/manual evidence, webhook destination guard, provider + manual service smoke, Docker runtime, atomic evidence writes, webhooks, readiness, OpenAPI contract, strict-provenance managed-sender manual rehearsal, proof metrics, bounty submission packet, one-command local proof"]
-  link["Next blocker: choose live pilot path and provide private pilot inputs (inschneidergram-j8b.3)"]
+  now["Current: API, creator intake, follow-ups, durable store, sender inventory, risk reconciliation, approval/operator API, dashboard, managed-provider outcome contract + bridge, execution readiness, launch authorization, pending-manual-evidence enforcement, proof export + canonical packet (SHA-256), pilot intake + handoff, secret gate, runtime webhooks + guard, service smoke, Docker, OpenAPI contract, bounty packet + one-command local proof"]
+  ready["Ready now (local, unblocked): assemble compact bounty proof + evaluator receipts (ier.1 -> ier.3/ier.2 -> ier.4)"]
+  link["External blocker: choose live pilot path and provide private pilot inputs (inschneidergram-j8b.3)"]
   first["Then: verified provider/account operations"]
   second["Then: live Graphed pilot"]
   third["Then: proof publication polish after live records exist"]
-  now --> link --> first --> second --> third
+  now --> ready --> link --> first --> second --> third
 ```
 
 ## chart erd Data Model ERD
